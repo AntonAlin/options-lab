@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexus Options Lab Ultimate — Europas mest avancerade visualiserare för europeiska optioner</title>
+  <meta name="description" content="Professionell Black-Scholes-Merton analysplattform för multi-leg europeiska optioner. Payoff, Greeks, Monte Carlo, ytor, riskmått, IV-solver och mer.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+          colors: {
+            void: '#05050a', panel: '#0c0c14', border: '#1a1a28',
+            accent: '#6366f1', cyan: '#22d3ee', rose: '#fb7185', emerald: '#34d399', amber: '#fbbf24'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root { --glass: rgba(255,255,255,0.025); --glass-border: rgba(255,255,255,0.06); }
+    * { box-sizing: border-box; }
+    body {
+      background: radial-gradient(ellipse 140% 90% at 50% -30%, #16162a 0%, #08080f 45%, #030306 100%);
+      min-height: 100vh; color: #e2e8f0;
+    }
+    .glass { background: var(--glass); backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px); border: 1px solid var(--glass-border); }
+    .glass-strong { background: rgba(12,12,20,0.92); backdrop-filter: blur(40px); border: 1px solid rgba(255,255,255,0.07); }
+    .neon { box-shadow: 0 0 50px rgba(99,102,241,0.12), inset 0 1px 0 rgba(255,255,255,0.04); }
+    .input-field { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.07); transition: all 0.18s; }
+    .input-field:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.18); }
+    .btn-primary { background: linear-gradient(135deg,#6366f1,#4f46e5); transition: all 0.2s; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(99,102,241,0.35); }
+    .btn-ghost { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); transition: all 0.18s; }
+    .btn-ghost:hover { background: rgba(255,255,255,0.07); border-color: rgba(99,102,241,0.45); }
+    .btn-danger { background: rgba(251,113,133,0.12); border: 1px solid rgba(251,113,133,0.25); color: #fb7185; }
+    .btn-danger:hover { background: rgba(251,113,133,0.22); }
+    .tab-active { background: linear-gradient(135deg,rgba(99,102,241,0.28),rgba(34,211,238,0.08)); border-color: rgba(99,102,241,0.55); color: #fff; }
+    .metric-pos { color: #34d399; } .metric-neg { color: #fb7185; } .metric-neu { color: #94a3b8; }
+    .greek-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+    .g-pos { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.25); }
+    .g-neg { background: rgba(251,113,133,0.15); color: #fb7185; border: 1px solid rgba(251,113,133,0.25); }
+    .g-neu { background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+    .outlook-btn.active { background: linear-gradient(135deg,rgba(99,102,241,0.35),rgba(34,211,238,0.15)); border-color: rgba(99,102,241,0.6); color: #fff; }
+    .rec-card { transition: all 0.2s; }
+    .rec-card:hover { border-color: rgba(99,102,241,0.4); transform: translateY(-2px); }
+    .rec-card.recommended { border-color: rgba(52,211,153,0.45); box-shadow: 0 0 30px rgba(52,211,153,0.08); }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.35); border-radius: 4px; }
+    .animate-in { animation: fadeUp 0.35s ease; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    .pulse-dot { animation: pulse 2.2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    .leg-card:hover { border-color: rgba(99,102,241,0.35); }
+    .tooltip { position: relative; }
+    .tooltip:hover::after {
+      content: attr(data-tip); position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%);
+      background: #1e1e2e; color: #e2e8f0; padding: 6px 10px; border-radius: 6px; font-size: 11px;
+      white-space: nowrap; z-index: 50; border: 1px solid rgba(255,255,255,0.1); pointer-events: none;
+    }
+    input[type=range] { -webkit-appearance: none; height: 4px; background: rgba(99,102,241,0.25); border-radius: 2px; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #6366f1; cursor: pointer; box-shadow: 0 0 8px rgba(99,102,241,0.6); }
+    .modal-bg { background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); }
+    .strategy-chip { transition: all 0.15s; }
+    .strategy-chip:hover { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4); }
+  </style>
+</head>
+<body class="font-sans antialiased">
+  <!-- DISCLAIMER BANNER -->
+  <div class="sticky top-0 z-[60] bg-rose-950/95 backdrop-blur border-b border-rose-500/40">
+    <div class="max-w-[1800px] mx-auto px-3 sm:px-5 py-2 flex items-start sm:items-center gap-2.5 text-rose-100">
+      <svg class="w-5 h-5 shrink-0 text-rose-300 mt-0.5 sm:mt-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zM10.29 3.86L1.82 18a1.5 1.5 0 001.29 2.25h17.78A1.5 1.5 0 0022.18 18L13.71 3.86a1.5 1.5 0 00-2.42 0z"/></svg>
+      <p class="text-[11px] sm:text-xs leading-snug">
+        <strong>Viktigt:</strong> Detta verktyg är endast avsett för utbildningssyfte och illustration av options­teori (Black-Scholes-Merton). Det utgör <strong>inte finansiell rådgivning, investeringsrådgivning eller en rekommendation</strong> att köpa, sälja eller inneha något värdepapper. Beräkningarna är teoretiska och kan avvika kraftigt från verkliga marknadspriser. Personen som byggt applikationen tar <strong>inget ansvar</strong> för beslut som fattas baserat på verktyget, eller för eventuella fel, brister eller ekonomiska förluster som uppstår vid användning. Handel med optioner innebär betydande risk för förlust — rådgör alltid med en licensierad finansiell rådgivare innan du fattar investeringsbeslut.
+      </p>
+    </div>
+  </div>
+  <!-- TOP BAR -->
+  <header class="sticky top-0 z-50 glass-strong border-b border-white/5">
+    <div class="max-w-[1800px] mx-auto px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base font-bold tracking-tight text-white">Nexus Options Lab</h1>
+            <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">ULTIMATE</span>
+          </div>
+          <p class="text-[10px] text-slate-500 -mt-0.5">Europeiska optioner · Black-Scholes-Merton · Byggd av Anton Ålin</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <input id="strategyName" type="text" value="Bull Call Spread" placeholder="Strateginamn" class="input-field text-xs px-3 py-1.5 rounded-lg w-40 sm:w-52 font-medium text-white" onchange="saveCurrentName()">
+        <button onclick="openSaveModal()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300 flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+          Spara
+        </button>
+        <button onclick="openLoadModal()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">Ladda</button>
+        <button onclick="exportCSV()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">CSV</button>
+        <button onclick="exportJSON()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">JSON</button>
+        <button onclick="openHelp()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">?</button>
+        <div class="hidden md:flex items-center gap-1.5 text-[10px] text-slate-500 ml-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span> BS live
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1800px] mx-auto px-3 sm:px-5 py-4 grid grid-cols-1 2xl:grid-cols-12 gap-4">
+    <!-- LEFT PANEL -->
+    <aside class="2xl:col-span-3 space-y-3">
+      <!-- Market params -->
+      <section class="glass rounded-2xl p-4 neon">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> Marknad
+          </h2>
+          <button onclick="resetParams()" class="text-[10px] text-slate-500 hover:text-slate-300">Återställ</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Spot (S)</label>
+            <input type="number" id="spot" value="100" step="0.1" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Std IV %</label>
+            <input type="number" id="defaultIV" value="22" step="0.5" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Ränta %</label>
+            <input type="number" id="rate" value="2.5" step="0.1" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Utd. yield %</label>
+            <input type="number" id="div" value="1.5" step="0.1" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
+          </div>
+        </div>
+        <!-- Time slider -->
+        <div class="mt-3 pt-3 border-t border-white/5">
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-[10px] text-slate-500 uppercase">Dagar kvar (global default)</label>
+            <span id="daysLabel" class="text-xs font-mono text-cyan-300">30</span>
+          </div>
+          <input type="range" id="days" min="1" max="365" value="30" class="w-full" oninput="document.getElementById('daysLabel').textContent=this.value; debounceRecalc()">
+        </div>
+      </section>
+
+      <!-- What-if -->
+      <section class="glass rounded-2xl p-4">
+        <h2 class="text-xs font-semibold text-slate-200 mb-2.5 flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> What-if
+        </h2>
+        <div class="space-y-2">
+          <div>
+            <div class="flex justify-between text-[10px] text-slate-500 mb-0.5"><span>IV-shift</span><span id="ivShiftLabel">0 %</span></div>
+            <input type="range" id="ivShift" min="-15" max="15" value="0" step="0.5" class="w-full" oninput="document.getElementById('ivShiftLabel').textContent=this.value+' %'; debounceRecalc()">
+          </div>
+          <div>
+            <div class="flex justify-between text-[10px] text-slate-500 mb-0.5"><span>Ränteshift</span><span id="rateShiftLabel">0 bp</span></div>
+            <input type="range" id="rateShift" min="-100" max="100" value="0" step="5" class="w-full" oninput="document.getElementById('rateShiftLabel').textContent=this.value+' bp'; debounceRecalc()">
+          </div>
+        </div>
+      </section>
+
+      <!-- Legs -->
+      <section class="glass rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-2.5">
+          <h2 class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> Ben <span id="legCount" class="text-slate-500 font-normal">(0)</span>
+          </h2>
+          <button onclick="addLeg()" class="btn-primary text-[11px] px-2.5 py-1 rounded-lg font-medium text-white flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            Nytt
+          </button>
+        </div>
+        <div id="legsContainer" class="space-y-2 max-h-[340px] overflow-y-auto pr-0.5"></div>
+        <div class="mt-3 pt-2.5 border-t border-white/5">
+          <p class="text-[10px] text-slate-500 mb-1.5">Presets</p>
+          <div class="flex flex-wrap gap-1.5">
+            <button onclick="addPreset('longcall')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Long Call</button>
+            <button onclick="addPreset('longput')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Long Put</button>
+            <button onclick="addPreset('straddle')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Straddle</button>
+            <button onclick="addPreset('strangle')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Strangle</button>
+            <button onclick="addPreset('bullcall')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Bull Call</button>
+            <button onclick="addPreset('bearput')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Bear Put</button>
+            <button onclick="addPreset('butterfly')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Butterfly</button>
+            <button onclick="addPreset('ironcondor')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Iron Condor</button>
+            <button onclick="addPreset('riskrev')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Risk Reversal</button>
+            <button onclick="addPreset('collar')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Collar</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick metrics sticky-ish -->
+      <section class="glass rounded-2xl p-4" id="quickMetrics">
+        <h2 class="text-xs font-semibold text-slate-200 mb-2.5 flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Snabböversikt
+        </h2>
+        <div id="metricsGrid" class="grid grid-cols-2 gap-2 text-sm"></div>
+      </section>
+    </aside>
+
+    <!-- CENTER + RIGHT -->
+    <div class="2xl:col-span-9 space-y-3">
+      <!-- Tabs -->
+      <div class="flex flex-wrap gap-1.5">
+        <button class="tab-btn tab-active px-3.5 py-1.5 rounded-xl text-xs font-medium border border-transparent" data-tab="guide" onclick="switchTab('guide')">Strategiguide</button>
+        <button class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium border border-white/5 text-slate-400" data-tab="overview" onclick="switchTab('overview')">Översikt</button>
+        <button class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium border border-white/5 text-slate-400" data-tab="payoff" onclick="switchTab('payoff')">Payoff</button>
+        <button class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium border border-white/5 text-slate-400" data-tab="greeks" onclick="switchTab('greeks')">Greeks</button>
+        <button class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium border border-white/5 text-slate-400" data-tab="surface" onclick="switchTab('surface')">Yta / Heatmap</button>
+        <button class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium border border-white/5 text-slate-400" data-tab="scenario" onclick="switchTab('scenario')">Scenario-matris</button>
+        <button class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium border border-white/5 text-slate-400" data-tab="compare" onclick="switchTab('compare')">Jämför</button>
+        <button class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium border border-white/5 text-slate-400" data-tab="monte" onclick="switchTab('monte')">Monte Carlo</button>
+        <button class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium border border-white/5 text-slate-400" data-tab="legs" onclick="switchTab('legs')">Ben-detaljer</button>
+        <button class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium border border-white/5 text-slate-400" data-tab="risk" onclick="switchTab('risk')">Risk & Djup</button>
+      </div>
+
+      <!-- STRATEGIGUIDE -->
+      <div id="panel-guide" class="tab-panel space-y-4">
+        <div class="glass rounded-2xl p-5 neon">
+          <h2 class="text-sm font-semibold text-white mb-1">Vad är din syn på marknaden?</h2>
+          <p class="text-xs text-slate-400 mb-4">Välj riktning och volatilitetsförväntan. Systemet rekommenderar strategier med tydliga Greek-exponeringar.</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 block">Riktning (pris)</label>
+              <div class="flex flex-wrap gap-1.5" id="dirButtons">
+                <button class="outlook-btn btn-ghost text-[11px] px-3 py-1.5 rounded-lg" data-dir="strong_bull" onclick="setDir(this)">Starkt bullish</button>
+                <button class="outlook-btn btn-ghost text-[11px] px-3 py-1.5 rounded-lg" data-dir="mod_bull" onclick="setDir(this)">Måttligt bullish</button>
+                <button class="outlook-btn btn-ghost text-[11px] px-3 py-1.5 rounded-lg active" data-dir="neutral" onclick="setDir(this)">Neutral / range</button>
+                <button class="outlook-btn btn-ghost text-[11px] px-3 py-1.5 rounded-lg" data-dir="mod_bear" onclick="setDir(this)">Måttligt bearish</button>
+                <button class="outlook-btn btn-ghost text-[11px] px-3 py-1.5 rounded-lg" data-dir="strong_bear" onclick="setDir(this)">Starkt bearish</button>
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 block">Volatilitet (IV)</label>
+              <div class="flex flex-wrap gap-1.5" id="volButtons">
+                <button class="outlook-btn btn-ghost text-[11px] px-3 py-1.5 rounded-lg" data-vol="up" onclick="setVol(this)">Stigande IV</button>
+                <button class="outlook-btn btn-ghost text-[11px] px-3 py-1.5 rounded-lg active" data-vol="flat" onclick="setVol(this)">Oförändrad IV</button>
+                <button class="outlook-btn btn-ghost text-[11px] px-3 py-1.5 rounded-lg" data-vol="down" onclick="setVol(this)">Fallande IV / crush</button>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-400">Riskaptit:</span>
+            <select id="riskAppetite" class="input-field text-xs px-2.5 py-1.5 rounded-lg text-white" onchange="renderGuide()">
+              <option value="any">Alla</option>
+              <option value="defined">Endast definierad risk</option>
+              <option value="unlimited">Tillåt obegränsad</option>
+            </select>
+          </div>
+        </div>
+        <div id="recommendationSummary" class="text-sm text-slate-300 px-1"></div>
+        <div id="strategyCards" class="grid grid-cols-1 lg:grid-cols-2 gap-3"></div>
+        <div class="glass rounded-2xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-3">Strategi-encyklopedi – Greek-exponeringar</h3>
+          <p class="text-xs text-slate-400 mb-4">Alla strategier med netto-Greek-profil. Klicka Ladda för att föra in i verktyget.</p>
+          <div id="encyclopedia" class="space-y-3"></div>
+        </div>
+      </div>
+
+      <!-- OVERVIEW -->
+      <div id="panel-overview" class="tab-panel hidden space-y-3">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5" id="heroMetrics"></div>
+        <div class="glass rounded-2xl p-3 neon">
+          <div class="flex items-center justify-between px-1 mb-1">
+            <h3 class="text-xs font-medium text-slate-300">Payoff vid förfall + Teoretisk P/L (zoner)</h3>
+          </div>
+          <div id="chartOverviewPayoff" class="w-full h-[340px]"></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Delta-profil</h3>
+            <div id="chartOverviewDelta" class="w-full h-[210px]"></div>
+          </div>
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Sannolikhetsdensitet + Payoff</h3>
+            <div id="chartOverviewDens" class="w-full h-[210px]"></div>
+          </div>
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Greeks-radar (relativ)</h3>
+            <div id="chartOverviewRadar" class="w-full h-[210px]"></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Gamma & Vega vs Spot</h3>
+            <div id="chartOverviewGV" class="w-full h-[220px]"></div>
+          </div>
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Individuella ben-payoffs</h3>
+            <div id="chartOverviewLegs" class="w-full h-[220px]"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAYOFF -->
+      <div id="panel-payoff" class="tab-panel hidden">
+        <div class="glass rounded-2xl p-3 neon">
+          <div id="chartPayoff" class="w-full h-[420px]"></div>
+        </div>
+        <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2.5" id="payoffExtra"></div>
+      </div>
+
+      <!-- GREEKS -->
+      <div id="panel-greeks" class="tab-panel hidden space-y-3">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div class="glass rounded-2xl p-4 lg:col-span-1">
+            <h3 class="text-xs font-medium text-slate-300 mb-2">Aggregerade Greeks</h3>
+            <div id="greeksTable"></div>
+          </div>
+          <div class="glass rounded-2xl p-3 lg:col-span-2">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Delta & Gamma vs Spot</h3>
+            <div id="chartDeltaGamma" class="w-full h-[280px]"></div>
+          </div>
+        </div>
+        <div class="glass rounded-2xl p-3">
+          <h3 class="text-xs font-medium text-slate-300 mb-1">Vega, Theta, Rho profiler</h3>
+          <div id="chartOtherGreeks" class="w-full h-[260px]"></div>
+        </div>
+      </div>
+
+      <!-- SURFACE -->
+      <div id="panel-surface" class="tab-panel hidden space-y-3">
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">P/L Heatmap · Spot × IV</h3>
+            <div id="chartHeatmap" class="w-full h-[340px]"></div>
+          </div>
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Delta Heatmap · Spot × IV</h3>
+            <div id="chartDeltaHeat" class="w-full h-[340px]"></div>
+          </div>
+        </div>
+        <div class="glass rounded-2xl p-3">
+          <h3 class="text-xs font-medium text-slate-300 mb-1">3D-yta · P/L (Spot × Dagar kvar)</h3>
+          <div id="chart3D" class="w-full h-[420px]"></div>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">3D-yta · Delta (Spot × Dagar)</h3>
+            <div id="chart3DDelta" class="w-full h-[360px]"></div>
+          </div>
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">3D-yta · Vega (Spot × IV)</h3>
+            <div id="chart3DVega" class="w-full h-[360px]"></div>
+          </div>
+        </div>
+        <div class="glass rounded-2xl p-3">
+          <h3 class="text-xs font-medium text-slate-300 mb-1">Tidsdecay · P/L vs Dagar kvar (vid nuvarande Spot)</h3>
+          <div id="chartTimeDecay" class="w-full h-[280px]"></div>
+        </div>
+      </div>
+
+      <!-- SCENARIO MATRIX -->
+      <div id="panel-scenario" class="tab-panel hidden space-y-3">
+        <div class="glass rounded-2xl p-4">
+          <h3 class="text-sm font-semibold text-white mb-1">Scenario-matris · Spot-rörelse × IV-förändring</h3>
+          <p class="text-xs text-slate-400 mb-3">Teoretisk P/L vid förfall under olika kombinationer. Grönt = vinst, rött = förlust. Baseras på nuvarande strategi och parametrar.</p>
+          <div id="scenarioMatrix" class="overflow-x-auto"></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Scenario heatmap (P/L)</h3>
+            <div id="chartScenarioHeat" class="w-full h-[320px]"></div>
+          </div>
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Känslighetsöversikt</h3>
+            <div id="scenarioInsights" class="text-sm space-y-2 p-2"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPARE -->
+      <div id="panel-compare" class="tab-panel hidden space-y-3">
+        <div class="glass rounded-2xl p-4 flex flex-wrap items-center gap-3">
+          <button onclick="snapshotStrategy('A')" class="btn-primary text-xs px-3 py-1.5 rounded-lg text-white">Spara nuvarande som A</button>
+          <button onclick="snapshotStrategy('B')" class="btn-ghost text-xs px-3 py-1.5 rounded-lg text-slate-300">Spara nuvarande som B</button>
+          <button onclick="clearSnapshots()" class="btn-ghost text-xs px-3 py-1.5 rounded-lg text-slate-400">Rensa</button>
+          <span id="compareStatus" class="text-xs text-slate-500"></span>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3" id="compareCards"></div>
+        <div class="glass rounded-2xl p-3">
+          <h3 class="text-xs font-medium text-slate-300 mb-1">Payoff-jämförelse A vs B</h3>
+          <div id="chartCompare" class="w-full h-[360px]"></div>
+        </div>
+        <div class="glass rounded-2xl p-4">
+          <h3 class="text-xs font-medium text-slate-300 mb-2">Nyckeltalsjämförelse</h3>
+          <div id="compareTable" class="overflow-x-auto"></div>
+        </div>
+      </div>
+
+      <!-- MONTE CARLO -->
+      <div id="panel-monte" class="tab-panel hidden space-y-3">
+        <div class="glass rounded-2xl p-4 flex flex-wrap items-center gap-4">
+          <div>
+            <label class="text-[10px] text-slate-500">Simuleringar</label>
+            <select id="mcSims" class="input-field ml-1 px-2 py-1 rounded text-xs text-white" onchange="runMonteCarlo()">
+              <option value="1000">1 000</option>
+              <option value="3000" selected>3 000</option>
+              <option value="5000">5 000</option>
+              <option value="10000">10 000</option>
+            </select>
+          </div>
+          <button onclick="runMonteCarlo()" class="btn-primary text-xs px-3 py-1.5 rounded-lg text-white">Kör Monte Carlo</button>
+          <div id="mcStatus" class="text-xs text-slate-400"></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Terminal P/L distribution</h3>
+            <div id="chartMCHist" class="w-full h-[300px]"></div>
+          </div>
+          <div class="glass rounded-2xl p-3">
+            <h3 class="text-xs font-medium text-slate-300 mb-1">Exempelpriser (50 stigar)</h3>
+            <div id="chartMCPaths" class="w-full h-[300px]"></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5" id="mcMetrics"></div>
+      </div>
+
+      <!-- LEGS DETAIL -->
+      <div id="panel-legs" class="tab-panel hidden">
+        <div class="glass rounded-2xl p-4 overflow-x-auto">
+          <h3 class="text-xs font-medium text-slate-300 mb-3">Detaljerad ben-analys (teoretisk + IV-solver)</h3>
+          <div id="legsDetailTable"></div>
+        </div>
+      </div>
+
+      <!-- RISK & DEEP -->
+      <div id="panel-risk" class="tab-panel hidden space-y-3">
+        <div id="deepContent" class="space-y-3"></div>
+      </div>
+
+      <!-- Always visible analysis row -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5" id="analysisCards"></div>
+    </div>
+  </main>
+
+  <footer class="max-w-[1800px] mx-auto px-5 py-6 text-center text-[10px] text-slate-600 border-t border-white/5 mt-4 space-y-1.5">
+    <p>Nexus Options Lab Ultimate v2.2 · Byggd av <span class="text-slate-400">Anton Ålin</span> · Scenario-matris · Strategijämförelse · Greek-guide · Black-Scholes-Merton</p>
+    <p class="text-rose-400/80 max-w-3xl mx-auto leading-relaxed">Ansvarsfriskrivning: Endast utbildningssyfte — inte finansiell rådgivning eller en rekommendation att handla. Byggaren av applikationen tar inget ansvar för riktigheten i beräkningarna eller för ekonomiska beslut eller förluster som uppstår vid användning av verktyget. Använd på egen risk.</p>
+  </footer>
+
+  <!-- MODALS -->
+  <div id="modalSave" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4">
+    <div class="glass-strong rounded-2xl p-5 w-full max-w-md animate-in">
+      <h3 class="text-sm font-semibold text-white mb-3">Spara strategi</h3>
+      <input id="saveNameInput" type="text" class="input-field w-full px-3 py-2 rounded-lg text-sm text-white mb-3" placeholder="Namn på strategi">
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeModal('modalSave')" class="btn-ghost text-xs px-3 py-1.5 rounded-lg">Avbryt</button>
+        <button onclick="doSave()" class="btn-primary text-xs px-3 py-1.5 rounded-lg text-white">Spara</button>
+      </div>
+    </div>
+  </div>
+  <div id="modalLoad" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4">
+    <div class="glass-strong rounded-2xl p-5 w-full max-w-md animate-in max-h-[80vh] overflow-y-auto">
+      <h3 class="text-sm font-semibold text-white mb-3">Ladda sparad strategi</h3>
+      <div id="loadList" class="space-y-2 mb-3"></div>
+      <button onclick="closeModal('modalLoad')" class="btn-ghost text-xs px-3 py-1.5 rounded-lg w-full">Stäng</button>
+    </div>
+  </div>
+  <div id="modalHelp" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4">
+    <div class="glass-strong rounded-2xl p-5 w-full max-w-2xl animate-in max-h-[85vh] overflow-y-auto">
+      <div class="flex justify-between items-start mb-4">
+        <h3 class="text-base font-semibold text-white">Om Nexus Options Lab Ultimate</h3>
+        <button onclick="closeModal('modalHelp')" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+      <div class="text-sm text-slate-300 space-y-3 leading-relaxed">
+        <p><strong class="text-indigo-300">Modell:</strong> Black-Scholes-Merton med kontinuerlig utdelningsyield. Endast europeiska optioner (ingen early exercise).</p>
+        <p><strong class="text-cyan-300">IV-solver:</strong> Newton-Raphson med vega som derivata. Konvergerar snabbt för giltiga premier.</p>
+        <p><strong class="text-emerald-300">POP & EV:</strong> Beräknas under riskneutralt mått (μ = r − q). Monte Carlo använder GBM med samma parametrar.</p>
+        <p><strong class="text-amber-300">What-if / Scenario:</strong> IV- och ränteshift + matris över Spot×IV-scenarier.</p>
+        <p><strong class="text-rose-300">Begränsningar:</strong> Konstant volatilitet, inga hopp, friktionsfri marknad, en underliggande.</p>
+        <div class="pt-3 border-t border-white/10">
+          <h4 class="text-xs font-semibold text-slate-400 uppercase mb-2">Mini-ordlista</h4>
+          <ul class="text-xs space-y-1.5 text-slate-400">
+            <li><strong class="text-indigo-300">Delta (Δ)</strong> – ungefärlig P/L-förändring per 1 kr i underliggande</li>
+            <li><strong class="text-cyan-300">Gamma (Γ)</strong> – hur snabbt delta ändras (konvexitet)</li>
+            <li><strong class="text-rose-300">Theta (Θ)</strong> – tidsvärdefall per dag</li>
+            <li><strong class="text-amber-300">Vega (V)</strong> – känslighet för 1 % förändring i IV</li>
+            <li><strong class="text-slate-300">Rho (ρ)</strong> – känslighet för 1 % ränteförändring</li>
+            <li><strong class="text-emerald-300">POP</strong> – sannolikhet att strategin går med vinst (riskneutralt)</li>
+            <li><strong class="text-cyan-300">EV</strong> – förväntat värde diskonterat under riskneutralt mått</li>
+            <li><strong class="text-amber-300">IV</strong> – implicerad volatilitet (marknadens prissatta osäkerhet)</li>
+          </ul>
+        </div>
+        <p class="text-xs text-slate-500 pt-2 border-t border-white/10">Byggd av <strong class="text-slate-300">Anton Ålin</strong> · Lokal lagring endast · Endast utbildning – inte handelsrådgivning.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Strategy detail modal -->
+  <div id="modalStrat" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4">
+    <div class="glass-strong rounded-2xl p-5 w-full max-w-lg animate-in max-h-[85vh] overflow-y-auto">
+      <div class="flex justify-between items-start mb-3">
+        <h3 id="modalStratTitle" class="text-base font-semibold text-white"></h3>
+        <button onclick="closeModal('modalStrat')" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+      <div id="modalStratBody" class="text-sm text-slate-300 space-y-3"></div>
+      <button id="modalStratLoad" class="btn-primary w-full mt-4 text-sm py-2 rounded-lg text-white">Ladda in i analysverktyget</button>
+    </div>
+  </div>
+
+  <script>
+    // ======================== BLACK-SCHOLES ENGINE ========================
+    const SQRT2PI = Math.sqrt(2 * Math.PI);
+    function normCDF(x) {
+      const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+      const sign = x < 0 ? -1 : 1; x = Math.abs(x)/Math.SQRT2;
+      const t = 1/(1+p*x);
+      const y = 1 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+      return 0.5*(1+sign*y);
+    }
+    function normPDF(x) { return Math.exp(-0.5*x*x)/SQRT2PI; }
+    function d1d2(S,K,T,r,q,sigma) {
+      if (T<=1e-10 || sigma<=1e-10) return {d1:0,d2:0};
+      const sqrtT = Math.sqrt(T);
+      const d1 = (Math.log(S/K)+(r-q+0.5*sigma*sigma)*T)/(sigma*sqrtT);
+      return {d1, d2: d1 - sigma*sqrtT};
+    }
+    function bsPrice(type,S,K,T,r,q,sigma) {
+      if (T<=1e-10) return type==='call' ? Math.max(S-K,0) : Math.max(K-S,0);
+      const {d1,d2} = d1d2(S,K,T,r,q,sigma);
+      if (type==='call') return S*Math.exp(-q*T)*normCDF(d1) - K*Math.exp(-r*T)*normCDF(d2);
+      return K*Math.exp(-r*T)*normCDF(-d2) - S*Math.exp(-q*T)*normCDF(-d1);
+    }
+    function bsGreeks(type,S,K,T,r,q,sigma) {
+      if (T<=1e-10 || sigma<=1e-10) {
+        const intr = type==='call' ? Math.max(S-K,0) : Math.max(K-S,0);
+        const delta = type==='call' ? (S>K?1:0) : (S<K?-1:0);
+        return {price:intr, delta, gamma:0, theta:0, vega:0, rho:0};
+      }
+      const {d1,d2} = d1d2(S,K,T,r,q,sigma);
+      const pdf = normPDF(d1), discS=Math.exp(-q*T), discK=Math.exp(-r*T), sqrtT=Math.sqrt(T);
+      let price, delta, rho;
+      if (type==='call') {
+        price = S*discS*normCDF(d1) - K*discK*normCDF(d2);
+        delta = discS*normCDF(d1);
+        rho = K*T*discK*normCDF(d2)/100;
+      } else {
+        price = K*discK*normCDF(-d2) - S*discS*normCDF(-d1);
+        delta = discS*(normCDF(d1)-1);
+        rho = -K*T*discK*normCDF(-d2)/100;
+      }
+      const gamma = discS*pdf/(S*sigma*sqrtT);
+      const vega = S*discS*pdf*sqrtT/100;
+      const thCommon = -(S*discS*pdf*sigma)/(2*sqrtT);
+      let theta;
+      if (type==='call') theta = (thCommon - r*K*discK*normCDF(d2) + q*S*discS*normCDF(d1))/365;
+      else theta = (thCommon + r*K*discK*normCDF(-d2) - q*S*discS*normCDF(-d1))/365;
+      return {price, delta, gamma, theta, vega, rho};
+    }
+    // Newton-Raphson IV solver
+    function impliedVol(type, S, K, T, r, q, marketPrice, guess=0.25) {
+      if (T<=1e-8 || marketPrice<=0) return null;
+      let sigma = guess;
+      for (let i=0; i<50; i++) {
+        const g = bsGreeks(type,S,K,T,r,q,sigma);
+        const diff = g.price - marketPrice;
+        if (Math.abs(diff) < 1e-6) return sigma;
+        if (Math.abs(g.vega) < 1e-12) break;
+        sigma -= diff / (g.vega * 100); // vega is per 1%
+        if (sigma < 1e-4) sigma = 1e-4;
+        if (sigma > 5) sigma = 5;
+      }
+      return sigma;
+    }
+
+    // ======================== STRATEGY DATABASE + GUIDE ========================
+    const STRATEGY_DB = [
+      {id:'longcall',name:'Long Call',preset:'longcall',dirs:['strong_bull','mod_bull'],vols:['up','flat'],risk:'unlimited',summary:'Köper en call. Obegränsad uppsida, begränsad förlust (premien).',when:'Kraftig uppgång + hävstång med begränsad risk.',avoid:'Hög IV eller sidledes/nedgång.',greeks:{delta:'+',gamma:'+',theta:'−',vega:'+',rho:'+'},greekDesc:{delta:'Positiv – tjänar när S stiger.',gamma:'Positiv – konvexitet.',theta:'Negativ – tidsvärdefall.',vega:'Positiv – gynnas av IV↑.',rho:'Positiv.'},maxLoss:'Betald premie',maxProfit:'Obegränsad'},
+      {id:'longput',name:'Long Put',preset:'longput',dirs:['strong_bear','mod_bear'],vols:['up','flat'],risk:'unlimited',summary:'Köper en put. Stark nedåtexponering, begränsad förlust.',when:'Kraftig nedgång eller skydd.',avoid:'Låg IV-förväntan eller bullish.',greeks:{delta:'−',gamma:'+',theta:'−',vega:'+',rho:'−'},greekDesc:{delta:'Negativ – tjänar när S faller.',gamma:'Positiv.',theta:'Negativ.',vega:'Positiv.',rho:'Negativ.'},maxLoss:'Betald premie',maxProfit:'Nästan obegränsad'},
+      {id:'bullcall',name:'Bull Call Spread',preset:'bullcall',dirs:['mod_bull','strong_bull'],vols:['flat','down'],risk:'defined',summary:'Köper lägre call, säljer högre. Definierad risk/vinst.',when:'Måttligt–starkt bullish, lägre kostnad än naked call.',avoid:'Extrem uppgång (capped) eller IV↑.',greeks:{delta:'+',gamma:'~',theta:'~',vega:'~',rho:'+'},greekDesc:{delta:'Positiv med tak.',gamma:'Varierar.',theta:'Mild.',vega:'Låg netto.',rho:'Positiv.'},maxLoss:'Netto debet',maxProfit:'Strike-diff − debet'},
+      {id:'bearput',name:'Bear Put Spread',preset:'bearput',dirs:['mod_bear','strong_bear'],vols:['flat','down'],risk:'defined',summary:'Köper högre put, säljer lägre. Definierad risk vid nedgång.',when:'Måttligt bearish, billigare än naked put.',avoid:'Extrem nedsida (capped).',greeks:{delta:'−',gamma:'~',theta:'~',vega:'~',rho:'−'},greekDesc:{delta:'Negativ med golv.',gamma:'Varierar.',theta:'Mild.',vega:'Låg netto.',rho:'Negativ.'},maxLoss:'Netto debet',maxProfit:'Strike-diff − debet'},
+      {id:'straddle',name:'Long Straddle',preset:'straddle',dirs:['neutral'],vols:['up'],risk:'unlimited',summary:'ATM call + ATM put. Tjänar på stor rörelse oavsett riktning.',when:'Stor rörelse (event) och/eller IV↑.',avoid:'Sidledes – theta äter premien.',greeks:{delta:'~0',gamma:'+',theta:'− −',vega:'+ +',rho:'~'},greekDesc:{delta:'Nära noll.',gamma:'Hög positiv.',theta:'Stark negativ.',vega:'Hög positiv.',rho:'Nästan neutralt.'},maxLoss:'Total premie',maxProfit:'Obegränsad'},
+      {id:'strangle',name:'Long Strangle',preset:'strangle',dirs:['neutral'],vols:['up'],risk:'unlimited',summary:'OTM call + OTM put. Billigare, kräver större rörelse.',when:'Mycket stor rörelse, lägre premie.',avoid:'Måttlig rörelse.',greeks:{delta:'~0',gamma:'+',theta:'−',vega:'+',rho:'~'},greekDesc:{delta:'Nära noll.',gamma:'Positiv.',theta:'Negativ.',vega:'Positiv.',rho:'Nästan neutralt.'},maxLoss:'Total premie',maxProfit:'Obegränsad'},
+      {id:'butterfly',name:'Long Call Butterfly',preset:'butterfly',dirs:['neutral'],vols:['down','flat'],risk:'defined',summary:'1 lång låg + 2 korta ATM + 1 lång hög. Max vinst vid body.',when:'Låg rörelse / pin + IV-crush.',avoid:'Stor rörelse.',greeks:{delta:'~0',gamma:'−',theta:'+',vega:'−',rho:'~'},greekDesc:{delta:'Nära noll kring body.',gamma:'Negativ (konkav).',theta:'Oftast positiv.',vega:'Negativ.',rho:'Låg.'},maxLoss:'Netto debet',maxProfit:'Wing-avstånd − debet'},
+      {id:'ironcondor',name:'Iron Condor',preset:'ironcondor',dirs:['neutral'],vols:['down','flat'],risk:'defined',summary:'Säljer OTM put-spread + OTM call-spread. Range + IV-crush.',when:'Sidledes + fallande IV. Definierad risk.',avoid:'Stor trend eller IV-spike.',greeks:{delta:'~0',gamma:'−',theta:'+',vega:'−',rho:'~'},greekDesc:{delta:'Nära noll.',gamma:'Negativ (kort gamma).',theta:'Positiv (huvudvinst).',vega:'Negativ.',rho:'Låg.'},maxLoss:'Vingbredd − kredit',maxProfit:'Netto kredit'},
+      {id:'riskrev',name:'Risk Reversal',preset:'riskrev',dirs:['strong_bull','mod_bull'],vols:['flat','up'],risk:'unlimited',summary:'Lång OTM call + kort OTM put. Stark riktningsbias, ofta låg kostnad.',when:'Stark riktningsåsikt, syntetisk exponering.',avoid:'Osäker riktning (obegränsad risk på short).',greeks:{delta:'+',gamma:'~',theta:'~',vega:'~',rho:'+'},greekDesc:{delta:'Tydligt positiv.',gamma:'Blandat.',theta:'Mild.',vega:'Kan vara låg.',rho:'Positiv.'},maxLoss:'Obegränsad (short put)',maxProfit:'Obegränsad'},
+      {id:'collar',name:'Collar',preset:'collar',dirs:['mod_bull','neutral'],vols:['flat','down'],risk:'defined',summary:'Long underliggande/call + lång put + kort call. Skydd med capped uppsida.',when:'Skydda lång position, acceptera limited upside.',avoid:'Stark bullish utan skyddsvilja.',greeks:{delta:'+ (red.)',gamma:'~',theta:'~',vega:'~',rho:'~'},greekDesc:{delta:'Positiv men reducerad.',gamma:'Blandat.',theta:'Beroende på strikes.',vega:'Låg netto.',rho:'Låg.'},maxLoss:'Definierad',maxProfit:'Capped av short call'}
+    ];
+    let currentDir = 'neutral', currentVol = 'flat';
+    function greekBadge(sign){ if(sign==='+'||sign==='+ +') return '<span class="greek-badge g-pos">'+sign+'</span>'; if(sign==='−'||sign==='− −') return '<span class="greek-badge g-neg">'+sign+'</span>'; return '<span class="greek-badge g-neu">'+sign+'</span>'; }
+    function setDir(btn){ document.querySelectorAll('#dirButtons .outlook-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); currentDir=btn.dataset.dir; renderGuide(); }
+    function setVol(btn){ document.querySelectorAll('#volButtons .outlook-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); currentVol=btn.dataset.vol; renderGuide(); }
+    function renderGuide(){
+      const risk=document.getElementById('riskAppetite').value;
+      const filtered=STRATEGY_DB.filter(s=>s.dirs.includes(currentDir)&&s.vols.includes(currentVol)&&(risk==='any'||(risk==='defined'&&s.risk==='defined')||(risk==='unlimited'&&s.risk==='unlimited')));
+      const dirL={strong_bull:'starkt bullish',mod_bull:'måttligt bullish',neutral:'neutral/range',mod_bear:'måttligt bearish',strong_bear:'starkt bearish'};
+      const volL={up:'stigande IV',flat:'oförändrad IV',down:'fallande IV'};
+      document.getElementById('recommendationSummary').innerHTML=filtered.length?`<span class="text-emerald-300 font-medium">${filtered.length} strategier</span> matchar <strong>${dirL[currentDir]}</strong> + <strong>${volL[currentVol]}</strong>`:`<span class="text-rose-300">Inga exakta träffar.</span> Justera filter eller se encyklopedin.`;
+      const cards=document.getElementById('strategyCards');
+      cards.innerHTML=filtered.length?filtered.map(s=>`<div class="rec-card recommended glass rounded-xl p-4 border border-white/5"><div class="flex items-start justify-between mb-2"><div><h3 class="text-sm font-semibold text-white">${s.name}</h3><span class="text-[10px] ${s.risk==='defined'?'text-emerald-400':'text-amber-400'}">${s.risk==='defined'?'Definierad risk':'Obegränsad risk'}</span></div><button onclick="addPreset('${s.preset}');switchTab('overview')" class="btn-primary text-[10px] px-2.5 py-1 rounded-lg text-white">Ladda</button></div><p class="text-xs text-slate-400 mb-3">${s.summary}</p><div class="flex flex-wrap gap-1.5 mb-2">Δ ${greekBadge(s.greeks.delta)} Γ ${greekBadge(s.greeks.gamma)} Θ ${greekBadge(s.greeks.theta)} V ${greekBadge(s.greeks.vega)} ρ ${greekBadge(s.greeks.rho)}</div><button onclick="showStratDetail('${s.id}')" class="text-[11px] text-indigo-300 hover:text-indigo-200">Full Greek-beskrivning →</button></div>`).join(''):'<div class="col-span-full text-center py-8 text-slate-500 text-sm">Inga träffar – justera filtren.</div>';
+      document.getElementById('encyclopedia').innerHTML=STRATEGY_DB.map(s=>`<div class="glass rounded-xl p-4 border border-white/5"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><div class="flex items-center gap-2"><h4 class="text-sm font-semibold text-white">${s.name}</h4><span class="text-[10px] px-1.5 py-0.5 rounded ${s.risk==='defined'?'bg-emerald-500/15 text-emerald-400':'bg-amber-500/15 text-amber-400'}">${s.risk==='defined'?'Definierad':'Obegränsad'}</span></div><div class="flex gap-1.5"><button onclick="showStratDetail('${s.id}')" class="btn-ghost text-[10px] px-2 py-1 rounded">Detaljer</button><button onclick="addPreset('${s.preset}');switchTab('overview')" class="btn-primary text-[10px] px-2 py-1 rounded text-white">Ladda</button></div></div><p class="text-xs text-slate-400 mb-2">${s.summary}</p><div class="flex flex-wrap gap-1.5">Δ ${greekBadge(s.greeks.delta)} Γ ${greekBadge(s.greeks.gamma)} Θ ${greekBadge(s.greeks.theta)} V ${greekBadge(s.greeks.vega)} ρ ${greekBadge(s.greeks.rho)}</div></div>`).join('');
+    }
+    function showStratDetail(id){
+      const s=STRATEGY_DB.find(x=>x.id===id); if(!s) return;
+      document.getElementById('modalStratTitle').textContent = s.name;
+      document.getElementById('modalStratBody').innerHTML = `
+        <p>${s.summary}</p>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="glass rounded-lg p-2.5"><span class="text-slate-500">Max förlust</span><div class="font-medium text-rose-300 mt-0.5">${s.maxLoss}</div></div>
+          <div class="glass rounded-lg p-2.5"><span class="text-slate-500">Max vinst</span><div class="font-medium text-emerald-300 mt-0.5">${s.maxProfit}</div></div>
+        </div>
+        <div><h4 class="text-xs font-semibold text-slate-400 uppercase mb-1">När använda</h4><p class="text-xs">${s.when}</p></div>
+        <div><h4 class="text-xs font-semibold text-slate-400 uppercase mb-1">När undvika</h4><p class="text-xs">${s.avoid}</p></div>
+        <div>
+          <h4 class="text-xs font-semibold text-slate-400 uppercase mb-2">Greek-exponeringar (netto)</h4>
+          <div class="space-y-2">
+            ${['delta','gamma','theta','vega','rho'].map(g=>`
+              <div class="flex gap-2 items-start">
+                <div class="w-12 shrink-0 pt-0.5">${greekBadge(s.greeks[g])}</div>
+                <div><div class="text-xs font-medium text-slate-200 capitalize">${g}</div>
+                <div class="text-[11px] text-slate-400 leading-snug">${s.greekDesc[g]}</div></div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+      document.getElementById('modalStratLoad').onclick = ()=>{ addPreset(s.preset); closeModal('modalStrat'); switchTab('overview'); };
+      document.getElementById('modalStrat').classList.remove('hidden');
+    }
+
+    // ---- Scenario matrix ----
+    function buildScenarioMatrix() {
+      if (!legs.length) {
+        document.getElementById('scenarioMatrix').innerHTML = '<p class="text-slate-500 text-sm">Lägg till ben först.</p>';
+        document.getElementById('scenarioInsights').innerHTML = '';
+        return;
+      }
+      const params = getParams();
+      const strat = computeStrategy(params);
+      const spotMoves = [-0.20, -0.10, -0.05, 0, 0.05, 0.10, 0.20];
+      const ivMoves = [-0.10, -0.05, 0, 0.05, 0.10];
+      const S0 = params.S;
+      const sigBase = legs.reduce((s,l)=>s+getLegSigma(l,params.defIV,params.ivShift),0)/legs.length;
+      const T = Math.max(...legs.map(l=>getLegT(l,params.daysG)));
+
+      let html = '<table class="w-full text-xs border-collapse"><thead><tr class="text-[10px] text-slate-500"><th class="text-left p-2">Spot \\ IV</th>';
+      ivMoves.forEach(iv => { html += `<th class="p-2 text-center">${iv>0?'+':''}${(iv*100).toFixed(0)}%</th>`; });
+      html += '</tr></thead><tbody>';
+
+      const z = [];
+      spotMoves.forEach(sm => {
+        const ST = S0 * (1+sm);
+        const row = [];
+        html += `<tr class="border-t border-white/5"><td class="p-2 font-mono text-slate-300">${sm>0?'+':''}${(sm*100).toFixed(0)}% <span class="text-slate-500">(${ST.toFixed(1)})</span></td>`;
+        ivMoves.forEach(ivm => {
+          const sig = Math.max(0.01, sigBase + ivm);
+          // Approximate P/L at expiration under this ST (payoff) — for IV we show theo P/L now at that spot/IV as sensitivity
+          let theo = 0;
+          for (const leg of legs) {
+            const g = bsGreeks(leg.type, ST, leg.strike, T, params.r, params.q, sig);
+            theo += legMult(leg) * g.price;
+          }
+          const pnl = theo - strat.netPrem;
+          row.push(pnl);
+          const cls = pnl >= 0 ? 'text-emerald-300 bg-emerald-500/10' : 'text-rose-300 bg-rose-500/10';
+          html += `<td class="p-2 text-center font-mono ${cls}">${fmt(pnl)}</td>`;
+        });
+        z.push(row);
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById('scenarioMatrix').innerHTML = html;
+
+      // Heatmap
+      Plotly.newPlot('chartScenarioHeat', [{
+        x: ivMoves.map(v => (v>0?'+':'')+(v*100).toFixed(0)+'%'),
+        y: spotMoves.map(v => (v>0?'+':'')+(v*100).toFixed(0)+'%'),
+        z: z,
+        type: 'heatmap',
+        colorscale: [[0,'#7f1d1d'],[0.45,'#1e1b4b'],[0.55,'#164e63'],[1,'#065f46']],
+        colorbar: {title:'P/L', thickness:11, len:0.7}
+      }], commonLayout({xaxis:{title:'IV-förändring'}, yaxis:{title:'Spot-rörelse'}, margin:{t:15,r:50,b:40,l:55}}), {responsive:true, displayModeBar:false});
+
+      // Insights
+      const flat = z.flat();
+      const best = Math.max(...flat), worst = Math.min(...flat);
+      const atATM = z[3][2]; // 0% spot, 0% IV
+      document.getElementById('scenarioInsights').innerHTML = `
+        <div class="glass rounded-lg p-3"><div class="text-[10px] text-slate-500">Bästa scenariot (i matrisen)</div><div class="text-lg font-mono text-emerald-300">${fmt(best)}</div></div>
+        <div class="glass rounded-lg p-3"><div class="text-[10px] text-slate-500">Sämsta scenariot</div><div class="text-lg font-mono text-rose-300">${fmt(worst)}</div></div>
+        <div class="glass rounded-lg p-3"><div class="text-[10px] text-slate-500">Base case (0 % / 0 %)</div><div class="text-lg font-mono text-cyan-300">${fmt(atATM)}</div></div>
+        <p class="text-[11px] text-slate-500 leading-relaxed mt-2">Matrisen visar teoretisk P/L om spot och IV flyttar sig <em>nu</em> (samma tid till förfall). Payoff vid förfall beror bara på slutpris – IV påverkar mark-to-model före expiry.</p>`;
+    }
+
+    // ---- Compare snapshots ----
+    let snapA = null, snapB = null;
+    function snapshotStrategy(which) {
+      if (!legs.length) { document.getElementById('compareStatus').textContent = 'Inga ben att spara'; return; }
+      const params = getParams();
+      const strat = computeStrategy(params);
+      const data = {
+        name: document.getElementById('strategyName').value || ('Strategi '+which),
+        legs: JSON.parse(JSON.stringify(legs)),
+        params: {...params},
+        netPrem: strat.netPrem,
+        theo: strat.theo,
+        greeks: {...strat.greeks},
+        payoffAt: null // rebuild later
+      };
+      // store serializable; payoff rebuilt on compare
+      if (which==='A') snapA = data; else snapB = data;
+      document.getElementById('compareStatus').textContent = `A: ${snapA?snapA.name:'—'} · B: ${snapB?snapB.name:'—'}`;
+      renderCompare();
+    }
+    function clearSnapshots(){ snapA=null; snapB=null; document.getElementById('compareStatus').textContent=''; document.getElementById('compareCards').innerHTML=''; document.getElementById('compareTable').innerHTML=''; Plotly.purge('chartCompare'); }
+    function rebuildPayoff(snap) {
+      const legsL = snap.legs;
+      const p = snap.params;
+      return function(ST) {
+        let pnl = 0;
+        for (const leg of legsL) {
+          const m = (leg.side==='long'?1:-1)*leg.qty;
+          const intr = leg.type==='call' ? Math.max(ST-leg.strike,0) : Math.max(leg.strike-ST,0);
+          const T = Math.max((leg.days!=null?leg.days:p.daysG),0.01)/365;
+          const sig = leg.iv!=null ? (leg.iv/100)+p.ivShift : p.defIV;
+          const prem = leg.premium!=null ? leg.premium : bsPrice(leg.type, p.S, leg.strike, T, p.r, p.q, Math.max(sig,1e-4));
+          pnl += m * (intr - prem);
+        }
+        return pnl;
+      };
+    }
+    function renderCompare() {
+      const cards = document.getElementById('compareCards');
+      const mk = (snap, label) => snap ? `<div class="glass rounded-xl p-4 border border-white/5"><div class="text-[10px] text-slate-500 mb-1">Strategi ${label}</div><div class="text-sm font-semibold text-white mb-2">${snap.name}</div>
+        <div class="grid grid-cols-2 gap-2 text-xs"><div>Netto <span class="font-mono ${snap.netPrem>0?'text-rose-300':'text-emerald-300'}">${fmt(snap.netPrem)}</span></div>
+        <div>Theo <span class="font-mono text-cyan-300">${fmt(snap.theo)}</span></div>
+        <div>Δ <span class="font-mono">${fmt(snap.greeks.delta,3)}</span></div>
+        <div>Vega <span class="font-mono">${fmt(snap.greeks.vega,3)}</span></div></div>
+        <div class="text-[10px] text-slate-500 mt-2">${snap.legs.length} ben</div></div>` : `<div class="glass rounded-xl p-6 text-center text-slate-500 text-sm">Ingen strategi ${label} sparad</div>`;
+      cards.innerHTML = mk(snapA,'A') + mk(snapB,'B');
+      if (!snapA || !snapB) { document.getElementById('compareTable').innerHTML=''; Plotly.purge('chartCompare'); return; }
+
+      const payA = rebuildPayoff(snapA), payB = rebuildPayoff(snapB);
+      const S = snapA.params.S;
+      const low = S*0.6, high = S*1.4, n=200;
+      const xs=[], ya=[], yb=[];
+      for (let i=0;i<=n;i++){ const ST=low+i*(high-low)/n; xs.push(ST); ya.push(payA(ST)); yb.push(payB(ST)); }
+      Plotly.newPlot('chartCompare', [
+        {x:xs,y:ya,name:snapA.name||'A',line:{color:'#6366f1',width:2.5}},
+        {x:xs,y:yb,name:snapB.name||'B',line:{color:'#22d3ee',width:2.5}},
+        {x:[low,high],y:[0,0],line:{color:'rgba(255,255,255,0.2)',width:1,dash:'dash'},showlegend:false,hoverinfo:'skip'}
+      ], commonLayout({legend:{orientation:'h',y:1.12}}), {responsive:true,displayModeBar:false});
+
+      document.getElementById('compareTable').innerHTML = `<table class="w-full text-xs"><thead><tr class="text-[10px] text-slate-500"><th class="text-left py-1">Mått</th><th class="text-right">A</th><th class="text-right">B</th><th class="text-right">Diff</th></tr></thead>
+        <tbody class="font-mono">
+          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Netto premie</td><td class="text-right">${fmt(snapA.netPrem)}</td><td class="text-right">${fmt(snapB.netPrem)}</td><td class="text-right">${fmt(snapA.netPrem-snapB.netPrem)}</td></tr>
+          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Teoretiskt</td><td class="text-right">${fmt(snapA.theo)}</td><td class="text-right">${fmt(snapB.theo)}</td><td class="text-right">${fmt(snapA.theo-snapB.theo)}</td></tr>
+          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Delta</td><td class="text-right">${fmt(snapA.greeks.delta,3)}</td><td class="text-right">${fmt(snapB.greeks.delta,3)}</td><td class="text-right">${fmt(snapA.greeks.delta-snapB.greeks.delta,3)}</td></tr>
+          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Gamma</td><td class="text-right">${fmt(snapA.greeks.gamma,4)}</td><td class="text-right">${fmt(snapB.greeks.gamma,4)}</td><td class="text-right">${fmt(snapA.greeks.gamma-snapB.greeks.gamma,4)}</td></tr>
+          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Theta</td><td class="text-right">${fmt(snapA.greeks.theta,3)}</td><td class="text-right">${fmt(snapB.greeks.theta,3)}</td><td class="text-right">${fmt(snapA.greeks.theta-snapB.greeks.theta,3)}</td></tr>
+          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Vega</td><td class="text-right">${fmt(snapA.greeks.vega,3)}</td><td class="text-right">${fmt(snapB.greeks.vega,3)}</td><td class="text-right">${fmt(snapA.greeks.vega-snapB.greeks.vega,3)}</td></tr>
+        </tbody></table>`;
+    }
+
+    // ======================== STATE ========================
+    let legs = [];
+    let legId = 0;
+    let recalcTimer = null;
+    let lastMC = null;
+
+    function createLeg(o={}) {
+      return {
+        id: ++legId,
+        type: o.type||'call',
+        side: o.side||'long',
+        qty: o.qty||1,
+        strike: o.strike||100,
+        days: o.days??null,          // null = use global
+        premium: o.premium??null,     // null = theoretical
+        iv: o.iv??null,               // null = default + shift
+        ...o
+      };
+    }
+    function addLeg(o={}) {
+      const S = +document.getElementById('spot').value || 100;
+      const defIV = +document.getElementById('defaultIV').value || 22;
+      legs.push(createLeg({ strike: Math.round(S), iv: defIV, ...o }));
+      renderLegs(); recalc();
+    }
+    function removeLeg(id) { legs = legs.filter(l=>l.id!==id); renderLegs(); recalc(); }
+    function updateLeg(id, field, val) {
+      const leg = legs.find(l=>l.id===id); if (!leg) return;
+      if (['qty','strike','premium','iv','days'].includes(field)) {
+        leg[field] = (val===''||val===null) ? null : parseFloat(val);
+      } else leg[field] = val;
+      recalc();
+    }
+
+    // ======================== PRESETS ========================
+    function addPreset(name) {
+      const S = +document.getElementById('spot').value || 100;
+      const defIV = +document.getElementById('defaultIV').value || 22;
+      const r = Math.round;
+      const map = {
+        longcall: [createLeg({type:'call',side:'long',qty:1,strike:r(S),iv:defIV})],
+        longput: [createLeg({type:'put',side:'long',qty:1,strike:r(S),iv:defIV})],
+        straddle: [
+          createLeg({type:'call',side:'long',qty:1,strike:r(S),iv:defIV}),
+          createLeg({type:'put',side:'long',qty:1,strike:r(S),iv:defIV})
+        ],
+        strangle: [
+          createLeg({type:'call',side:'long',qty:1,strike:r(S*1.05),iv:defIV}),
+          createLeg({type:'put',side:'long',qty:1,strike:r(S*0.95),iv:defIV})
+        ],
+        bullcall: [
+          createLeg({type:'call',side:'long',qty:1,strike:r(S*0.97),iv:defIV}),
+          createLeg({type:'call',side:'short',qty:1,strike:r(S*1.05),iv:defIV})
+        ],
+        bearput: [
+          createLeg({type:'put',side:'long',qty:1,strike:r(S*1.03),iv:defIV}),
+          createLeg({type:'put',side:'short',qty:1,strike:r(S*0.95),iv:defIV})
+        ],
+        butterfly: [
+          createLeg({type:'call',side:'long',qty:1,strike:r(S*0.95),iv:defIV}),
+          createLeg({type:'call',side:'short',qty:2,strike:r(S),iv:defIV}),
+          createLeg({type:'call',side:'long',qty:1,strike:r(S*1.05),iv:defIV})
+        ],
+        ironcondor: [
+          createLeg({type:'put',side:'long',qty:1,strike:r(S*0.90),iv:defIV}),
+          createLeg({type:'put',side:'short',qty:1,strike:r(S*0.95),iv:defIV}),
+          createLeg({type:'call',side:'short',qty:1,strike:r(S*1.05),iv:defIV}),
+          createLeg({type:'call',side:'long',qty:1,strike:r(S*1.10),iv:defIV})
+        ],
+        riskrev: [
+          createLeg({type:'call',side:'long',qty:1,strike:r(S*1.05),iv:defIV}),
+          createLeg({type:'put',side:'short',qty:1,strike:r(S*0.95),iv:defIV})
+        ],
+        collar: [
+          createLeg({type:'put',side:'long',qty:1,strike:r(S*0.95),iv:defIV}),
+          createLeg({type:'call',side:'short',qty:1,strike:r(S*1.05),iv:defIV})
+        ]
+      };
+      legs = map[name] || [];
+      const names = {longcall:'Long Call',longput:'Long Put',straddle:'Long Straddle',strangle:'Long Strangle',bullcall:'Bull Call Spread',bearput:'Bear Put Spread',butterfly:'Call Butterfly',ironcondor:'Iron Condor',riskrev:'Risk Reversal',collar:'Collar'};
+      document.getElementById('strategyName').value = names[name] || 'Custom';
+      renderLegs(); recalc();
+    }
+
+    function resetParams() {
+      document.getElementById('spot').value=100;
+      document.getElementById('defaultIV').value=22;
+      document.getElementById('rate').value=2.5;
+      document.getElementById('div').value=1.5;
+      document.getElementById('days').value=30;
+      document.getElementById('daysLabel').textContent='30';
+      document.getElementById('ivShift').value=0;
+      document.getElementById('ivShiftLabel').textContent='0 %';
+      document.getElementById('rateShift').value=0;
+      document.getElementById('rateShiftLabel').textContent='0 bp';
+      recalc();
+    }
+
+    // ======================== RENDER LEGS ========================
+    function renderLegs() {
+      const c = document.getElementById('legsContainer');
+      document.getElementById('legCount').textContent = `(${legs.length})`;
+      if (!legs.length) {
+        c.innerHTML = `<div class="text-center py-6 text-slate-500 text-xs">Inga ben. Välj preset eller lägg till.</div>`;
+        return;
+      }
+      c.innerHTML = legs.map((leg,i) => `
+        <div class="leg-card glass rounded-xl p-2.5 border border-white/5 animate-in">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[10px] font-medium text-slate-400">#${i+1} ${leg.type.toUpperCase()} ${leg.side==='long'?'Lång':'Kort'}</span>
+            <button onclick="removeLeg(${leg.id})" class="text-slate-500 hover:text-rose-400 text-xs">✕</button>
+          </div>
+          <div class="grid grid-cols-3 gap-1.5">
+            <div>
+              <label class="text-[9px] text-slate-500">Typ</label>
+              <select class="input-field w-full mt-0.5 px-1.5 py-1 rounded text-[11px] text-white" onchange="updateLeg(${leg.id},'type',this.value)">
+                <option value="call" ${leg.type==='call'?'selected':''}>Call</option>
+                <option value="put" ${leg.type==='put'?'selected':''}>Put</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[9px] text-slate-500">Pos</label>
+              <select class="input-field w-full mt-0.5 px-1.5 py-1 rounded text-[11px] text-white" onchange="updateLeg(${leg.id},'side',this.value)">
+                <option value="long" ${leg.side==='long'?'selected':''}>Lång</option>
+                <option value="short" ${leg.side==='short'?'selected':''}>Kort</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[9px] text-slate-500">Antal</label>
+              <input type="number" value="${leg.qty}" min="0.01" step="1" class="input-field w-full mt-0.5 px-1.5 py-1 rounded text-[11px] font-mono text-white" oninput="updateLeg(${leg.id},'qty',this.value)">
+            </div>
+            <div>
+              <label class="text-[9px] text-slate-500">Strike</label>
+              <input type="number" value="${leg.strike}" step="0.5" class="input-field w-full mt-0.5 px-1.5 py-1 rounded text-[11px] font-mono text-white" oninput="updateLeg(${leg.id},'strike',this.value)">
+            </div>
+            <div>
+              <label class="text-[9px] text-slate-500">Dagar</label>
+              <input type="number" value="${leg.days??''}" placeholder="glob" step="1" min="1" class="input-field w-full mt-0.5 px-1.5 py-1 rounded text-[11px] font-mono text-white" oninput="updateLeg(${leg.id},'days',this.value===''?null:this.value)">
+            </div>
+            <div>
+              <label class="text-[9px] text-slate-500">IV %</label>
+              <input type="number" value="${leg.iv??''}" placeholder="std" step="0.5" class="input-field w-full mt-0.5 px-1.5 py-1 rounded text-[11px] font-mono text-white" oninput="updateLeg(${leg.id},'iv',this.value===''?null:this.value)">
+            </div>
+            <div class="col-span-3">
+              <label class="text-[9px] text-slate-500">Premie (valfri → auto / IV-solver)</label>
+              <input type="number" value="${leg.premium??''}" placeholder="teoretisk" step="0.01" class="input-field w-full mt-0.5 px-1.5 py-1 rounded text-[11px] font-mono text-white" oninput="updateLeg(${leg.id},'premium',this.value===''?null:this.value)">
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ======================== CORE CALC ========================
+    function getParams() {
+      const S = +document.getElementById('spot').value || 100;
+      const daysG = +document.getElementById('days').value || 30;
+      const r = ((+document.getElementById('rate').value || 0) + (+document.getElementById('rateShift').value || 0)/100) / 100;
+      const q = (+document.getElementById('div').value || 0) / 100;
+      const defIV = ((+document.getElementById('defaultIV').value || 22) + (+document.getElementById('ivShift').value || 0)) / 100;
+      const ivShift = (+document.getElementById('ivShift').value || 0) / 100;
+      return { S, daysG, r, q, defIV, ivShift, rawRate: +document.getElementById('rate').value||0 };
+    }
+    function legMult(leg) { return (leg.side==='long'?1:-1) * leg.qty; }
+    function getLegSigma(leg, defIV, ivShift) {
+      if (leg.iv != null) return (leg.iv / 100) + ivShift;
+      return defIV;
+    }
+    function getLegT(leg, daysG) {
+      const d = leg.days != null ? leg.days : daysG;
+      return Math.max(d, 0.01) / 365;
+    }
+
+    function computeStrategy(params) {
+      const { S, daysG, r, q, defIV, ivShift } = params;
+      let netPrem = 0, theo = 0;
+      let dlt=0,gmm=0,tht=0,vga=0,rho=0;
+      const details = [];
+
+      for (const leg of legs) {
+        const T = getLegT(leg, daysG);
+        const sigma = Math.max(getLegSigma(leg, defIV, ivShift), 1e-4);
+        const g = bsGreeks(leg.type, S, leg.strike, T, r, q, sigma);
+        const m = legMult(leg);
+        let prem = leg.premium;
+        let solvedIV = null;
+        if (prem != null && prem > 0) {
+          solvedIV = impliedVol(leg.type, S, leg.strike, T, r, q, prem, sigma);
+        } else {
+          prem = g.price;
+        }
+        netPrem += m * prem;
+        theo += m * g.price;
+        dlt += m * g.delta; gmm += m * g.gamma; tht += m * g.theta;
+        vga += m * g.vega; rho += m * g.rho;
+        details.push({ leg, theo: g.price, prem, greeks: g, mult: m, sigma, T, solvedIV });
+      }
+
+      function payoffAt(ST) {
+        let p = 0;
+        for (const leg of legs) {
+          const m = legMult(leg);
+          const intr = leg.type==='call' ? Math.max(ST-leg.strike,0) : Math.max(leg.strike-ST,0);
+          const T = getLegT(leg, daysG);
+          const sigma = Math.max(getLegSigma(leg, defIV, ivShift), 1e-4);
+          const prem = leg.premium != null ? leg.premium : bsPrice(leg.type, S, leg.strike, T, r, q, sigma);
+          p += m * (intr - prem);
+        }
+        return p;
+      }
+
+      return {
+        netPrem, theo, currentPnL: theo - netPrem,
+        greeks: { delta:dlt, gamma:gmm, theta:tht, vega:vga, rho },
+        details, payoffAt
+      };
+    }
+
+    function findBreakevens(fn, low, high) {
+      const pts = [], n=900, step=(high-low)/n;
+      let prev = fn(low);
+      for (let i=1;i<=n;i++) {
+        const x = low + i*step, curr = fn(x);
+        if (prev*curr < 0) pts.push(x - step*curr/(curr-prev+1e-15));
+        prev = curr;
+      }
+      return [...new Set(pts.map(p=>Math.round(p*100)/100))].sort((a,b)=>a-b);
+    }
+
+    function analyzeExtremes(fn, low, high) {
+      let maxP=-1e99, minP=1e99, maxAt=0, minAt=0;
+      const n=700, step=(high-low)/n;
+      for (let i=0;i<=n;i++) {
+        const x=low+i*step, p=fn(x);
+        if (p>maxP){maxP=p;maxAt=x;} if (p<minP){minP=p;minAt=x;}
+      }
+      const slopeR = (fn(high)-fn(high*0.92))/(high*0.08);
+      const slopeL = (fn(low*1.08)-fn(low))/(low*0.08);
+      return {
+        maxProfit: (slopeR>0.25||slopeL<-0.25) ? Infinity : maxP,
+        maxLoss: (slopeR<-0.25||slopeL>0.25) ? -Infinity : minP,
+        maxAt, minAt,
+        unlimProfit: slopeR>0.25||slopeL<-0.25,
+        unlimLoss: slopeR<-0.25||slopeL>0.25
+      };
+    }
+
+    function computePOPEV(fn, S, T, r, q, sigma, low, high) {
+      const n=600, step=(high-low)/n;
+      let popM=0, tot=0, ev=0;
+      const mu = Math.log(S)+(r-q-0.5*sigma*sigma)*T;
+      const std = sigma*Math.sqrt(T);
+      for (let i=0;i<=n;i++) {
+        const ST = low+i*step; if (ST<=0) continue;
+        const z = (Math.log(ST)-mu)/std;
+        const dens = normPDF(z)/(ST*std);
+        const po = fn(ST);
+        const w = dens*step;
+        tot += w; if (po>0) popM += w; ev += po*w;
+      }
+      return { pop: tot>0 ? popM/tot*100 : 0, ev: ev*Math.exp(-r*T) };
+    }
+
+    // ======================== MONTE CARLO ========================
+    function runMonteCarlo() {
+      if (!legs.length) return;
+      const params = getParams();
+      const strat = computeStrategy(params);
+      const nSims = +document.getElementById('mcSims').value || 3000;
+      document.getElementById('mcStatus').textContent = 'Simulerar...';
+      setTimeout(() => {
+        const { S, r, q, defIV, ivShift, daysG } = params;
+        // Use average sigma and max T for simplicity
+        let sumSig=0, maxT=0;
+        for (const leg of legs) {
+          sumSig += getLegSigma(leg, defIV, ivShift);
+          maxT = Math.max(maxT, getLegT(leg, daysG));
+        }
+        const sigma = sumSig / legs.length;
+        const T = maxT;
+        const mu = (r - q - 0.5*sigma*sigma);
+        const paths = [];
+        const terminalPnLs = [];
+        const nSteps = Math.max(10, Math.round(T*365/2));
+        const dt = T / nSteps;
+        const showPaths = 50;
+
+        for (let s=0; s<nSims; s++) {
+          let price = S;
+          const path = s < showPaths ? [price] : null;
+          for (let t=0; t<nSteps; t++) {
+            const z = boxMuller();
+            price *= Math.exp(mu*dt + sigma*Math.sqrt(dt)*z);
+            if (path) path.push(price);
+          }
+          if (path) paths.push(path);
+          terminalPnLs.push(strat.payoffAt(price));
+        }
+
+        // Stats
+        terminalPnLs.sort((a,b)=>a-b);
+        const mean = terminalPnLs.reduce((a,b)=>a+b,0)/nSims;
+        const pop = terminalPnLs.filter(p=>p>0).length / nSims * 100;
+        const var95 = terminalPnLs[Math.floor(nSims*0.05)];
+        const cvar95 = terminalPnLs.slice(0, Math.floor(nSims*0.05)).reduce((a,b)=>a+b,0) / Math.max(1,Math.floor(nSims*0.05));
+        const median = terminalPnLs[Math.floor(nSims/2)];
+        // skew approx
+        const std = Math.sqrt(terminalPnLs.reduce((a,b)=>a+(b-mean)**2,0)/nSims);
+        const skew = std>0 ? terminalPnLs.reduce((a,b)=>a+((b-mean)/std)**3,0)/nSims : 0;
+
+        lastMC = { paths, terminalPnLs, mean, pop, var95, cvar95, median, skew, nSims, sigma, T };
+
+        // Histogram
+        const bins = 40;
+        const minP = terminalPnLs[0], maxP = terminalPnLs[nSims-1];
+        const binW = (maxP-minP)/(bins||1) || 1;
+        const hist = new Array(bins).fill(0);
+        const binX = [];
+        for (let i=0;i<bins;i++) binX.push(minP + (i+0.5)*binW);
+        for (const p of terminalPnLs) {
+          let idx = Math.floor((p-minP)/binW);
+          if (idx>=bins) idx=bins-1; if (idx<0) idx=0;
+          hist[idx]++;
+        }
+
+        Plotly.newPlot('chartMCHist', [{
+          x: binX, y: hist, type: 'bar',
+          marker: { color: binX.map(x => x>=0 ? 'rgba(52,211,153,0.7)' : 'rgba(251,113,133,0.7)') }
+        }], {
+          paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+          font:{color:'#94a3b8',size:10}, margin:{t:10,r:10,b:30,l:40},
+          xaxis:{title:'Terminal P/L',gridcolor:'rgba(255,255,255,0.04)'},
+          yaxis:{title:'Antal',gridcolor:'rgba(255,255,255,0.04)'},
+          bargap:0.05
+        }, {responsive:true, displayModeBar:false});
+
+        // Paths
+        const pathTraces = paths.map((p,i) => ({
+          x: p.map((_,j)=>j*dt*365),
+          y: p,
+          type:'scatter', mode:'lines',
+          line:{width:0.8, color: i%2? 'rgba(99,102,241,0.35)':'rgba(34,211,238,0.35)'},
+          showlegend:false, hoverinfo:'skip'
+        }));
+        Plotly.newPlot('chartMCPaths', pathTraces, {
+          paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+          font:{color:'#94a3b8',size:10}, margin:{t:10,r:10,b:30,l:40},
+          xaxis:{title:'Dagar',gridcolor:'rgba(255,255,255,0.04)'},
+          yaxis:{title:'Pris',gridcolor:'rgba(255,255,255,0.04)'}
+        }, {responsive:true, displayModeBar:false});
+
+        document.getElementById('mcMetrics').innerHTML = `
+          <div class="glass rounded-xl p-3 text-center"><div class="text-[10px] text-slate-500">POP (MC)</div><div class="text-lg font-bold font-mono text-emerald-300">${fmt(pop,1)}%</div></div>
+          <div class="glass rounded-xl p-3 text-center"><div class="text-[10px] text-slate-500">Medel P/L</div><div class="text-lg font-bold font-mono text-cyan-300">${fmt(mean)}</div></div>
+          <div class="glass rounded-xl p-3 text-center"><div class="text-[10px] text-slate-500">VaR 95%</div><div class="text-lg font-bold font-mono text-rose-300">${fmt(var95)}</div></div>
+          <div class="glass rounded-xl p-3 text-center"><div class="text-[10px] text-slate-500">CVaR 95%</div><div class="text-lg font-bold font-mono text-rose-300">${fmt(cvar95)}</div></div>
+          <div class="glass rounded-xl p-3 text-center"><div class="text-[10px] text-slate-500">Skewness</div><div class="text-lg font-bold font-mono text-amber-300">${fmt(skew,2)}</div></div>
+        `;
+        document.getElementById('mcStatus').textContent = `${nSims.toLocaleString('sv-SE')} simuleringar klara`;
+      }, 30);
+    }
+    function boxMuller() {
+      let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
+      return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+    }
+
+    // ======================== UI UPDATE ========================
+    function debounceRecalc() {
+      clearTimeout(recalcTimer);
+      recalcTimer = setTimeout(recalc, 60);
+    }
+
+    function fmt(n, d=2) {
+      if (!isFinite(n)) return n>0 ? '∞' : '−∞';
+      return n.toLocaleString('sv-SE', {minimumFractionDigits:d, maximumFractionDigits:d});
+    }
+
+    function recalc() {
+      if (!legs.length) {
+        document.getElementById('metricsGrid').innerHTML = '<div class="col-span-2 text-slate-500 text-xs py-2">Lägg till ben</div>';
+        document.getElementById('heroMetrics').innerHTML = '';
+        document.getElementById('analysisCards').innerHTML = '';
+        return;
+      }
+      const params = getParams();
+      const strat = computeStrategy(params);
+      const { S, daysG, r, q, defIV } = params;
+      const strikes = legs.map(l=>l.strike);
+      const minK = Math.min(...strikes, S*0.85);
+      const maxK = Math.max(...strikes, S*1.15);
+      const low = Math.max(0.5, minK*0.55);
+      const high = maxK*1.45;
+
+      const extremes = analyzeExtremes(strat.payoffAt, low, high);
+      const bes = findBreakevens(strat.payoffAt, low, high);
+      const sigmaAvg = legs.reduce((s,l)=>s+getLegSigma(l,defIV,params.ivShift),0)/legs.length;
+      const maxT = Math.max(...legs.map(l=>getLegT(l,daysG)));
+      const { pop, ev } = computePOPEV(strat.payoffAt, S, maxT, r, q, sigmaAvg, low, high);
+      const expMove = S * sigmaAvg * Math.sqrt(maxT);
+
+      renderQuick(strat, extremes, bes, pop, ev, expMove);
+      renderHero(strat, extremes, pop, ev, expMove);
+      renderAnalysisCards(strat, extremes, pop, ev);
+      updateOverviewCharts(strat, params, low, high, bes, sigmaAvg, maxT);
+      updatePayoffPanel(strat, params, low, high, bes);
+      updateGreeksPanel(strat, params, low, high);
+      updateSurface(strat, params, low, high);
+      updateLegsDetail(strat, params);
+      updateDeep(strat, params, extremes, bes, pop, ev, sigmaAvg, expMove);
+      try { buildScenarioMatrix(); } catch(e) {}
+    }
+
+    function renderQuick(strat, ext, bes, pop, ev, expMove) {
+      const net = strat.netPrem;
+      document.getElementById('metricsGrid').innerHTML = `
+        <div class="glass rounded-lg p-2.5"><div class="text-[9px] text-slate-500 uppercase">Netto</div><div class="text-sm font-semibold font-mono ${net>0?'metric-neg':'metric-pos'}">${net>0?'Debet':'Kredit'} ${fmt(Math.abs(net))}</div></div>
+        <div class="glass rounded-lg p-2.5"><div class="text-[9px] text-slate-500 uppercase">Theo</div><div class="text-sm font-semibold font-mono text-cyan-300">${fmt(strat.theo)}</div></div>
+        <div class="glass rounded-lg p-2.5"><div class="text-[9px] text-slate-500 uppercase">Max vinst</div><div class="text-sm font-semibold font-mono metric-pos">${ext.unlimProfit?'∞':fmt(ext.maxProfit)}</div></div>
+        <div class="glass rounded-lg p-2.5"><div class="text-[9px] text-slate-500 uppercase">Max förlust</div><div class="text-sm font-semibold font-mono metric-neg">${ext.unlimLoss?'−∞':fmt(ext.maxLoss)}</div></div>
+        <div class="glass rounded-lg p-2.5 col-span-2"><div class="text-[9px] text-slate-500 uppercase">Break-even</div><div class="text-xs font-mono text-slate-200">${bes.length?bes.map(b=>fmt(b,1)).join(' · '):'—'}</div></div>
+      `;
+    }
+
+    function renderHero(strat, ext, pop, ev, expMove) {
+      document.getElementById('heroMetrics').innerHTML = `
+        <div class="glass rounded-xl p-3 border border-emerald-500/15"><div class="text-[10px] text-emerald-400/70 uppercase">POP</div><div class="text-xl font-bold font-mono text-emerald-300">${fmt(pop,1)}%</div></div>
+        <div class="glass rounded-xl p-3 border border-cyan-500/15"><div class="text-[10px] text-cyan-400/70 uppercase">EV (RN)</div><div class="text-xl font-bold font-mono text-cyan-300">${fmt(ev)}</div></div>
+        <div class="glass rounded-xl p-3 border border-indigo-500/15"><div class="text-[10px] text-indigo-400/70 uppercase">Delta</div><div class="text-xl font-bold font-mono text-indigo-300">${fmt(strat.greeks.delta,3)}</div></div>
+        <div class="glass rounded-xl p-3 border border-amber-500/15"><div class="text-[10px] text-amber-400/70 uppercase">Förväntad rörelse (1σ)</div><div class="text-xl font-bold font-mono text-amber-300">±${fmt(expMove,1)}</div></div>
+      `;
+    }
+
+    function renderAnalysisCards(strat, ext, pop, ev) {
+      document.getElementById('analysisCards').innerHTML = `
+        <div class="glass rounded-xl p-3"><div class="text-[10px] text-slate-500">Reward / Risk</div><div class="text-base font-bold font-mono text-white">${ext.unlimProfit||ext.unlimLoss||!ext.maxLoss? '—': fmt(Math.abs(ext.maxProfit/ext.maxLoss),2)}</div></div>
+        <div class="glass rounded-xl p-3"><div class="text-[10px] text-slate-500">Theta / dag</div><div class="text-base font-bold font-mono ${strat.greeks.theta<0?'text-rose-300':'text-emerald-300'}">${fmt(strat.greeks.theta,3)}</div></div>
+        <div class="glass rounded-xl p-3"><div class="text-[10px] text-slate-500">Vega (1%)</div><div class="text-base font-bold font-mono text-amber-300">${fmt(strat.greeks.vega,3)}</div></div>
+        <div class="glass rounded-xl p-3"><div class="text-[10px] text-slate-500">Gamma</div><div class="text-base font-bold font-mono text-cyan-300">${fmt(strat.greeks.gamma,4)}</div></div>
+      `;
+    }
+
+    // ---- Charts ----
+    function commonLayout(extra={}) {
+      return {
+        paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+        font:{color:'#94a3b8', family:'Inter', size:10},
+        margin:{t:15, r:15, b:35, l:45},
+        xaxis:{gridcolor:'rgba(255,255,255,0.035)', zeroline:false},
+        yaxis:{gridcolor:'rgba(255,255,255,0.035)', zerolinecolor:'rgba(255,255,255,0.12)'},
+        legend:{orientation:'h', y:1.12, font:{size:10}},
+        hovermode:'x unified',
+        ...extra
+      };
+    }
+
+    function updateOverviewCharts(strat, params, low, high, bes, sigmaAvg, maxT) {
+      const n=260, xs=[], pays=[], theos=[];
+      const step=(high-low)/n;
+      for (let i=0;i<=n;i++) {
+        const ST=low+i*step; xs.push(ST);
+        pays.push(strat.payoffAt(ST));
+        let th=0;
+        for (const leg of legs) {
+          const T=getLegT(leg,params.daysG);
+          const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
+          th += legMult(leg)*bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig).price;
+        }
+        theos.push(th - strat.netPrem);
+      }
+      // Profit/loss zone fills
+      const profitX=[], profitY=[], lossX=[], lossY=[];
+      for (let i=0;i<xs.length;i++) {
+        if (pays[i] >= 0) { profitX.push(xs[i]); profitY.push(pays[i]); lossX.push(xs[i]); lossY.push(0); }
+        else { lossX.push(xs[i]); lossY.push(pays[i]); profitX.push(xs[i]); profitY.push(0); }
+      }
+      Plotly.newPlot('chartOverviewPayoff', [
+        {x:xs, y:pays, name:'Payoff förfall', line:{color:'#a5b4fc', width:2.8}, fill:'tozeroy', fillcolor:'rgba(99,102,241,0.12)'},
+        {x:xs, y:theos, name:'Theo P/L nu', line:{color:'#22d3ee', width:1.8, dash:'dot'}},
+        {x:[low,high], y:[0,0], line:{color:'rgba(255,255,255,0.2)', width:1, dash:'dash'}, showlegend:false, hoverinfo:'skip'},
+        {x:[params.S], y:[strat.payoffAt(params.S)], mode:'markers', marker:{size:10, color:'#fbbf24', symbol:'diamond'}, name:'Spot'}
+      ], commonLayout({
+        shapes: bes.map(b => ({type:'line', x0:b, x1:b, y0:0, y1:1, yref:'paper', line:{color:'rgba(251,113,133,0.45)', width:1.2, dash:'dot'}})),
+        annotations: bes.slice(0,3).map(b => ({x:b, y:0, text:'BE '+b.toFixed(1), showarrow:false, yshift:14, font:{size:10, color:'#fb7185'}}))
+      }), {responsive:true, displayModeBar:false});
+
+      // Delta
+      const dx=[], dd=[], gg=[], vv=[];
+      for (let i=0;i<=90;i++) {
+        const ST=low+i*(high-low)/90; dx.push(ST);
+        let d=0, g=0, v=0;
+        for (const leg of legs) {
+          const T=getLegT(leg,params.daysG);
+          const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
+          const gr=bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig);
+          const m=legMult(leg);
+          d += m*gr.delta; g += m*gr.gamma; v += m*gr.vega;
+        }
+        dd.push(d); gg.push(g); vv.push(v);
+      }
+      Plotly.newPlot('chartOverviewDelta', [{x:dx,y:dd,line:{color:'#818cf8',width:2.2},fill:'tozeroy',fillcolor:'rgba(129,140,248,0.12)'}], commonLayout({showlegend:false,yaxis:{title:'Delta'}}), {responsive:true,displayModeBar:false});
+
+      // Density
+      const dens=[], pays2=[];
+      const mu=Math.log(params.S)+(params.r-params.q-0.5*sigmaAvg*sigmaAvg)*maxT;
+      const std=sigmaAvg*Math.sqrt(maxT);
+      let maxD=0;
+      for (let i=0;i<=180;i++) {
+        const ST=low+i*(high-low)/180;
+        const z=ST>0?(Math.log(ST)-mu)/std:10;
+        const d=ST>0?normPDF(z)/(ST*std):0;
+        dens.push(d); pays2.push(strat.payoffAt(ST)); if(d>maxD)maxD=d;
+      }
+      const sc = Math.max(...pays2.map(Math.abs),1)/(maxD||1)*0.5;
+      Plotly.newPlot('chartOverviewDens', [
+        {x:Array.from({length:181},(_,i)=>low+i*(high-low)/180), y:dens.map(d=>d*sc), name:'RN densitet', fill:'tozeroy', fillcolor:'rgba(34,211,238,0.14)', line:{color:'#22d3ee',width:1.3}},
+        {x:Array.from({length:181},(_,i)=>low+i*(high-low)/180), y:pays2, name:'Payoff', line:{color:'#6366f1',width:2}}
+      ], commonLayout(), {responsive:true,displayModeBar:false});
+
+      // Radar / bar for relative Greeks
+      const g = strat.greeks;
+      const maxAbs = Math.max(Math.abs(g.delta), Math.abs(g.gamma)*50, Math.abs(g.theta)*20, Math.abs(g.vega), Math.abs(g.rho), 0.01);
+      Plotly.newPlot('chartOverviewRadar', [{
+        type: 'bar',
+        x: ['Delta', 'Gamma×50', 'Theta×20', 'Vega', 'Rho'],
+        y: [g.delta, g.gamma*50, g.theta*20, g.vega, g.rho],
+        marker: {color: [g.delta, g.gamma*50, g.theta*20, g.vega, g.rho].map(v => v>=0 ? 'rgba(52,211,153,0.75)' : 'rgba(251,113,133,0.75)')}
+      }], commonLayout({showlegend:false, yaxis:{title:'Skalad', zeroline:true, zerolinecolor:'rgba(255,255,255,0.2)'}, margin:{t:10,r:10,b:40,l:40}}), {responsive:true,displayModeBar:false});
+
+      // Gamma & Vega
+      Plotly.newPlot('chartOverviewGV', [
+        {x:dx, y:gg, name:'Gamma', line:{color:'#22d3ee', width:2}},
+        {x:dx, y:vv, name:'Vega', yaxis:'y2', line:{color:'#fbbf24', width:2}}
+      ], commonLayout({yaxis:{title:'Gamma'}, yaxis2:{title:'Vega', overlaying:'y', side:'right', gridcolor:'transparent'}}), {responsive:true,displayModeBar:false});
+
+      // Individual leg payoffs
+      const legTraces = legs.map((leg, idx) => {
+        const m = legMult(leg);
+        const ys = xs.map(ST => {
+          const intr = leg.type==='call' ? Math.max(ST-leg.strike,0) : Math.max(leg.strike-ST,0);
+          const T = getLegT(leg, params.daysG);
+          const sig = Math.max(getLegSigma(leg, params.defIV, params.ivShift), 1e-4);
+          const prem = leg.premium != null ? leg.premium : bsPrice(leg.type, params.S, leg.strike, T, params.r, params.q, sig);
+          return m * (intr - prem);
+        });
+        const colors = ['#818cf8','#34d399','#fbbf24','#fb7185','#22d3ee','#a78bfa','#f472b6'];
+        return {x:xs, y:ys, name:`Ben ${idx+1} ${leg.type}`, line:{width:1.6, color:colors[idx%colors.length]}, opacity:0.85};
+      });
+      legTraces.push({x:xs, y:pays, name:'Total', line:{color:'#fff', width:2.5}});
+      Plotly.newPlot('chartOverviewLegs', legTraces, commonLayout({legend:{orientation:'h', y:1.18, font:{size:9}}}), {responsive:true,displayModeBar:false});
+    }
+
+    function updatePayoffPanel(strat, params, low, high, bes) {
+      // Reuse similar to overview but larger
+      const n=320, xs=[], pays=[], theos=[];
+      const step=(high-low)/n;
+      for (let i=0;i<=n;i++) {
+        const ST=low+i*step; xs.push(ST); pays.push(strat.payoffAt(ST));
+        let th=0;
+        for (const leg of legs) {
+          const T=getLegT(leg,params.daysG); const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
+          th += legMult(leg)*bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig).price;
+        }
+        theos.push(th-strat.netPrem);
+      }
+      Plotly.newPlot('chartPayoff', [
+        {x:xs,y:pays,name:'Payoff vid förfall',line:{color:'#6366f1',width:2.8},fill:'tozeroy',fillcolor:'rgba(99,102,241,0.08)'},
+        {x:xs,y:theos,name:'Teoretisk P/L (nu)',line:{color:'#22d3ee',width:2,dash:'dot'}},
+        {x:[low,high],y:[0,0],line:{color:'rgba(255,255,255,0.2)',width:1,dash:'dash'},showlegend:false,hoverinfo:'skip'},
+        {x:[params.S],y:[strat.payoffAt(params.S)],mode:'markers',marker:{size:11,color:'#fbbf24',symbol:'diamond'},name:'Nuvarande Spot'}
+      ], commonLayout({
+        height:420,
+        shapes:bes.map(b=>({type:'line',x0:b,x1:b,y0:0,y1:1,yref:'paper',line:{color:'rgba(251,113,133,0.45)',width:1.2,dash:'dot'}})),
+        annotations:bes.map((b,i)=>({x:b,y:0,text:`BE ${fmt(b,1)}`,showarrow:false,yshift:12,font:{size:10,color:'#fb7185'}}))
+      }), {responsive:true,displayModeBar:false});
+    }
+
+    function updateGreeksPanel(strat, params, low, high) {
+      const g = strat.greeks;
+      document.getElementById('greeksTable').innerHTML = `
+        <table class="w-full text-xs">
+          <thead><tr class="text-[9px] text-slate-500 uppercase"><th class="text-left py-1">Greek</th><th class="text-right">Värde</th></tr></thead>
+          <tbody class="font-mono">
+            <tr class="border-t border-white/5"><td class="py-2 text-slate-300">Delta</td><td class="text-right text-indigo-300">${fmt(g.delta,4)}</td></tr>
+            <tr class="border-t border-white/5"><td class="py-2 text-slate-300">Gamma</td><td class="text-right text-cyan-300">${fmt(g.gamma,5)}</td></tr>
+            <tr class="border-t border-white/5"><td class="py-2 text-slate-300">Theta (dag)</td><td class="text-right ${g.theta<0?'text-rose-300':'text-emerald-300'}">${fmt(g.theta,4)}</td></tr>
+            <tr class="border-t border-white/5"><td class="py-2 text-slate-300">Vega (1%)</td><td class="text-right text-amber-300">${fmt(g.vega,4)}</td></tr>
+            <tr class="border-t border-white/5"><td class="py-2 text-slate-300">Rho (1%)</td><td class="text-right text-slate-300">${fmt(g.rho,4)}</td></tr>
+          </tbody>
+        </table>
+        <p class="text-[10px] text-slate-500 mt-3 leading-relaxed">Tolkning uppdateras i Risk-fliken. Alla värden är position-viktade.</p>
+      `;
+
+      const n=110, xs=[], deltas=[], gammas=[], vegas=[], thetas=[], rhos=[];
+      const step=(high-low)/n;
+      for (let i=0;i<=n;i++) {
+        const ST=low+i*step; xs.push(ST);
+        let d=0,gm=0,v=0,th=0,rh=0;
+        for (const leg of legs) {
+          const T=getLegT(leg,params.daysG); const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
+          const gr=bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig); const m=legMult(leg);
+          d+=m*gr.delta; gm+=m*gr.gamma; v+=m*gr.vega; th+=m*gr.theta; rh+=m*gr.rho;
+        }
+        deltas.push(d); gammas.push(gm); vegas.push(v); thetas.push(th); rhos.push(rh);
+      }
+      Plotly.newPlot('chartDeltaGamma', [
+        {x:xs,y:deltas,name:'Delta',line:{color:'#818cf8',width:2}},
+        {x:xs,y:gammas,name:'Gamma',yaxis:'y2',line:{color:'#22d3ee',width:2}}
+      ], commonLayout({
+        yaxis:{title:'Delta'}, yaxis2:{title:'Gamma',overlaying:'y',side:'right',gridcolor:'transparent'}
+      }), {responsive:true,displayModeBar:false});
+
+      Plotly.newPlot('chartOtherGreeks', [
+        {x:xs,y:vegas,name:'Vega',line:{color:'#fbbf24',width:2}},
+        {x:xs,y:thetas,name:'Theta',line:{color:'#fb7185',width:2}},
+        {x:xs,y:rhos,name:'Rho',line:{color:'#a78bfa',width:1.5,dash:'dot'}}
+      ], commonLayout(), {responsive:true,displayModeBar:false});
+    }
+
+    function updateSurface(strat, params, low, high) {
+      const ivBase = params.defIV;
+      const ivs = [];
+      for (let i=-10;i<=10;i++) ivs.push(Math.max(0.04, ivBase + i*0.015));
+      const spots = [];
+      for (let i=0;i<=32;i++) spots.push(low + i*(high-low)/32);
+      const daysArr = [];
+      for (let d=2; d<=Math.max(params.daysG*1.6, 45); d+=Math.max(1, Math.round(params.daysG/12))) daysArr.push(d);
+
+      // Helper: theo P/L at given ST, T, sigma
+      function theoAt(ST, T, sig) {
+        let th = 0;
+        for (const leg of legs) {
+          const g = bsGreeks(leg.type, ST, leg.strike, T, params.r, params.q, sig);
+          th += legMult(leg) * g.price;
+        }
+        return th - strat.netPrem;
+      }
+      function deltaAt(ST, T, sig) {
+        let d = 0;
+        for (const leg of legs) {
+          d += legMult(leg) * bsGreeks(leg.type, ST, leg.strike, T, params.r, params.q, sig).delta;
+        }
+        return d;
+      }
+      function vegaAt(ST, T, sig) {
+        let v = 0;
+        for (const leg of legs) {
+          v += legMult(leg) * bsGreeks(leg.type, ST, leg.strike, T, params.r, params.q, sig).vega;
+        }
+        return v;
+      }
+
+      const T0 = params.daysG / 365;
+      const sig0 = Math.max(getLegSigma(legs[0]||{iv:null}, params.defIV, params.ivShift), 0.05);
+
+      // 1. P/L Heatmap Spot x IV
+      const zPL = spots.map(ST => ivs.map(sig => theoAt(ST, T0, sig)));
+      Plotly.newPlot('chartHeatmap', [{
+        x: ivs.map(v => +(v*100).toFixed(1)), y: spots, z: zPL,
+        type: 'heatmap',
+        colorscale: [[0,'#0f172a'],[0.25,'#1e3a5f'],[0.5,'#312e81'],[0.75,'#4f46e5'],[1,'#22d3ee']],
+        colorbar: {title: 'P/L', thickness: 11, len: 0.65}
+      }], commonLayout({xaxis:{title:'IV %'}, yaxis:{title:'Spot'}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
+
+      // 2. Delta Heatmap Spot x IV
+      const zDelta = spots.map(ST => ivs.map(sig => deltaAt(ST, T0, sig)));
+      Plotly.newPlot('chartDeltaHeat', [{
+        x: ivs.map(v => +(v*100).toFixed(1)), y: spots, z: zDelta,
+        type: 'heatmap',
+        colorscale: [[0,'#7f1d1d'],[0.35,'#1e1b4b'],[0.5,'#312e81'],[0.65,'#164e63'],[1,'#065f46']],
+        colorbar: {title: 'Delta', thickness: 11, len: 0.65}
+      }], commonLayout({xaxis:{title:'IV %'}, yaxis:{title:'Spot'}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
+
+      // 3. 3D P/L (Spot x Days)
+      const z3PL = spots.map(ST => daysArr.map(d => theoAt(ST, d/365, sig0)));
+      Plotly.newPlot('chart3D', [{
+        x: daysArr, y: spots, z: z3PL, type: 'surface',
+        colorscale: [[0,'#0f172a'],[0.35,'#312e81'],[0.7,'#6366f1'],[1,'#22d3ee']],
+        showscale: true, colorbar: {title:'P/L', thickness:11}
+      }], {
+        paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#94a3b8',size:10},
+        margin:{t:10,r:10,b:10,l:10},
+        scene: {
+          xaxis:{title:'Dagar kvar', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          yaxis:{title:'Spot', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          zaxis:{title:'P/L', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          bgcolor:'transparent', camera:{eye:{x:1.55, y:1.45, z:1.15}}
+        }
+      }, {responsive:true, displayModeBar:false});
+
+      // 4. 3D Delta (Spot x Days)
+      const z3D = spots.map(ST => daysArr.map(d => deltaAt(ST, d/365, sig0)));
+      Plotly.newPlot('chart3DDelta', [{
+        x: daysArr, y: spots, z: z3D, type: 'surface',
+        colorscale: [[0,'#7f1d1d'],[0.4,'#1e1b4b'],[0.6,'#164e63'],[1,'#065f46']],
+        showscale: true, colorbar: {title:'Delta', thickness:11}
+      }], {
+        paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#94a3b8',size:10},
+        margin:{t:10,r:10,b:10,l:10},
+        scene: {
+          xaxis:{title:'Dagar', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          yaxis:{title:'Spot', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          zaxis:{title:'Delta', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          bgcolor:'transparent', camera:{eye:{x:1.5, y:1.4, z:1.2}}
+        }
+      }, {responsive:true, displayModeBar:false});
+
+      // 5. 3D Vega (Spot x IV) at current T
+      const z3V = spots.map(ST => ivs.map(sig => vegaAt(ST, T0, sig)));
+      Plotly.newPlot('chart3DVega', [{
+        x: ivs.map(v => +(v*100).toFixed(1)), y: spots, z: z3V, type: 'surface',
+        colorscale: [[0,'#1c1917'],[0.4,'#78350f'],[0.7,'#fbbf24'],[1,'#fef3c7']],
+        showscale: true, colorbar: {title:'Vega', thickness:11}
+      }], {
+        paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#94a3b8',size:10},
+        margin:{t:10,r:10,b:10,l:10},
+        scene: {
+          xaxis:{title:'IV %', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          yaxis:{title:'Spot', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          zaxis:{title:'Vega', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          bgcolor:'transparent', camera:{eye:{x:1.5, y:1.4, z:1.15}}
+        }
+      }, {responsive:true, displayModeBar:false});
+
+      // 6. Time decay curve at current Spot
+      const tDays = [], tPnL = [], tDelta = [];
+      for (let d = Math.max(1, params.daysG); d >= 0; d -= Math.max(1, Math.round(params.daysG/40))) {
+        tDays.push(d);
+        tPnL.push(theoAt(params.S, d/365, sig0));
+        tDelta.push(deltaAt(params.S, d/365, sig0));
+      }
+      Plotly.newPlot('chartTimeDecay', [
+        {x: tDays, y: tPnL, name: 'P/L', line:{color:'#6366f1', width:2.5}, fill:'tozeroy', fillcolor:'rgba(99,102,241,0.08)'},
+        {x: tDays, y: tDelta, name: 'Delta', yaxis:'y2', line:{color:'#22d3ee', width:2, dash:'dot'}}
+      ], commonLayout({
+        xaxis:{title:'Dagar kvar', autorange:'reversed'},
+        yaxis:{title:'P/L'},
+        yaxis2:{title:'Delta', overlaying:'y', side:'right', gridcolor:'transparent'},
+        legend:{orientation:'h', y:1.15}
+      }), {responsive:true, displayModeBar:false});
+    }
+
+    function updateLegsDetail(strat, params) {
+      if (!strat.details.length) { document.getElementById('legsDetailTable').innerHTML=''; return; }
+      let html = `<table class="w-full text-xs">
+        <thead><tr class="text-[9px] text-slate-500 uppercase border-b border-white/10">
+          <th class="text-left py-2 pr-2">#</th><th class="text-left">Typ</th><th class="text-left">Pos</th>
+          <th class="text-right">Strike</th><th class="text-right">Dagar</th><th class="text-right">IV</th>
+          <th class="text-right">Premie</th><th class="text-right">Theo</th><th class="text-right">Δ</th>
+          <th class="text-right">Γ</th><th class="text-right">Θ</th><th class="text-right">Vega</th>
+          <th class="text-right">IV-solv</th>
+        </tr></thead><tbody class="font-mono">`;
+      strat.details.forEach((d,i) => {
+        const l=d.leg;
+        html += `<tr class="border-t border-white/5 hover:bg-white/[0.02]">
+          <td class="py-1.5 text-slate-500">${i+1}</td>
+          <td class="text-slate-300">${l.type}</td>
+          <td class="${l.side==='long'?'text-emerald-400':'text-rose-400'}">${l.side==='long'?'Lång':'Kort'}</td>
+          <td class="text-right">${fmt(l.strike,1)}</td>
+          <td class="text-right">${l.days??params.daysG}</td>
+          <td class="text-right">${fmt(d.sigma*100,1)}%</td>
+          <td class="text-right">${fmt(d.prem)}</td>
+          <td class="text-right text-cyan-300">${fmt(d.theo)}</td>
+          <td class="text-right">${fmt(d.greeks.delta*d.mult,3)}</td>
+          <td class="text-right">${fmt(d.greeks.gamma*d.mult,4)}</td>
+          <td class="text-right">${fmt(d.greeks.theta*d.mult,3)}</td>
+          <td class="text-right">${fmt(d.greeks.vega*d.mult,3)}</td>
+          <td class="text-right text-amber-300">${d.solvedIV!=null?fmt(d.solvedIV*100,1)+'%':'—'}</td>
+        </tr>`;
+      });
+      html += `</tbody></table>
+        <p class="text-[10px] text-slate-500 mt-3">IV-solv = implicerad volatilitet om du angett marknadspremie. Theo beräknas alltid med aktuell IV (inkl. what-if shift).</p>`;
+      document.getElementById('legsDetailTable').innerHTML = html;
+    }
+
+    function updateDeep(strat, params, ext, bes, pop, ev, sigmaAvg, expMove) {
+      const g = strat.greeks;
+      const scenarios = [
+        {n:'Spot −25%', st:params.S*0.75}, {n:'Spot −10%', st:params.S*0.9},
+        {n:'Oförändrad', st:params.S}, {n:'Spot +10%', st:params.S*1.1}, {n:'Spot +25%', st:params.S*1.25}
+      ].map(s=>({...s, pnl:strat.payoffAt(s.st)}));
+
+      document.getElementById('deepContent').innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="glass rounded-xl p-4">
+            <h4 class="text-[10px] font-semibold text-slate-400 uppercase mb-2.5">Position</h4>
+            <ul class="space-y-1.5 text-xs">
+              <li class="flex justify-between"><span class="text-slate-400">Ben</span><span class="font-mono">${legs.length}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">Netto premie</span><span class="font-mono ${strat.netPrem>0?'text-rose-300':'text-emerald-300'}">${fmt(strat.netPrem)}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">Teoretiskt värde</span><span class="font-mono text-cyan-300">${fmt(strat.theo)}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">Mark-to-model</span><span class="font-mono ${strat.currentPnL>=0?'text-emerald-300':'text-rose-300'}">${fmt(strat.currentPnL)}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">Förväntad rörelse 1σ</span><span class="font-mono text-amber-300">±${fmt(expMove,1)}</span></li>
+            </ul>
+          </div>
+          <div class="glass rounded-xl p-4">
+            <h4 class="text-[10px] font-semibold text-slate-400 uppercase mb-2.5">Risk / Reward</h4>
+            <ul class="space-y-1.5 text-xs">
+              <li class="flex justify-between"><span class="text-slate-400">Max vinst</span><span class="font-mono text-emerald-300">${ext.unlimProfit?'∞':fmt(ext.maxProfit)}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">Max förlust</span><span class="font-mono text-rose-300">${ext.unlimLoss?'−∞':fmt(ext.maxLoss)}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">R/R</span><span class="font-mono">${ext.unlimProfit||ext.unlimLoss||!ext.maxLoss?'—':fmt(Math.abs(ext.maxProfit/ext.maxLoss),2)}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">POP (RN)</span><span class="font-mono text-emerald-300">${fmt(pop,1)}%</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">EV (disk)</span><span class="font-mono text-cyan-300">${fmt(ev)}</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="glass rounded-xl p-4">
+          <h4 class="text-[10px] font-semibold text-slate-400 uppercase mb-2.5">Scenario (payoff vid förfall)</h4>
+          <table class="w-full text-xs"><thead><tr class="text-[9px] text-slate-500"><th class="text-left py-1">Scenario</th><th class="text-right">ST</th><th class="text-right">P/L</th></tr></thead>
+          <tbody class="font-mono">${scenarios.map(s=>`<tr class="border-t border-white/5"><td class="py-1 text-slate-300 font-sans">${s.n}</td><td class="text-right">${fmt(s.st,1)}</td><td class="text-right ${s.pnl>=0?'text-emerald-300':'text-rose-300'}">${fmt(s.pnl)}</td></tr>`).join('')}</tbody></table>
+        </div>
+        <div class="glass rounded-xl p-4">
+          <h4 class="text-[10px] font-semibold text-slate-400 uppercase mb-2.5">Greeks-tolkning</h4>
+          <div class="text-xs text-slate-300 space-y-2 leading-relaxed">
+            <p><strong class="text-indigo-300">Delta ${fmt(g.delta,3)}</strong> — ${Math.abs(g.delta)<0.12?'Nästan delta-neutral.':g.delta>0?'Netto lång underliggande.':'Netto kort underliggande.'} Ungefär ${fmt(g.delta*100,0)} kr per 1 kr i S.</p>
+            <p><strong class="text-cyan-300">Gamma ${fmt(g.gamma,4)}</strong> — ${g.gamma>0.008?'Positiv gamma (konvexitet, gynnas av stora rörelser).':g.gamma<-0.008?'Negativ gamma (risk vid gap/rörelse).':'Låg gamma.'}</p>
+            <p><strong class="text-rose-300">Theta ${fmt(g.theta,3)}</strong> — ${g.theta<-0.04?'Betydande tidsvärdefall (long premium).':g.theta>0.04?'Positiv theta (short premium).':'Måttlig decay.'} Ca ${fmt(Math.abs(g.theta),2)} per dag.</p>
+            <p><strong class="text-amber-300">Vega ${fmt(g.vega,3)}</strong> — ${g.vega>0.08?'Lång volatilitet.':g.vega<-0.08?'Kort volatilitet (IV-crush gynnsam).':'Låg vol-exponering.'}</p>
+          </div>
+        </div>
+        <div class="glass rounded-xl p-4">
+          <h4 class="text-[10px] font-semibold text-slate-400 uppercase mb-2">Modell & antaganden</h4>
+          <ul class="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
+            <li>Black-Scholes-Merton med kontinuerlig utdelning (europeisk exercise).</li>
+            <li>Riskneutralt mått för POP/EV. Monte Carlo = GBM med samma μ och σ.</li>
+            <li>What-if IV/ränta appliceras parallellt. Per-ben dagar stöds.</li>
+            <li>IV-solver: Newton-Raphson. Ingen early exercise, konstant vol, inga hopp.</li>
+            <li>Alla beräkningar per option (multiplier 1). Skala själv med kontraktstorlek.</li>
+          </ul>
+        </div>
+      `;
+    }
+
+    // ======================== TABS / MODALS / EXPORT ========================
+    function switchTab(name) {
+      document.querySelectorAll('.tab-panel').forEach(p=>p.classList.add('hidden'));
+      const panel = document.getElementById('panel-'+name);
+      if (panel) panel.classList.remove('hidden');
+      document.querySelectorAll('.tab-btn').forEach(b=>{ b.classList.remove('tab-active'); b.classList.add('text-slate-400'); });
+      const btn=document.querySelector(`[data-tab="${name}"]`);
+      if (btn) { btn.classList.add('tab-active'); btn.classList.remove('text-slate-400'); }
+      setTimeout(()=>window.dispatchEvent(new Event('resize')), 40);
+      if (name==='monte' && !lastMC && legs.length) runMonteCarlo();
+      if (name==='scenario') buildScenarioMatrix();
+      if (name==='compare') renderCompare();
+    }
+
+    function openSaveModal() {
+      document.getElementById('saveNameInput').value = document.getElementById('strategyName').value || 'Min strategi';
+      document.getElementById('modalSave').classList.remove('hidden');
+    }
+    function openLoadModal() {
+      const list = document.getElementById('loadList');
+      const keys = Object.keys(localStorage).filter(k=>k.startsWith('nexus_opt_')).sort();
+      if (!keys.length) { list.innerHTML = '<p class="text-xs text-slate-500">Inga sparade strategier.</p>'; }
+      else {
+        list.innerHTML = keys.map(k => {
+          const name = k.replace('nexus_opt_','');
+          return `<div class="flex items-center justify-between glass rounded-lg p-2.5">
+            <span class="text-sm text-slate-200">${name}</span>
+            <div class="flex gap-1.5">
+              <button onclick="loadStrategy('${name}')" class="btn-primary text-[10px] px-2 py-1 rounded text-white">Ladda</button>
+              <button onclick="deleteStrategy('${name}')" class="btn-danger text-[10px] px-2 py-1 rounded">Radera</button>
+            </div>
+          </div>`;
+        }).join('');
+      }
+      document.getElementById('modalLoad').classList.remove('hidden');
+    }
+    function openHelp() { document.getElementById('modalHelp').classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function doSave() {
+      const name = document.getElementById('saveNameInput').value.trim() || 'Namnlös';
+      const data = {
+        name, legs, spot: document.getElementById('spot').value,
+        days: document.getElementById('days').value, rate: document.getElementById('rate').value,
+        div: document.getElementById('div').value, defaultIV: document.getElementById('defaultIV').value,
+        ts: Date.now()
+      };
+      localStorage.setItem('nexus_opt_'+name, JSON.stringify(data));
+      document.getElementById('strategyName').value = name;
+      closeModal('modalSave');
+    }
+    function loadStrategy(name) {
+      const raw = localStorage.getItem('nexus_opt_'+name);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      legs = data.legs || [];
+      legId = Math.max(0, ...legs.map(l=>l.id));
+      document.getElementById('spot').value = data.spot || 100;
+      document.getElementById('days').value = data.days || 30;
+      document.getElementById('daysLabel').textContent = data.days || 30;
+      document.getElementById('rate').value = data.rate || 2.5;
+      document.getElementById('div').value = data.div || 1.5;
+      document.getElementById('defaultIV').value = data.defaultIV || 22;
+      document.getElementById('strategyName').value = name;
+      renderLegs(); recalc(); closeModal('modalLoad');
+    }
+    function deleteStrategy(name) {
+      localStorage.removeItem('nexus_opt_'+name);
+      openLoadModal();
+    }
+    function saveCurrentName() { /* just UI */ }
+
+    function exportCSV() {
+      if (!legs.length) return;
+      const params = getParams();
+      const strat = computeStrategy(params);
+      const low = Math.max(0.5, params.S*0.5), high = params.S*1.5;
+      let csv = 'ST,Payoff,TheoPnL\n';
+      for (let i=0;i<=200;i++) {
+        const ST = low + i*(high-low)/200;
+        let th=0;
+        for (const leg of legs) {
+          const T=getLegT(leg,params.daysG); const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
+          th += legMult(leg)*bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig).price;
+        }
+        csv += `${ST.toFixed(2)},${strat.payoffAt(ST).toFixed(4)},${(th-strat.netPrem).toFixed(4)}\n`;
+      }
+      const blob = new Blob([csv], {type:'text/csv'});
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download = (document.getElementById('strategyName').value||'strategy')+'_payoff.csv'; a.click();
+    }
+    function exportJSON() {
+      const data = {
+        name: document.getElementById('strategyName').value,
+        params: getParams(), legs,
+        exported: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download = (data.name||'strategy')+'.json'; a.click();
+    }
+
+    // Init
+    window.addEventListener('DOMContentLoaded', () => {
+      renderGuide();
+      addPreset('bullcall');
+    });
+  </script>
+</body>
+</html>
