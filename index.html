@@ -131,9 +131,23 @@
           </h2>
           <button onclick="resetParams()" class="text-[10px] text-slate-500 hover:text-slate-300">Återställ</button>
         </div>
+
+        <!-- Instrument type -->
+        <div class="mb-3 pb-3 border-b border-white/5">
+          <label class="text-[10px] text-slate-500 uppercase tracking-wider">Instrumenttyp <span class="text-rose-400">*</span></label>
+          <select id="instrumentType" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm text-white" onchange="onInstrumentChange()">
+            <option value="equity">Aktie / Index-option (BSM)</option>
+            <option value="fx">Valuta / FX-option (Garman-Kohlhagen)</option>
+            <option value="commodity">Råvaruoption (Black-76, termin)</option>
+            <option value="rate">Ränteoption: Cap/Floor/Swaption (Black-76)</option>
+            <option value="warrant">Warrant (long call + utspädning)</option>
+          </select>
+          <p id="instrumentNote" class="text-[10px] text-amber-300/90 leading-snug mt-1.5">Välj alltid rätt instrumenttyp <strong>innan</strong> du bygger en strategi — parametrarna nedan tolkas olika beroende på val, och en felaktig typ ger missvisande pris och Greeks.</p>
+        </div>
+
         <div class="grid grid-cols-2 gap-2.5">
           <div>
-            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Spot (S)</label>
+            <label id="lblSpot" class="text-[10px] text-slate-500 uppercase tracking-wider">Spot (S)</label>
             <input type="number" id="spot" value="100" step="0.1" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
           </div>
           <div>
@@ -141,13 +155,26 @@
             <input type="number" id="defaultIV" value="22" step="0.5" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
           </div>
           <div>
-            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Ränta %</label>
+            <label id="lblRate" class="text-[10px] text-slate-500 uppercase tracking-wider">Ränta %</label>
             <input type="number" id="rate" value="2.5" step="0.1" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
           </div>
-          <div>
-            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Utd. yield %</label>
+          <div id="divFieldWrap">
+            <label id="lblDiv" class="text-[10px] text-slate-500 uppercase tracking-wider">Utd. yield %</label>
             <input type="number" id="div" value="1.5" step="0.1" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
           </div>
+        </div>
+
+        <!-- Warrant dilution fields -->
+        <div id="warrantFields" class="hidden grid grid-cols-2 gap-2.5 mt-2.5 pt-2.5 border-t border-white/5">
+          <div>
+            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Utestående aktier (n)</label>
+            <input type="number" id="warrantShares" value="1000000" step="1" min="0" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-500 uppercase tracking-wider">Nya aktier vid lösen (m)</label>
+            <input type="number" id="warrantNew" value="100000" step="1" min="0" class="input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm font-mono text-white" oninput="debounceRecalc()">
+          </div>
+          <p class="col-span-2 text-[10px] text-slate-500 leading-snug">Utspädningsfaktor n/(n+m) appliceras på pris och samtliga Greeks (förenklad standardapproximation).</p>
         </div>
         <!-- Time slider -->
         <div class="mt-3 pt-3 border-t border-white/5">
@@ -486,6 +513,17 @@
         <p><strong class="text-emerald-300">POP & EV:</strong> Beräknas under riskneutralt mått (μ = r − q). Monte Carlo använder GBM med samma parametrar.</p>
         <p><strong class="text-amber-300">What-if / Scenario:</strong> IV- och ränteshift + matris över Spot×IV-scenarier.</p>
         <p><strong class="text-rose-300">Begränsningar:</strong> Konstant volatilitet, inga hopp, friktionsfri marknad, en underliggande.</p>
+        <div class="pt-3 border-t border-white/10">
+          <h4 class="text-xs font-semibold text-slate-400 uppercase mb-2">Instrumenttyper</h4>
+          <p class="text-xs text-amber-300/90 mb-2">Välj alltid rätt instrumenttyp i panelen till vänster innan du bygger en strategi — fel val ger missvisande pris och Greeks.</p>
+          <ul class="text-xs space-y-1.5 text-slate-400">
+            <li><strong class="text-indigo-300">Aktie/Index-option</strong> – standard BSM med kontinuerlig utdelningsyield.</li>
+            <li><strong class="text-cyan-300">FX-option</strong> – Garman-Kohlhagen: samma BSM-formel, men "utdelningsyield" är den utländska valutans riskfria ränta.</li>
+            <li><strong class="text-emerald-300">Råvaruoption</strong> – Black-76 på terminspris. Cost-of-carry låses automatiskt till räntan.</li>
+            <li><strong class="text-amber-300">Ränteoption (cap/floor/swaption)</strong> – Black-76 på forward-räntan. Förenklad modell utan dagräkningskonvention/annuitetsfaktor.</li>
+            <li><strong class="text-rose-300">Warrant</strong> – long call vars pris och Greeks skalas med utspädningsfaktorn n/(n+m) (förenklad standardapproximation).</li>
+          </ul>
+        </div>
         <div class="pt-3 border-t border-white/10">
           <h4 class="text-xs font-semibold text-slate-400 uppercase mb-2">Mini-ordlista</h4>
           <ul class="text-xs space-y-1.5 text-slate-400">
@@ -864,6 +902,29 @@
       document.getElementById('ivShiftLabel').textContent='0 %';
       document.getElementById('rateShift').value=0;
       document.getElementById('rateShiftLabel').textContent='0 bp';
+      document.getElementById('instrumentType').value='equity';
+      onInstrumentChange();
+      recalc();
+    }
+
+    // ======================== INSTRUMENT TYPE ========================
+    const INSTRUMENT_INFO = {
+      equity:    { spot:'Spot (S)', div:'Utd. yield %', rate:'Ränta %', note:'Standard Black-Scholes-Merton med kontinuerlig utdelningsyield. Passar aktier och index.', lockDiv:false },
+      fx:        { spot:'Valutakurs (S)', div:'Utländsk ränta (rf) %', rate:'Inhemsk ränta (r) %', note:'Garman-Kohlhagen — matematiskt samma BSM-formel, men "utdelningsyield" tolkas som den utländska valutans riskfria ränta.', lockDiv:false },
+      commodity: { spot:'Terminspris (F)', div:'Cost-of-carry (låst = ränta)', rate:'Diskonteringsränta %', note:'Black-76 på terminspris. Cost-of-carry sätts automatiskt lika med räntan (matematiskt ekvivalent med BSM där S=F och q=r) — fältet nedan är inaktiverat.', lockDiv:true },
+      rate:      { spot:'Forward-ränta (%)', div:'Cost-of-carry (låst = ränta)', rate:'Diskonteringsränta %', note:'Black-76 på forward-räntan — används för cap/floor/swaption. Förenklad modell utan dagräkningskonvention/annuitetsfaktor. Strike anges också i procent. Cost-of-carry-fältet är inaktiverat (= räntan).', lockDiv:true },
+      warrant:   { spot:'Spot (S)', div:'Utd. yield %', rate:'Ränta %', note:'I praktiken en long call, men pris och Greeks skalas med utspädningsfaktorn n/(n+m) nedan.', lockDiv:false }
+    };
+    function onInstrumentChange() {
+      const t = document.getElementById('instrumentType').value;
+      const info = INSTRUMENT_INFO[t] || INSTRUMENT_INFO.equity;
+      document.getElementById('lblSpot').textContent = info.spot;
+      document.getElementById('lblDiv').textContent = info.div;
+      document.getElementById('lblRate').textContent = info.rate;
+      document.getElementById('instrumentNote').textContent = info.note;
+      document.getElementById('div').disabled = info.lockDiv;
+      document.getElementById('divFieldWrap').style.opacity = info.lockDiv ? '0.4' : '1';
+      document.getElementById('warrantFields').classList.toggle('hidden', t !== 'warrant');
       recalc();
     }
 
@@ -926,12 +987,24 @@
       const S = +document.getElementById('spot').value || 100;
       const daysG = +document.getElementById('days').value || 30;
       const r = ((+document.getElementById('rate').value || 0) + (+document.getElementById('rateShift').value || 0)/100) / 100;
-      const q = (+document.getElementById('div').value || 0) / 100;
+      const instrument = document.getElementById('instrumentType')?.value || 'equity';
+      // Black-76 (commodity futures / rate caps-floors-swaptions) is mathematically BSM with
+      // cost-of-carry q locked to r, so S behaves as the forward price/rate. FX uses the same
+      // BSM formula unmodified (Garman-Kohlhagen: q is just relabeled as the foreign rate).
+      const q = (instrument === 'commodity' || instrument === 'rate') ? r : (+document.getElementById('div').value || 0) / 100;
       const defIV = ((+document.getElementById('defaultIV').value || 22) + (+document.getElementById('ivShift').value || 0)) / 100;
       const ivShift = (+document.getElementById('ivShift').value || 0) / 100;
-      return { S, daysG, r, q, defIV, ivShift, rawRate: +document.getElementById('rate').value||0 };
+      return { S, daysG, r, q, defIV, ivShift, rawRate: +document.getElementById('rate').value||0, instrument };
     }
-    function legMult(leg) { return (leg.side==='long'?1:-1) * leg.qty; }
+    function legMult(leg) {
+      const base = (leg.side==='long'?1:-1) * leg.qty;
+      if ((document.getElementById('instrumentType')?.value) === 'warrant') {
+        const n = +document.getElementById('warrantShares')?.value || 0;
+        const m = +document.getElementById('warrantNew')?.value || 0;
+        if (n > 0 && m > 0) return base * (n / (n + m));
+      }
+      return base;
+    }
     function getLegSigma(leg, defIV, ivShift) {
       if (leg.iv != null) return (leg.iv / 100) + ivShift;
       return defIV;
@@ -1705,6 +1778,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       renderGuide();
       addPreset('bullcall');
+      onInstrumentChange();
     });
   </script>
 </body>
