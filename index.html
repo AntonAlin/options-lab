@@ -325,7 +325,7 @@
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div class="glass rounded-2xl p-3">
-            <h3 class="text-xs font-medium text-slate-300 mb-1">Gamma & Vega vs Spot</h3>
+            <h3 id="hdrGV" data-tpl="Gamma & Vega vs {S}" class="text-xs font-medium text-slate-300 mb-1">Gamma & Vega vs Spot</h3>
             <div id="chartOverviewGV" class="w-full h-[220px]"></div>
           </div>
           <div class="glass rounded-2xl p-3">
@@ -351,7 +351,7 @@
             <div id="greeksTable"></div>
           </div>
           <div class="glass rounded-2xl p-3 lg:col-span-2">
-            <h3 class="text-xs font-medium text-slate-300 mb-1">Delta & Gamma vs Spot</h3>
+            <h3 id="hdrDG" data-tpl="Delta & Gamma vs {S}" class="text-xs font-medium text-slate-300 mb-1">Delta & Gamma vs Spot</h3>
             <div id="chartDeltaGamma" class="w-full h-[280px]"></div>
           </div>
         </div>
@@ -365,30 +365,30 @@
       <div id="panel-surface" class="tab-panel hidden space-y-3">
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
           <div class="glass rounded-2xl p-3">
-            <h3 class="text-xs font-medium text-slate-300 mb-1">P/L Heatmap · Spot × IV</h3>
+            <h3 id="hdrHeatmap" data-tpl="P/L Heatmap · {S} × IV" class="text-xs font-medium text-slate-300 mb-1">P/L Heatmap · Spot × IV</h3>
             <div id="chartHeatmap" class="w-full h-[340px]"></div>
           </div>
           <div class="glass rounded-2xl p-3">
-            <h3 class="text-xs font-medium text-slate-300 mb-1">Delta Heatmap · Spot × IV</h3>
+            <h3 id="hdrDeltaHeat" data-tpl="Delta Heatmap · {S} × IV" class="text-xs font-medium text-slate-300 mb-1">Delta Heatmap · Spot × IV</h3>
             <div id="chartDeltaHeat" class="w-full h-[340px]"></div>
           </div>
         </div>
         <div class="glass rounded-2xl p-3">
-          <h3 class="text-xs font-medium text-slate-300 mb-1">3D-yta · P/L (Spot × Dagar kvar)</h3>
+          <h3 id="hdr3D" data-tpl="3D-yta · P/L ({S} × Dagar kvar)" class="text-xs font-medium text-slate-300 mb-1">3D-yta · P/L (Spot × Dagar kvar)</h3>
           <div id="chart3D" class="w-full h-[420px]"></div>
         </div>
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
           <div class="glass rounded-2xl p-3">
-            <h3 class="text-xs font-medium text-slate-300 mb-1">3D-yta · Delta (Spot × Dagar)</h3>
+            <h3 id="hdr3DDelta" data-tpl="3D-yta · Delta ({S} × Dagar)" class="text-xs font-medium text-slate-300 mb-1">3D-yta · Delta (Spot × Dagar)</h3>
             <div id="chart3DDelta" class="w-full h-[360px]"></div>
           </div>
           <div class="glass rounded-2xl p-3">
-            <h3 class="text-xs font-medium text-slate-300 mb-1">3D-yta · Vega (Spot × IV)</h3>
+            <h3 id="hdr3DVega" data-tpl="3D-yta · Vega ({S} × IV)" class="text-xs font-medium text-slate-300 mb-1">3D-yta · Vega (Spot × IV)</h3>
             <div id="chart3DVega" class="w-full h-[360px]"></div>
           </div>
         </div>
         <div class="glass rounded-2xl p-3">
-          <h3 class="text-xs font-medium text-slate-300 mb-1">Tidsdecay · P/L vs Dagar kvar (vid nuvarande Spot)</h3>
+          <h3 id="hdrTimeDecay" data-tpl="Tidsdecay · P/L vs Dagar kvar (vid nuvarande {S})" class="text-xs font-medium text-slate-300 mb-1">Tidsdecay · P/L vs Dagar kvar (vid nuvarande Spot)</h3>
           <div id="chartTimeDecay" class="w-full h-[280px]"></div>
         </div>
       </div>
@@ -396,7 +396,7 @@
       <!-- SCENARIO MATRIX -->
       <div id="panel-scenario" class="tab-panel hidden space-y-3">
         <div class="glass rounded-2xl p-4">
-          <h3 class="text-sm font-semibold text-white mb-1">Scenario-matris · Spot-rörelse × IV-förändring</h3>
+          <h3 id="hdrScenario" data-tpl="Scenario-matris · {S}-rörelse × IV-förändring" class="text-sm font-semibold text-white mb-1">Scenario-matris · Spot-rörelse × IV-förändring</h3>
           <p class="text-xs text-slate-400 mb-3">Teoretisk P/L vid förfall under olika kombinationer. Grönt = vinst, rött = förlust. Baseras på nuvarande strategi och parametrar.</p>
           <div id="scenarioMatrix" class="overflow-x-auto"></div>
         </div>
@@ -688,7 +688,7 @@
       const sigBase = legs.reduce((s,l)=>s+getLegSigma(l,params.defIV,params.ivShift),0)/legs.length;
       const T = Math.max(...legs.map(l=>getLegT(l,params.daysG)));
 
-      let html = '<table class="w-full text-xs border-collapse"><thead><tr class="text-[10px] text-slate-500"><th class="text-left p-2">Spot \\ IV</th>';
+      let html = `<table class="w-full text-xs border-collapse"><thead><tr class="text-[10px] text-slate-500"><th class="text-left p-2">${axisLabel()} \\ IV</th>`;
       ivMoves.forEach(iv => { html += `<th class="p-2 text-center">${iv>0?'+':''}${(iv*100).toFixed(0)}%</th>`; });
       html += '</tr></thead><tbody>';
 
@@ -724,7 +724,7 @@
         type: 'heatmap',
         colorscale: [[0,'#7f1d1d'],[0.45,'#1e1b4b'],[0.55,'#164e63'],[1,'#065f46']],
         colorbar: {title:'P/L', thickness:11, len:0.7}
-      }], commonLayout({xaxis:{title:'IV-förändring'}, yaxis:{title:'Spot-rörelse'}, margin:{t:15,r:50,b:40,l:55}}), {responsive:true, displayModeBar:false});
+      }], commonLayout({xaxis:{title:'IV-förändring'}, yaxis:{title:axisLabel()+'-rörelse'}, margin:{t:15,r:50,b:40,l:55}}), {responsive:true, displayModeBar:false});
 
       // Insights
       const flat = z.flat();
@@ -909,22 +909,35 @@
 
     // ======================== INSTRUMENT TYPE ========================
     const INSTRUMENT_INFO = {
-      equity:    { spot:'Spot (S)', div:'Utd. yield %', rate:'Ränta %', note:'Standard Black-Scholes-Merton med kontinuerlig utdelningsyield. Passar aktier och index.', lockDiv:false },
-      fx:        { spot:'Valutakurs (S)', div:'Utländsk ränta (rf) %', rate:'Inhemsk ränta (r) %', note:'Garman-Kohlhagen — matematiskt samma BSM-formel, men "utdelningsyield" tolkas som den utländska valutans riskfria ränta.', lockDiv:false },
-      commodity: { spot:'Terminspris (F)', div:'Cost-of-carry (låst = ränta)', rate:'Diskonteringsränta %', note:'Black-76 på terminspris. Cost-of-carry sätts automatiskt lika med räntan (matematiskt ekvivalent med BSM där S=F och q=r) — fältet nedan är inaktiverat.', lockDiv:true },
-      rate:      { spot:'Forward-ränta (%)', div:'Cost-of-carry (låst = ränta)', rate:'Diskonteringsränta %', note:'Black-76 på forward-räntan — används för cap/floor/swaption. Förenklad modell utan dagräkningskonvention/annuitetsfaktor. Strike anges också i procent. Cost-of-carry-fältet är inaktiverat (= räntan).', lockDiv:true },
-      warrant:   { spot:'Spot (S)', div:'Utd. yield %', rate:'Ränta %', note:'I praktiken en long call, men pris och Greeks skalas med utspädningsfaktorn n/(n+m) nedan.', lockDiv:false }
+      equity:    { spot:'Spot (S)', short:'Spot', unit:'', div:'Utd. yield %', rate:'Ränta %', note:'Standard Black-Scholes-Merton med kontinuerlig utdelningsyield. Passar aktier och index.', lockDiv:false },
+      fx:        { spot:'Valutakurs (S)', short:'Valutakurs', unit:'', div:'Utländsk ränta (rf) %', rate:'Inhemsk ränta (r) %', note:'Garman-Kohlhagen — matematiskt samma BSM-formel, men "utdelningsyield" tolkas som den utländska valutans riskfria ränta.', lockDiv:false },
+      commodity: { spot:'Terminspris (F)', short:'Termin', unit:'', div:'Cost-of-carry (låst = ränta)', rate:'Diskonteringsränta %', note:'Black-76 på terminspris. Cost-of-carry sätts automatiskt lika med räntan (matematiskt ekvivalent med BSM där S=F och q=r) — fältet nedan är inaktiverat.', lockDiv:true },
+      rate:      { spot:'Forward-ränta (%)', short:'Forward-ränta', unit:'%', div:'Cost-of-carry (låst = ränta)', rate:'Diskonteringsränta %', note:'Black-76 på forward-räntan — används för cap/floor/swaption. Förenklad modell utan dagräkningskonvention/annuitetsfaktor. Strike anges också i procent. Cost-of-carry-fältet är inaktiverat (= räntan).', lockDiv:true },
+      warrant:   { spot:'Spot (S)', short:'Spot', unit:'', div:'Utd. yield %', rate:'Ränta %', note:'I praktiken en long call, men pris och Greeks skalas med utspädningsfaktorn n/(n+m) nedan.', lockDiv:false }
     };
+    function currentInstrumentInfo() {
+      const t = document.getElementById('instrumentType')?.value || 'equity';
+      return INSTRUMENT_INFO[t] || INSTRUMENT_INFO.equity;
+    }
+    // Short word used in chart axis titles / section headers wherever they'd otherwise say "Spot",
+    // so e.g. a rate-option strategy shows "Forward-ränta" instead of a misleading "Spot".
+    function axisLabel() { return currentInstrumentInfo().short; }
+    function applyHeaderTemplates() {
+      const label = axisLabel();
+      document.querySelectorAll('[data-tpl]').forEach(el => {
+        el.textContent = el.dataset.tpl.replace(/\{S\}/g, label);
+      });
+    }
     function onInstrumentChange() {
-      const t = document.getElementById('instrumentType').value;
-      const info = INSTRUMENT_INFO[t] || INSTRUMENT_INFO.equity;
+      const info = currentInstrumentInfo();
       document.getElementById('lblSpot').textContent = info.spot;
       document.getElementById('lblDiv').textContent = info.div;
       document.getElementById('lblRate').textContent = info.rate;
       document.getElementById('instrumentNote').textContent = info.note;
       document.getElementById('div').disabled = info.lockDiv;
       document.getElementById('divFieldWrap').style.opacity = info.lockDiv ? '0.4' : '1';
-      document.getElementById('warrantFields').classList.toggle('hidden', t !== 'warrant');
+      document.getElementById('warrantFields').classList.toggle('hidden', document.getElementById('instrumentType').value !== 'warrant');
+      applyHeaderTemplates();
       recalc();
     }
 
@@ -1320,7 +1333,7 @@
         {x:xs, y:pays, name:'Payoff förfall', line:{color:'#a5b4fc', width:2.8}, fill:'tozeroy', fillcolor:'rgba(99,102,241,0.12)'},
         {x:xs, y:theos, name:'Theo P/L nu', line:{color:'#22d3ee', width:1.8, dash:'dot'}},
         {x:[low,high], y:[0,0], line:{color:'rgba(255,255,255,0.2)', width:1, dash:'dash'}, showlegend:false, hoverinfo:'skip'},
-        {x:[params.S], y:[strat.payoffAt(params.S)], mode:'markers', marker:{size:10, color:'#fbbf24', symbol:'diamond'}, name:'Spot'}
+        {x:[params.S], y:[strat.payoffAt(params.S)], mode:'markers', marker:{size:10, color:'#fbbf24', symbol:'diamond'}, name:axisLabel()}
       ], commonLayout({
         shapes: bes.map(b => ({type:'line', x0:b, x1:b, y0:0, y1:1, yref:'paper', line:{color:'rgba(251,113,133,0.45)', width:1.2, dash:'dot'}})),
         annotations: bes.slice(0,3).map(b => ({x:b, y:0, text:'BE '+b.toFixed(1), showarrow:false, yshift:14, font:{size:10, color:'#fb7185'}}))
@@ -1409,7 +1422,7 @@
         {x:xs,y:pays,name:'Payoff vid förfall',line:{color:'#6366f1',width:2.8},fill:'tozeroy',fillcolor:'rgba(99,102,241,0.08)'},
         {x:xs,y:theos,name:'Teoretisk P/L (nu)',line:{color:'#22d3ee',width:2,dash:'dot'}},
         {x:[low,high],y:[0,0],line:{color:'rgba(255,255,255,0.2)',width:1,dash:'dash'},showlegend:false,hoverinfo:'skip'},
-        {x:[params.S],y:[strat.payoffAt(params.S)],mode:'markers',marker:{size:11,color:'#fbbf24',symbol:'diamond'},name:'Nuvarande Spot'}
+        {x:[params.S],y:[strat.payoffAt(params.S)],mode:'markers',marker:{size:11,color:'#fbbf24',symbol:'diamond'},name:'Nuvarande '+axisLabel()}
       ], commonLayout({
         height:420,
         shapes:bes.map(b=>({type:'line',x0:b,x1:b,y0:0,y1:1,yref:'paper',line:{color:'rgba(251,113,133,0.45)',width:1.2,dash:'dot'}})),
@@ -1502,7 +1515,7 @@
         type: 'heatmap',
         colorscale: [[0,'#0f172a'],[0.25,'#1e3a5f'],[0.5,'#312e81'],[0.75,'#4f46e5'],[1,'#22d3ee']],
         colorbar: {title: 'P/L', thickness: 11, len: 0.65}
-      }], commonLayout({xaxis:{title:'IV %'}, yaxis:{title:'Spot'}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
+      }], commonLayout({xaxis:{title:'IV %'}, yaxis:{title:axisLabel()}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
 
       // 2. Delta Heatmap Spot x IV
       const zDelta = spots.map(ST => ivs.map(sig => deltaAt(ST, T0, sig)));
@@ -1511,7 +1524,7 @@
         type: 'heatmap',
         colorscale: [[0,'#7f1d1d'],[0.35,'#1e1b4b'],[0.5,'#312e81'],[0.65,'#164e63'],[1,'#065f46']],
         colorbar: {title: 'Delta', thickness: 11, len: 0.65}
-      }], commonLayout({xaxis:{title:'IV %'}, yaxis:{title:'Spot'}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
+      }], commonLayout({xaxis:{title:'IV %'}, yaxis:{title:axisLabel()}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
 
       // 3. 3D P/L (Spot x Days)
       const z3PL = spots.map(ST => daysArr.map(d => theoAt(ST, d/365, sig0)));
@@ -1524,7 +1537,7 @@
         margin:{t:10,r:10,b:10,l:10},
         scene: {
           xaxis:{title:'Dagar kvar', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          yaxis:{title:'Spot', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          yaxis:{title:axisLabel(), gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
           zaxis:{title:'P/L', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
           bgcolor:'transparent', camera:{eye:{x:1.55, y:1.45, z:1.15}}
         }
@@ -1541,7 +1554,7 @@
         margin:{t:10,r:10,b:10,l:10},
         scene: {
           xaxis:{title:'Dagar', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          yaxis:{title:'Spot', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          yaxis:{title:axisLabel(), gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
           zaxis:{title:'Delta', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
           bgcolor:'transparent', camera:{eye:{x:1.5, y:1.4, z:1.2}}
         }
@@ -1558,7 +1571,7 @@
         margin:{t:10,r:10,b:10,l:10},
         scene: {
           xaxis:{title:'IV %', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          yaxis:{title:'Spot', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          yaxis:{title:axisLabel(), gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
           zaxis:{title:'Vega', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
           bgcolor:'transparent', camera:{eye:{x:1.5, y:1.4, z:1.15}}
         }
@@ -1617,9 +1630,10 @@
 
     function updateDeep(strat, params, ext, bes, pop, ev, sigmaAvg, expMove) {
       const g = strat.greeks;
+      const axLbl = axisLabel();
       const scenarios = [
-        {n:'Spot −25%', st:params.S*0.75}, {n:'Spot −10%', st:params.S*0.9},
-        {n:'Oförändrad', st:params.S}, {n:'Spot +10%', st:params.S*1.1}, {n:'Spot +25%', st:params.S*1.25}
+        {n:axLbl+' −25%', st:params.S*0.75}, {n:axLbl+' −10%', st:params.S*0.9},
+        {n:'Oförändrad', st:params.S}, {n:axLbl+' +10%', st:params.S*1.1}, {n:axLbl+' +25%', st:params.S*1.25}
       ].map(s=>({...s, pnl:strat.payoffAt(s.st)}));
 
       document.getElementById('deepContent').innerHTML = `
