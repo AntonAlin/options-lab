@@ -13,6 +13,17 @@ Publiceras via GitHub Pages från denna repo (se `.github/workflows/pages.yml`).
 - Instrumenttyper: aktie/index (BSM), FX (Garman-Kohlhagen), råvara och ränta (Black-76), warrant med utspädning.
 - Spara/ladda lokalt, exportera CSV/JSON, importera JSON, samt delningslänk som återskapar hela strategin.
 
-Allt ligger i `index.html` – inga byggsteg, inga beroenden utöver Plotly och Tailwind via CDN.
+Appen är `index.html` plus en kompilerad `tailwind.css`. Plotly laddas från CDN.
+
+## Utveckling
+
+Tailwind kompileras i förväg (play-CDN:en är inte avsedd för produktion). Den färdiga `tailwind.css` är incheckad så sidan går att öppna direkt från disk, och Pages-workflowen bygger om den vid deploy.
+
+```bash
+npm install
+npm run build   # eller: npm run watch
+```
+
+Bygg om `tailwind.css` när du lägger till nya Tailwind-klasser i `index.html`.
 
 > **Ansvarsfriskrivning:** Verktyget är endast avsett för utbildningssyfte och illustrerar options­teori. Det utgör inte finansiell rådgivning eller en rekommendation att handla. Byggaren av applikationen tar inget ansvar för riktigheten i beräkningarna eller för beslut och förluster som uppstår vid användning. Använd på egen risk.

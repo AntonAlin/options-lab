@@ -11,24 +11,12 @@
   <meta property="og:title" content="Nexus Options Lab — visualiserare för europeiska optioner">
   <meta property="og:description" content="Black-Scholes-Merton-baserat verktyg för payoff, Greeks, Monte Carlo m.m. Endast utbildningssyfte, ej investeringsrådgivning.">
   <meta property="og:type" content="website">
-  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
-          colors: {
-            void: '#05050a', panel: '#0c0c14', border: '#1a1a28',
-            accent: '#6366f1', cyan: '#22d3ee', rose: '#fb7185', emerald: '#34d399', amber: '#fbbf24'
-          }
-        }
-      }
-    }
-  </script>
+  <!-- Kompilerad Tailwind (npm run build) – ersätter play-CDN:en som inte är avsedd för produktion -->
+  <link rel="stylesheet" href="tailwind.css">
   <style>
     :root { --glass: rgba(255,255,255,0.025); --glass-border: rgba(255,255,255,0.06); }
     * { box-sizing: border-box; }
