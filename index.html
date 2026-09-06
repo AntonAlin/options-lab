@@ -76,6 +76,8 @@
     .modal-bg { background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); }
     .strategy-chip { transition: all 0.15s; }
     .strategy-chip:hover { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4); }
+    .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(16px); background: rgba(12,12,20,0.96); color: #e2e8f0; border: 1px solid rgba(99,102,241,0.5); padding: 8px 14px; border-radius: 10px; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   </style>
 </head>
 <body class="font-sans antialiased">
@@ -112,6 +114,12 @@
         <button onclick="openLoadModal()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">Ladda</button>
         <button onclick="exportCSV()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">CSV</button>
         <button onclick="exportJSON()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">JSON</button>
+        <button onclick="document.getElementById('importFile').click()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">Importera</button>
+        <input id="importFile" type="file" accept="application/json,.json" class="hidden" onchange="importJSON(this)">
+        <button onclick="shareLink()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300 flex items-center gap-1" title="Kopiera en länk som återskapar exakt denna strategi">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+          Dela
+        </button>
         <button onclick="openHelp()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">?</button>
         <div class="hidden md:flex items-center gap-1.5 text-[10px] text-slate-500 ml-1">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span> BS live
@@ -228,6 +236,8 @@
             <button onclick="addPreset('ironcondor')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Iron Condor</button>
             <button onclick="addPreset('riskrev')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Risk Reversal</button>
             <button onclick="addPreset('collar')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Collar</button>
+            <button onclick="addPreset('calendar')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Calendar</button>
+            <button onclick="addPreset('diagonal')" class="strategy-chip btn-ghost text-[10px] px-2 py-1 rounded-md text-slate-400">Diagonal</button>
           </div>
         </div>
       </section>
@@ -305,7 +315,7 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5" id="heroMetrics"></div>
         <div class="glass rounded-2xl p-3 neon">
           <div class="flex items-center justify-between px-1 mb-1">
-            <h3 class="text-xs font-medium text-slate-300">Payoff vid förfall + Teoretisk P/L (zoner)</h3>
+            <h3 class="text-xs font-medium text-slate-300">P/L vid förfall + teoretisk P/L nu</h3>
           </div>
           <div id="chartOverviewPayoff" class="w-full h-[340px]"></div>
         </div>
@@ -397,7 +407,16 @@
       <div id="panel-scenario" class="tab-panel hidden space-y-3">
         <div class="glass rounded-2xl p-4">
           <h3 id="hdrScenario" data-tpl="Scenario-matris · {S}-rörelse × IV-förändring" class="text-sm font-semibold text-white mb-1">Scenario-matris · Spot-rörelse × IV-förändring</h3>
-          <p class="text-xs text-slate-400 mb-3">Teoretisk P/L vid förfall under olika kombinationer. Grönt = vinst, rött = förlust. Baseras på nuvarande strategi och parametrar.</p>
+          <div class="flex flex-wrap items-center gap-3 mb-3">
+            <p class="text-xs text-slate-400">Mark-to-model P/L under olika kombinationer av prisrörelse och parallellt IV-skift. Grönt = vinst, rött = förlust.</p>
+            <label class="text-[10px] text-slate-500 uppercase tracking-wider flex items-center gap-2">Horisont
+              <select id="scenarioHorizon" class="input-field text-xs px-2.5 py-1.5 rounded-lg text-white normal-case tracking-normal" onchange="onScenarioHorizonChange()">
+                <option value="0" selected>Nu</option>
+                <option value="0.5">Halvvägs till första förfall</option>
+                <option value="1">Vid första förfall</option>
+              </select>
+            </label>
+          </div>
           <div id="scenarioMatrix" class="overflow-x-auto"></div>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -478,13 +497,13 @@
   </main>
 
   <footer class="max-w-[1800px] mx-auto px-5 py-6 text-center text-[10px] text-slate-600 border-t border-white/5 mt-4 space-y-1.5">
-    <p>Nexus Options Lab Ultimate v2.2 · Byggd av <span class="text-slate-400">Anton Ålin</span> · Scenario-matris · Strategijämförelse · Greek-guide · Black-Scholes-Merton</p>
+    <p>Nexus Options Lab Ultimate v2.3 · Byggd av <span class="text-slate-400">Anton Ålin</span> · Flera förfall · Scenario-matris · Strategijämförelse · Greek-guide · Black-Scholes-Merton</p>
     <p class="text-rose-400/80 max-w-3xl mx-auto leading-relaxed">Ansvarsfriskrivning: Endast utbildningssyfte — inte finansiell rådgivning eller en rekommendation att handla. Byggaren av applikationen tar inget ansvar för riktigheten i beräkningarna eller för ekonomiska beslut eller förluster som uppstår vid användning av verktyget. Använd på egen risk.</p>
     <p class="text-slate-700">© 2026 Anton Ålin. Alla rättigheter förbehållna — får inte kopieras, återpubliceras eller utges för att vara någon annans verk.</p>
   </footer>
 
   <!-- MODALS -->
-  <div id="modalSave" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4">
+  <div id="modalSave" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4" onclick="if(event.target===this) closeModal(this.id)">
     <div class="glass-strong rounded-2xl p-5 w-full max-w-md animate-in">
       <h3 class="text-sm font-semibold text-white mb-3">Spara strategi</h3>
       <input id="saveNameInput" type="text" class="input-field w-full px-3 py-2 rounded-lg text-sm text-white mb-3" placeholder="Namn på strategi">
@@ -494,14 +513,14 @@
       </div>
     </div>
   </div>
-  <div id="modalLoad" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4">
+  <div id="modalLoad" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4" onclick="if(event.target===this) closeModal(this.id)">
     <div class="glass-strong rounded-2xl p-5 w-full max-w-md animate-in max-h-[80vh] overflow-y-auto">
       <h3 class="text-sm font-semibold text-white mb-3">Ladda sparad strategi</h3>
       <div id="loadList" class="space-y-2 mb-3"></div>
       <button onclick="closeModal('modalLoad')" class="btn-ghost text-xs px-3 py-1.5 rounded-lg w-full">Stäng</button>
     </div>
   </div>
-  <div id="modalHelp" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4">
+  <div id="modalHelp" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4" onclick="if(event.target===this) closeModal(this.id)">
     <div class="glass-strong rounded-2xl p-5 w-full max-w-2xl animate-in max-h-[85vh] overflow-y-auto">
       <div class="flex justify-between items-start mb-4">
         <h3 class="text-base font-semibold text-white">Om Nexus Options Lab Ultimate</h3>
@@ -511,7 +530,9 @@
         <p><strong class="text-indigo-300">Modell:</strong> Black-Scholes-Merton med kontinuerlig utdelningsyield. Endast europeiska optioner (ingen early exercise).</p>
         <p><strong class="text-cyan-300">IV-solver:</strong> Newton-Raphson med vega som derivata. Konvergerar snabbt för giltiga premier.</p>
         <p><strong class="text-emerald-300">POP & EV:</strong> Beräknas under riskneutralt mått (μ = r − q). Monte Carlo använder GBM med samma parametrar.</p>
-        <p><strong class="text-amber-300">What-if / Scenario:</strong> IV- och ränteshift + matris över Spot×IV-scenarier.</p>
+        <p><strong class="text-amber-300">What-if / Scenario:</strong> IV- och ränteshift + matris över Spot×IV-scenarier, valfri horisont (nu, halvvägs, vid första förfall).</p>
+        <p><strong class="text-violet-300">Flera förfall:</strong> Ben kan ha egna dagar (calendar/diagonal). "Payoff" utvärderas vid <em>första</em> förfallet – ben med längre löptid prissätts då med BSM på sin återstående tid. Ytor, tidsdecay, scenario-matris och Monte Carlo följer samma logik.</p>
+        <p><strong class="text-indigo-300">Dela / Importera:</strong> "Dela" lägger hela strategin i URL:en och kopierar länken. "Importera" läser in en tidigare exporterad JSON-fil.</p>
         <p><strong class="text-rose-300">Begränsningar:</strong> Konstant volatilitet, inga hopp, friktionsfri marknad, en underliggande.</p>
         <div class="pt-3 border-t border-white/10">
           <h4 class="text-xs font-semibold text-slate-400 uppercase mb-2">Instrumenttyper</h4>
@@ -544,7 +565,7 @@
   </div>
 
   <!-- Strategy detail modal -->
-  <div id="modalStrat" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4">
+  <div id="modalStrat" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4" onclick="if(event.target===this) closeModal(this.id)">
     <div class="glass-strong rounded-2xl p-5 w-full max-w-lg animate-in max-h-[85vh] overflow-y-auto">
       <div class="flex justify-between items-start mb-3">
         <h3 id="modalStratTitle" class="text-base font-semibold text-white"></h3>
@@ -558,12 +579,30 @@
   <script>
     // ======================== BLACK-SCHOLES ENGINE ========================
     const SQRT2PI = Math.sqrt(2 * Math.PI);
+    // Hart (1968) rational approximation of the normal CDF, the one West popularised in
+    // "Better approximations to cumulative normal functions". Accurate to ~1e-15 across the
+    // whole real line, which beats the old Abramowitz-Stegun formula by seven orders of
+    // magnitude. Deep OTM legs and the IV solver both notice the difference.
     function normCDF(x) {
-      const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
-      const sign = x < 0 ? -1 : 1; x = Math.abs(x)/Math.SQRT2;
-      const t = 1/(1+p*x);
-      const y = 1 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
-      return 0.5*(1+sign*y);
+      const ax = Math.abs(x);
+      let c;
+      if (ax > 37) c = 0;
+      else {
+        const e = Math.exp(-ax*ax/2);
+        if (ax < 7.07106781186547) {
+          let b = 0.0352624965998911*ax + 0.700383064443688;
+          b = b*ax + 6.37396220353165; b = b*ax + 33.912866078383; b = b*ax + 112.079291497871;
+          b = b*ax + 221.213596169931; b = b*ax + 220.206867912376;
+          let d = 0.0883883476483184*ax + 1.75566716318264;
+          d = d*ax + 16.064177579207; d = d*ax + 86.7807322029461; d = d*ax + 296.564248779674;
+          d = d*ax + 637.333633378831; d = d*ax + 793.826512519948; d = d*ax + 440.413735824752;
+          c = e*b/d;
+        } else {
+          let b = ax + 0.65; b = ax + 4/b; b = ax + 3/b; b = ax + 2/b; b = ax + 1/b;
+          c = e/b/2.506628274631;
+        }
+      }
+      return x > 0 ? 1 - c : c;
     }
     function normPDF(x) { return Math.exp(-0.5*x*x)/SQRT2PI; }
     function d1d2(S,K,T,r,q,sigma) {
@@ -604,20 +643,30 @@
       else theta = (thCommon + r*K*discK*normCDF(-d2) - q*S*discS*normCDF(-d1))/365;
       return {price, delta, gamma, theta, vega, rho};
     }
-    // Newton-Raphson IV solver
+    // Implied vol: Newton-Raphson for speed, bisection as the adult in the room.
+    // Returns null when the premium sits outside the no-arbitrage band or the solver gives up,
+    // instead of confidently handing back whatever vol it happened to stop on.
     function impliedVol(type, S, K, T, r, q, marketPrice, guess=0.25) {
-      if (T<=1e-8 || marketPrice<=0) return null;
-      let sigma = guess;
-      for (let i=0; i<50; i++) {
+      if (!(T > 1e-8) || !(marketPrice > 0) || !(S > 0) || !(K > 0)) return null;
+      const discS = S*Math.exp(-q*T), discK = K*Math.exp(-r*T);
+      const lower = type==='call' ? Math.max(discS - discK, 0) : Math.max(discK - discS, 0);
+      const upper = type==='call' ? discS : discK;
+      if (marketPrice < lower - 1e-10 || marketPrice > upper + 1e-10) return null;
+      let lo = 1e-4, hi = 5;
+      let sigma = Math.min(Math.max(guess || 0.25, lo), hi);
+      const tol = 1e-9 * Math.max(1, marketPrice);
+      for (let i=0; i<100; i++) {
         const g = bsGreeks(type,S,K,T,r,q,sigma);
         const diff = g.price - marketPrice;
-        if (Math.abs(diff) < 1e-6) return sigma;
-        if (Math.abs(g.vega) < 1e-12) break;
-        sigma -= diff / (g.vega * 100); // vega is per 1%
-        if (sigma < 1e-4) sigma = 1e-4;
-        if (sigma > 5) sigma = 5;
+        if (Math.abs(diff) < tol) return sigma;
+        if (diff > 0) hi = sigma; else lo = sigma;
+        const vega = g.vega * 100; // bsGreeks reports vega per 1 %, Newton wants per 1.0
+        let next = vega > 1e-12 ? sigma - diff/vega : NaN;
+        if (!(next > lo && next < hi)) next = 0.5*(lo + hi); // Newton wandered off, bisect instead
+        if (Math.abs(next - sigma) < 1e-12) return next;
+        sigma = next;
       }
-      return sigma;
+      return null;
     }
 
     // ======================== STRATEGY DATABASE + GUIDE ========================
@@ -631,7 +680,9 @@
       {id:'butterfly',name:'Long Call Butterfly',preset:'butterfly',dirs:['neutral'],vols:['down','flat'],risk:'defined',summary:'1 lång låg + 2 korta ATM + 1 lång hög. Max vinst vid body.',when:'Låg rörelse / pin + IV-crush.',avoid:'Stor rörelse.',greeks:{delta:'~0',gamma:'−',theta:'+',vega:'−',rho:'~'},greekDesc:{delta:'Nära noll kring body.',gamma:'Negativ (konkav).',theta:'Oftast positiv.',vega:'Negativ.',rho:'Låg.'},maxLoss:'Netto debet',maxProfit:'Wing-avstånd − debet'},
       {id:'ironcondor',name:'Iron Condor',preset:'ironcondor',dirs:['neutral'],vols:['down','flat'],risk:'defined',summary:'Säljer OTM put-spread + OTM call-spread. Range + IV-crush.',when:'Sidledes + fallande IV. Definierad risk.',avoid:'Stor trend eller IV-spike.',greeks:{delta:'~0',gamma:'−',theta:'+',vega:'−',rho:'~'},greekDesc:{delta:'Nära noll.',gamma:'Negativ (kort gamma).',theta:'Positiv (huvudvinst).',vega:'Negativ.',rho:'Låg.'},maxLoss:'Vingbredd − kredit',maxProfit:'Netto kredit'},
       {id:'riskrev',name:'Risk Reversal',preset:'riskrev',dirs:['strong_bull','mod_bull'],vols:['flat','up'],risk:'unlimited',summary:'Lång OTM call + kort OTM put. Stark riktningsbias, ofta låg kostnad.',when:'Stark riktningsåsikt, syntetisk exponering.',avoid:'Osäker riktning (obegränsad risk på short).',greeks:{delta:'+',gamma:'~',theta:'~',vega:'~',rho:'+'},greekDesc:{delta:'Tydligt positiv.',gamma:'Blandat.',theta:'Mild.',vega:'Kan vara låg.',rho:'Positiv.'},maxLoss:'Obegränsad (short put)',maxProfit:'Obegränsad'},
-      {id:'collar',name:'Collar',preset:'collar',dirs:['mod_bull','neutral'],vols:['flat','down'],risk:'defined',summary:'Long underliggande/call + lång put + kort call. Skydd med capped uppsida.',when:'Skydda lång position, acceptera limited upside.',avoid:'Stark bullish utan skyddsvilja.',greeks:{delta:'+ (red.)',gamma:'~',theta:'~',vega:'~',rho:'~'},greekDesc:{delta:'Positiv men reducerad.',gamma:'Blandat.',theta:'Beroende på strikes.',vega:'Låg netto.',rho:'Låg.'},maxLoss:'Definierad',maxProfit:'Capped av short call'}
+      {id:'collar',name:'Collar',preset:'collar',dirs:['mod_bull','neutral'],vols:['flat','down'],risk:'defined',summary:'Long underliggande/call + lång put + kort call. Skydd med capped uppsida.',when:'Skydda lång position, acceptera limited upside.',avoid:'Stark bullish utan skyddsvilja.',greeks:{delta:'+ (red.)',gamma:'~',theta:'~',vega:'~',rho:'~'},greekDesc:{delta:'Positiv men reducerad.',gamma:'Blandat.',theta:'Beroende på strikes.',vega:'Låg netto.',rho:'Låg.'},maxLoss:'Definierad',maxProfit:'Capped av short call'},
+      {id:'calendar',name:'Calendar Spread (call)',preset:'calendar',dirs:['neutral'],vols:['up','flat'],risk:'defined',summary:'Säljer front-månadens ATM-call, köper samma strike med längre löptid. Tjänar på att fronten tappar tidsvärde snabbare än bakbenet.',when:'Sidledes fram till första förfallet, gärna med stigande IV i bakbenet.',avoid:'Stor rörelse åt något håll före första förfall.',greeks:{delta:'~0',gamma:'−',theta:'+',vega:'+',rho:'~'},greekDesc:{delta:'Nära noll vid ATM.',gamma:'Negativ – fronten har mest gamma.',theta:'Positiv – fronten decayar snabbast.',vega:'Positiv – bakbenet har mest vega.',rho:'Låg.'},maxLoss:'Netto debet',maxProfit:'Begränsad (max nära strike vid första förfall)'},
+      {id:'diagonal',name:'Diagonal Spread (call)',preset:'diagonal',dirs:['mod_bull','neutral'],vols:['up','flat'],risk:'defined',summary:'Kort OTM-call i fronten, lång ITM/ATM-call längre ut. En calendar med riktningsbias.',when:'Måttligt bullish drift med tid som medvind.',avoid:'Snabb, stor uppgång före första förfall (fronten blir ITM).',greeks:{delta:'+',gamma:'−',theta:'+',vega:'+',rho:'+'},greekDesc:{delta:'Positiv – bakbenet dominerar.',gamma:'Negativ nära frontens strike.',theta:'Oftast positiv.',vega:'Positiv netto.',rho:'Positiv.'},maxLoss:'Netto debet',maxProfit:'Begränsad (bäst strax under frontens strike)'}
     ];
     let currentDir = 'neutral', currentVol = 'flat';
     function greekBadge(sign){ if(sign==='+'||sign==='+ +') return '<span class="greek-badge g-pos">'+sign+'</span>'; if(sign==='−'||sign==='− −') return '<span class="greek-badge g-neg">'+sign+'</span>'; return '<span class="greek-badge g-neu">'+sign+'</span>'; }
@@ -674,19 +725,22 @@
     }
 
     // ---- Scenario matrix ----
-    function buildScenarioMatrix() {
-      if (!legs.length) {
+    function scenarioHorizonDays(strat) {
+      const frac = +(document.getElementById('scenarioHorizon')?.value ?? 0);
+      return strat.firstExpiry * frac;
+    }
+    function buildScenarioMatrix(c) {
+      if (!c) {
         document.getElementById('scenarioMatrix').innerHTML = '<p class="text-slate-500 text-sm">Lägg till ben först.</p>';
         document.getElementById('scenarioInsights').innerHTML = '';
         return;
       }
-      const params = getParams();
-      const strat = computeStrategy(params);
+      const { strat, params } = c;
       const spotMoves = [-0.20, -0.10, -0.05, 0, 0.05, 0.10, 0.20];
       const ivMoves = [-0.10, -0.05, 0, 0.05, 0.10];
       const S0 = params.S;
-      const sigBase = legs.reduce((s,l)=>s+getLegSigma(l,params.defIV,params.ivShift),0)/legs.length;
-      const T = Math.max(...legs.map(l=>getLegT(l,params.daysG)));
+      const tDays = scenarioHorizonDays(strat);
+      const atExpiry = tDays >= strat.firstExpiry - 1e-9;
 
       let html = `<table class="w-full text-xs border-collapse"><thead><tr class="text-[10px] text-slate-500"><th class="text-left p-2">${axisLabel()} \\ IV</th>`;
       ivMoves.forEach(iv => { html += `<th class="p-2 text-center">${iv>0?'+':''}${(iv*100).toFixed(0)}%</th>`; });
@@ -698,14 +752,8 @@
         const row = [];
         html += `<tr class="border-t border-white/5"><td class="p-2 font-mono text-slate-300">${sm>0?'+':''}${(sm*100).toFixed(0)}% <span class="text-slate-500">(${ST.toFixed(1)})</span></td>`;
         ivMoves.forEach(ivm => {
-          const sig = Math.max(0.01, sigBase + ivm);
-          // Approximate P/L at expiration under this ST (payoff) — for IV we show theo P/L now at that spot/IV as sensitivity
-          let theo = 0;
-          for (const leg of legs) {
-            const g = bsGreeks(leg.type, ST, leg.strike, T, params.r, params.q, sig);
-            theo += legMult(leg) * g.price;
-          }
-          const pnl = theo - strat.netPrem;
+          // Every leg's IV shifts in parallel; legs that already expired at this horizon don't care about IV at all
+          const pnl = strat.theoAt(ST, tDays, ivm);
           row.push(pnl);
           const cls = pnl >= 0 ? 'text-emerald-300 bg-emerald-500/10' : 'text-rose-300 bg-rose-500/10';
           html += `<td class="p-2 text-center font-mono ${cls}">${fmt(pnl)}</td>`;
@@ -716,8 +764,7 @@
       html += '</tbody></table>';
       document.getElementById('scenarioMatrix').innerHTML = html;
 
-      // Heatmap
-      Plotly.newPlot('chartScenarioHeat', [{
+      Plotly.react('chartScenarioHeat', [{
         x: ivMoves.map(v => (v>0?'+':'')+(v*100).toFixed(0)+'%'),
         y: spotMoves.map(v => (v>0?'+':'')+(v*100).toFixed(0)+'%'),
         z: z,
@@ -726,16 +773,19 @@
         colorbar: {title:'P/L', thickness:11, len:0.7}
       }], commonLayout({xaxis:{title:'IV-förändring'}, yaxis:{title:axisLabel()+'-rörelse'}, margin:{t:15,r:50,b:40,l:55}}), {responsive:true, displayModeBar:false});
 
-      // Insights
       const flat = z.flat();
       const best = Math.max(...flat), worst = Math.min(...flat);
-      const atATM = z[3][2]; // 0% spot, 0% IV
+      const base = z[3][2]; // 0 % spot, 0 % IV
+      const when = atExpiry
+        ? `vid första förfall (dag ${fmt(strat.firstExpiry,0)})`
+        : tDays > 0 ? `om ${fmt(tDays,0)} dagar` : 'just nu';
       document.getElementById('scenarioInsights').innerHTML = `
         <div class="glass rounded-lg p-3"><div class="text-[10px] text-slate-500">Bästa scenariot (i matrisen)</div><div class="text-lg font-mono text-emerald-300">${fmt(best)}</div></div>
         <div class="glass rounded-lg p-3"><div class="text-[10px] text-slate-500">Sämsta scenariot</div><div class="text-lg font-mono text-rose-300">${fmt(worst)}</div></div>
-        <div class="glass rounded-lg p-3"><div class="text-[10px] text-slate-500">Base case (0 % / 0 %)</div><div class="text-lg font-mono text-cyan-300">${fmt(atATM)}</div></div>
-        <p class="text-[11px] text-slate-500 leading-relaxed mt-2">Matrisen visar teoretisk P/L om spot och IV flyttar sig <em>nu</em> (samma tid till förfall). Payoff vid förfall beror bara på slutpris – IV påverkar mark-to-model före expiry.</p>`;
+        <div class="glass rounded-lg p-3"><div class="text-[10px] text-slate-500">Base case (0 % / 0 %)</div><div class="text-lg font-mono text-cyan-300">${fmt(base)}</div></div>
+        <p class="text-[11px] text-slate-500 leading-relaxed mt-2">Matrisen visar mark-to-model P/L ${when} om ${axisLabel().toLowerCase()} och IV flyttar sig dit. ${atExpiry ? (strat.multiExpiry ? 'Ben som förfallit värderas till intrinsic; ben med längre löptid prissätts med BSM på återstående tid, så IV-kolumnerna påverkar bara dem.' : 'Vid förfall spelar IV ingen roll – kolumnerna blir identiska.') : 'Före förfall påverkar IV tidsvärdet på alla ben.'}</p>`;
     }
+    function onScenarioHorizonChange() { PANEL_DIRTY.scenario = true; renderActivePanel(); }
 
     // ---- Compare snapshots ----
     let snapA = null, snapB = null;
@@ -750,38 +800,25 @@
         netPrem: strat.netPrem,
         theo: strat.theo,
         greeks: {...strat.greeks},
-        payoffAt: null // rebuild later
+        firstExpiry: strat.firstExpiry
       };
-      // store serializable; payoff rebuilt on compare
       if (which==='A') snapA = data; else snapB = data;
       document.getElementById('compareStatus').textContent = `A: ${snapA?snapA.name:'—'} · B: ${snapB?snapB.name:'—'}`;
       renderCompare();
     }
     function clearSnapshots(){ snapA=null; snapB=null; document.getElementById('compareStatus').textContent=''; document.getElementById('compareCards').innerHTML=''; document.getElementById('compareTable').innerHTML=''; Plotly.purge('chartCompare'); }
     function rebuildPayoff(snap) {
-      const legsL = snap.legs;
-      const p = snap.params;
-      return function(ST) {
-        let pnl = 0;
-        for (const leg of legsL) {
-          const m = (leg.side==='long'?1:-1)*leg.qty;
-          const intr = leg.type==='call' ? Math.max(ST-leg.strike,0) : Math.max(leg.strike-ST,0);
-          const T = Math.max((leg.days!=null?leg.days:p.daysG),0.01)/365;
-          const sig = leg.iv!=null ? (leg.iv/100)+p.ivShift : p.defIV;
-          const prem = leg.premium!=null ? leg.premium : bsPrice(leg.type, p.S, leg.strike, T, p.r, p.q, Math.max(sig,1e-4));
-          pnl += m * (intr - prem);
-        }
-        return pnl;
-      };
+      // Same engine as the live view, just fed the frozen legs + params from the snapshot
+      return computeStrategy(snap.params, snap.legs).payoffAt;
     }
     function renderCompare() {
       const cards = document.getElementById('compareCards');
-      const mk = (snap, label) => snap ? `<div class="glass rounded-xl p-4 border border-white/5"><div class="text-[10px] text-slate-500 mb-1">Strategi ${label}</div><div class="text-sm font-semibold text-white mb-2">${snap.name}</div>
+      const mk = (snap, label) => snap ? `<div class="glass rounded-xl p-4 border border-white/5"><div class="text-[10px] text-slate-500 mb-1">Strategi ${label}</div><div class="text-sm font-semibold text-white mb-2">${escapeHtml(snap.name)}</div>
         <div class="grid grid-cols-2 gap-2 text-xs"><div>Netto <span class="font-mono ${snap.netPrem>0?'text-rose-300':'text-emerald-300'}">${fmt(snap.netPrem)}</span></div>
         <div>Theo <span class="font-mono text-cyan-300">${fmt(snap.theo)}</span></div>
         <div>Δ <span class="font-mono">${fmt(snap.greeks.delta,3)}</span></div>
         <div>Vega <span class="font-mono">${fmt(snap.greeks.vega,3)}</span></div></div>
-        <div class="text-[10px] text-slate-500 mt-2">${snap.legs.length} ben</div></div>` : `<div class="glass rounded-xl p-6 text-center text-slate-500 text-sm">Ingen strategi ${label} sparad</div>`;
+        <div class="text-[10px] text-slate-500 mt-2">${snap.legs.length} ben · första förfall dag ${fmt(snap.firstExpiry,0)}</div></div>` : `<div class="glass rounded-xl p-6 text-center text-slate-500 text-sm">Ingen strategi ${label} sparad</div>`;
       cards.innerHTML = mk(snapA,'A') + mk(snapB,'B');
       if (!snapA || !snapB) { document.getElementById('compareTable').innerHTML=''; Plotly.purge('chartCompare'); return; }
 
@@ -790,20 +827,22 @@
       const low = S*0.6, high = S*1.4, n=200;
       const xs=[], ya=[], yb=[];
       for (let i=0;i<=n;i++){ const ST=low+i*(high-low)/n; xs.push(ST); ya.push(payA(ST)); yb.push(payB(ST)); }
-      Plotly.newPlot('chartCompare', [
+      Plotly.react('chartCompare', [
         {x:xs,y:ya,name:snapA.name||'A',line:{color:'#6366f1',width:2.5}},
         {x:xs,y:yb,name:snapB.name||'B',line:{color:'#22d3ee',width:2.5}},
         {x:[low,high],y:[0,0],line:{color:'rgba(255,255,255,0.2)',width:1,dash:'dash'},showlegend:false,hoverinfo:'skip'}
       ], commonLayout({legend:{orientation:'h',y:1.12}}), {responsive:true,displayModeBar:false});
 
+      const row = (label, a, b, d) => `<tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">${label}</td><td class="text-right">${fmt(a,d)}</td><td class="text-right">${fmt(b,d)}</td><td class="text-right">${fmt(a-b,d)}</td></tr>`;
       document.getElementById('compareTable').innerHTML = `<table class="w-full text-xs"><thead><tr class="text-[10px] text-slate-500"><th class="text-left py-1">Mått</th><th class="text-right">A</th><th class="text-right">B</th><th class="text-right">Diff</th></tr></thead>
         <tbody class="font-mono">
-          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Netto premie</td><td class="text-right">${fmt(snapA.netPrem)}</td><td class="text-right">${fmt(snapB.netPrem)}</td><td class="text-right">${fmt(snapA.netPrem-snapB.netPrem)}</td></tr>
-          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Teoretiskt</td><td class="text-right">${fmt(snapA.theo)}</td><td class="text-right">${fmt(snapB.theo)}</td><td class="text-right">${fmt(snapA.theo-snapB.theo)}</td></tr>
-          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Delta</td><td class="text-right">${fmt(snapA.greeks.delta,3)}</td><td class="text-right">${fmt(snapB.greeks.delta,3)}</td><td class="text-right">${fmt(snapA.greeks.delta-snapB.greeks.delta,3)}</td></tr>
-          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Gamma</td><td class="text-right">${fmt(snapA.greeks.gamma,4)}</td><td class="text-right">${fmt(snapB.greeks.gamma,4)}</td><td class="text-right">${fmt(snapA.greeks.gamma-snapB.greeks.gamma,4)}</td></tr>
-          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Theta</td><td class="text-right">${fmt(snapA.greeks.theta,3)}</td><td class="text-right">${fmt(snapB.greeks.theta,3)}</td><td class="text-right">${fmt(snapA.greeks.theta-snapB.greeks.theta,3)}</td></tr>
-          <tr class="border-t border-white/5"><td class="py-1.5 text-slate-300 font-sans">Vega</td><td class="text-right">${fmt(snapA.greeks.vega,3)}</td><td class="text-right">${fmt(snapB.greeks.vega,3)}</td><td class="text-right">${fmt(snapA.greeks.vega-snapB.greeks.vega,3)}</td></tr>
+          ${row('Netto premie', snapA.netPrem, snapB.netPrem, 2)}
+          ${row('Teoretiskt', snapA.theo, snapB.theo, 2)}
+          ${row('Delta', snapA.greeks.delta, snapB.greeks.delta, 3)}
+          ${row('Gamma', snapA.greeks.gamma, snapB.greeks.gamma, 4)}
+          ${row('Theta', snapA.greeks.theta, snapB.greeks.theta, 3)}
+          ${row('Vega', snapA.greeks.vega, snapB.greeks.vega, 3)}
+          ${row('Rho', snapA.greeks.rho, snapB.greeks.rho, 3)}
         </tbody></table>`;
     }
 
@@ -812,6 +851,11 @@
     let legId = 0;
     let recalcTimer = null;
     let lastMC = null;
+    let lastCalc = null;                 // everything recalc() worked out, so panels can render on demand
+    let activeTab = 'guide';
+    const PANEL_DIRTY = {};              // which tabs still show stale charts
+    const LAZY_PANELS = ['overview','payoff','greeks','surface','scenario','monte','legs','risk'];
+    function markAllDirty() { LAZY_PANELS.forEach(k => PANEL_DIRTY[k] = true); }
 
     function createLeg(o={}) {
       return {
@@ -845,6 +889,7 @@
     function addPreset(name) {
       const S = +document.getElementById('spot').value || 100;
       const defIV = +document.getElementById('defaultIV').value || 22;
+      const daysG = +document.getElementById('days').value || 30;
       const r = Math.round;
       const map = {
         longcall: [createLeg({type:'call',side:'long',qty:1,strike:r(S),iv:defIV})],
@@ -883,10 +928,19 @@
         collar: [
           createLeg({type:'put',side:'long',qty:1,strike:r(S*0.95),iv:defIV}),
           createLeg({type:'call',side:'short',qty:1,strike:r(S*1.05),iv:defIV})
+        ],
+        // Front leg follows the global slider, back leg gets its own expiry twice as far out
+        calendar: [
+          createLeg({type:'call',side:'short',qty:1,strike:r(S),iv:defIV}),
+          createLeg({type:'call',side:'long',qty:1,strike:r(S),iv:defIV,days:r(daysG*2)})
+        ],
+        diagonal: [
+          createLeg({type:'call',side:'short',qty:1,strike:r(S*1.03),iv:defIV}),
+          createLeg({type:'call',side:'long',qty:1,strike:r(S*0.97),iv:defIV,days:r(daysG*2)})
         ]
       };
       legs = map[name] || [];
-      const names = {longcall:'Long Call',longput:'Long Put',straddle:'Long Straddle',strangle:'Long Strangle',bullcall:'Bull Call Spread',bearput:'Bear Put Spread',butterfly:'Call Butterfly',ironcondor:'Iron Condor',riskrev:'Risk Reversal',collar:'Collar'};
+      const names = {longcall:'Long Call',longput:'Long Put',straddle:'Long Straddle',strangle:'Long Strangle',bullcall:'Bull Call Spread',bearput:'Bear Put Spread',butterfly:'Call Butterfly',ironcondor:'Iron Condor',riskrev:'Risk Reversal',collar:'Collar',calendar:'Calendar Spread',diagonal:'Diagonal Spread'};
       document.getElementById('strategyName').value = names[name] || 'Custom';
       renderLegs(); recalc();
     }
@@ -902,9 +956,10 @@
       document.getElementById('ivShiftLabel').textContent='0 %';
       document.getElementById('rateShift').value=0;
       document.getElementById('rateShiftLabel').textContent='0 bp';
+      document.getElementById('warrantShares').value=1000000;
+      document.getElementById('warrantNew').value=100000;
       document.getElementById('instrumentType').value='equity';
       onInstrumentChange();
-      recalc();
     }
 
     // ======================== INSTRUMENT TYPE ========================
@@ -999,77 +1054,116 @@
     function getParams() {
       const S = +document.getElementById('spot').value || 100;
       const daysG = +document.getElementById('days').value || 30;
-      const r = ((+document.getElementById('rate').value || 0) + (+document.getElementById('rateShift').value || 0)/100) / 100;
+      const rawRate = +document.getElementById('rate').value || 0;
+      const r = (rawRate + (+document.getElementById('rateShift').value || 0)/100) / 100;
       const instrument = document.getElementById('instrumentType')?.value || 'equity';
       // Black-76 (commodity futures / rate caps-floors-swaptions) is mathematically BSM with
       // cost-of-carry q locked to r, so S behaves as the forward price/rate. FX uses the same
       // BSM formula unmodified (Garman-Kohlhagen: q is just relabeled as the foreign rate).
-      const q = (instrument === 'commodity' || instrument === 'rate') ? r : (+document.getElementById('div').value || 0) / 100;
-      const defIV = ((+document.getElementById('defaultIV').value || 22) + (+document.getElementById('ivShift').value || 0)) / 100;
+      const isB76 = instrument === 'commodity' || instrument === 'rate';
+      const q = isB76 ? r : (+document.getElementById('div').value || 0) / 100;
       const ivShift = (+document.getElementById('ivShift').value || 0) / 100;
-      return { S, daysG, r, q, defIV, ivShift, rawRate: +document.getElementById('rate').value||0, instrument };
-    }
-    function legMult(leg) {
-      const base = (leg.side==='long'?1:-1) * leg.qty;
-      if ((document.getElementById('instrumentType')?.value) === 'warrant') {
+      const defIV = (+document.getElementById('defaultIV').value || 22) / 100 + ivShift;
+      let dilution = 1;
+      if (instrument === 'warrant') {
         const n = +document.getElementById('warrantShares')?.value || 0;
         const m = +document.getElementById('warrantNew')?.value || 0;
-        if (n > 0 && m > 0) return base * (n / (n + m));
+        if (n > 0 && m > 0) dilution = n / (n + m);
       }
-      return base;
+      return { S, daysG, r, q, defIV, ivShift, rawRate, instrument, isB76, dilution };
     }
-    function getLegSigma(leg, defIV, ivShift) {
-      if (leg.iv != null) return (leg.iv / 100) + ivShift;
-      return defIV;
+    // Signed position size for a leg. Warrants get haircut by the dilution factor so the
+    // whole book (price and Greeks alike) is scaled consistently.
+    function legMult(leg, params) {
+      return (leg.side==='long'?1:-1) * (leg.qty > 0 ? leg.qty : 0) * params.dilution;
     }
-    function getLegT(leg, daysG) {
+    function legOK(leg) { return leg.strike > 0 && leg.qty > 0; }
+    function legSigma(leg, params, ivDelta=0) {
+      const base = leg.iv != null ? (leg.iv / 100) + params.ivShift : params.defIV;
+      return Math.max(base + ivDelta, 1e-4);
+    }
+    function legDays(leg, daysG) {
       const d = leg.days != null ? leg.days : daysG;
-      return Math.max(d, 0.01) / 365;
+      return Math.max(d, 0.01);
+    }
+    function legGreeksAt(leg, ST, T, sigma, params) {
+      const g = bsGreeks(leg.type, ST, leg.strike, T, params.r, params.q, sigma);
+      // Under Black-76 the rate only shows up in the discount factor (d1/d2 don't move
+      // when q follows r), so rho is simply −T × price. The plain BSM rho would be wrong here.
+      if (params.isB76) g.rho = -T * g.price / 100;
+      return g;
+    }
+    // Mark-to-model value of the whole book `tDays` days from now with the underlying at ST.
+    // Every leg gets its own residual life; anything already expired is worth its intrinsic value.
+    function positionValue(legsArr, ST, tDays, params, ivDelta=0) {
+      let v = 0;
+      for (const leg of legsArr) {
+        if (!legOK(leg)) continue;
+        const T = Math.max(legDays(leg, params.daysG) - tDays, 0) / 365;
+        v += legMult(leg, params) * bsPrice(leg.type, ST, leg.strike, T, params.r, params.q, legSigma(leg, params, ivDelta));
+      }
+      return v;
+    }
+    function positionGreeks(legsArr, ST, tDays, params, ivDelta=0) {
+      const out = {price:0, delta:0, gamma:0, theta:0, vega:0, rho:0};
+      for (const leg of legsArr) {
+        if (!legOK(leg)) continue;
+        const T = Math.max(legDays(leg, params.daysG) - tDays, 0) / 365;
+        const g = legGreeksAt(leg, ST, T, legSigma(leg, params, ivDelta), params);
+        const m = legMult(leg, params);
+        for (const k in out) out[k] += m * g[k];
+      }
+      return out;
     }
 
-    function computeStrategy(params) {
-      const { S, daysG, r, q, defIV, ivShift } = params;
+    function computeStrategy(params, legsArr=legs) {
       let netPrem = 0, theo = 0;
-      let dlt=0,gmm=0,tht=0,vga=0,rho=0;
+      const G = {delta:0, gamma:0, theta:0, vega:0, rho:0};
       const details = [];
+      const daysList = [];
 
-      for (const leg of legs) {
-        const T = getLegT(leg, daysG);
-        const sigma = Math.max(getLegSigma(leg, defIV, ivShift), 1e-4);
-        const g = bsGreeks(leg.type, S, leg.strike, T, r, q, sigma);
-        const m = legMult(leg);
+      for (const leg of legsArr) {
+        if (!legOK(leg)) continue;
+        const D = legDays(leg, params.daysG), T = D / 365;
+        const sigma = legSigma(leg, params);
+        const g = legGreeksAt(leg, params.S, T, sigma, params);
+        const m = legMult(leg, params);
         let prem = leg.premium;
-        let solvedIV = null;
+        let solvedIV = null, premInvalid = false;
         if (prem != null && prem > 0) {
-          solvedIV = impliedVol(leg.type, S, leg.strike, T, r, q, prem, sigma);
+          solvedIV = impliedVol(leg.type, params.S, leg.strike, T, params.r, params.q, prem, sigma);
+          premInvalid = solvedIV == null;
         } else {
           prem = g.price;
         }
         netPrem += m * prem;
         theo += m * g.price;
-        dlt += m * g.delta; gmm += m * g.gamma; tht += m * g.theta;
-        vga += m * g.vega; rho += m * g.rho;
-        details.push({ leg, theo: g.price, prem, greeks: g, mult: m, sigma, T, solvedIV });
+        for (const k in G) G[k] += m * g[k];
+        daysList.push(D);
+        details.push({ leg, theo: g.price, prem, greeks: g, mult: m, sigma, T, days: D, solvedIV, premInvalid });
       }
 
-      function payoffAt(ST) {
-        let p = 0;
-        for (const leg of legs) {
-          const m = legMult(leg);
-          const intr = leg.type==='call' ? Math.max(ST-leg.strike,0) : Math.max(leg.strike-ST,0);
-          const T = getLegT(leg, daysG);
-          const sigma = Math.max(getLegSigma(leg, defIV, ivShift), 1e-4);
-          const prem = leg.premium != null ? leg.premium : bsPrice(leg.type, S, leg.strike, T, r, q, sigma);
-          p += m * (intr - prem);
-        }
-        return p;
-      }
+      const firstExpiry = daysList.length ? Math.min(...daysList) : Math.max(params.daysG, 0.01);
+      const lastExpiry = daysList.length ? Math.max(...daysList) : firstExpiry;
+
+      // "Payoff at expiry" means the first expiry. Legs that live longer are still options at
+      // that point and get marked with BSM on their remaining life, which is what makes
+      // calendars and diagonals come out right instead of collapsing to a flat line.
+      const payoffAt = ST => positionValue(legsArr, ST, firstExpiry, params) - netPrem;
+      const theoAt = (ST, tDays=0, ivDelta=0) => positionValue(legsArr, ST, tDays, params, ivDelta) - netPrem;
+      const greeksAt = (ST, tDays=0, ivDelta=0) => positionGreeks(legsArr, ST, tDays, params, ivDelta);
 
       return {
         netPrem, theo, currentPnL: theo - netPrem,
-        greeks: { delta:dlt, gamma:gmm, theta:tht, vega:vga, rho },
-        details, payoffAt
+        greeks: G, details, payoffAt, theoAt, greeksAt,
+        firstExpiry, lastExpiry, multiExpiry: lastExpiry - firstExpiry > 1e-9,
+        legs: legsArr
       };
+    }
+    // P/L of one leg at horizon tDays — used for the per-leg breakdown chart
+    function legPnLAt(d, ST, tDays, params) {
+      const T = Math.max(d.days - tDays, 0) / 365;
+      return d.mult * (bsPrice(d.leg.type, ST, d.leg.strike, T, params.r, params.q, d.sigma) - d.prem);
     }
 
     function findBreakevens(fn, low, high) {
@@ -1083,114 +1177,114 @@
       return [...new Set(pts.map(p=>Math.round(p*100)/100))].sort((a,b)=>a-b);
     }
 
-    function analyzeExtremes(fn, low, high) {
-      let maxP=-1e99, minP=1e99, maxAt=0, minAt=0;
+    function analyzeExtremes(strat, low, high) {
+      // Whether the tails run away is decided by the leg book, not by squinting at a slope:
+      // net long calls means the upside never stops, net short calls means the downside doesn't.
+      // Puts are capped by the strike on the left, so the ST→0 probe below catches those.
+      let netCalls = 0;
+      for (const d of strat.details) if (d.leg.type==='call') netCalls += d.mult;
+      const unlimProfit = netCalls > 1e-9, unlimLoss = netCalls < -1e-9;
+      let maxP=-Infinity, minP=Infinity, maxAt=0, minAt=0;
+      const probe = x => { const p = strat.payoffAt(x); if (p>maxP){maxP=p;maxAt=x;} if (p<minP){minP=p;minAt=x;} };
+      probe(1e-6);
       const n=700, step=(high-low)/n;
-      for (let i=0;i<=n;i++) {
-        const x=low+i*step, p=fn(x);
-        if (p>maxP){maxP=p;maxAt=x;} if (p<minP){minP=p;minAt=x;}
-      }
-      const slopeR = (fn(high)-fn(high*0.92))/(high*0.08);
-      const slopeL = (fn(low*1.08)-fn(low))/(low*0.08);
+      for (let i=0;i<=n;i++) probe(low+i*step);
+      probe(high*3);
       return {
-        maxProfit: (slopeR>0.25||slopeL<-0.25) ? Infinity : maxP,
-        maxLoss: (slopeR<-0.25||slopeL>0.25) ? -Infinity : minP,
-        maxAt, minAt,
-        unlimProfit: slopeR>0.25||slopeL<-0.25,
-        unlimLoss: slopeR<-0.25||slopeL>0.25
+        maxProfit: unlimProfit ? Infinity : maxP,
+        maxLoss: unlimLoss ? -Infinity : minP,
+        maxAt, minAt, unlimProfit, unlimLoss
       };
     }
 
-    function computePOPEV(fn, S, T, r, q, sigma, low, high) {
-      const n=600, step=(high-low)/n;
-      let popM=0, tot=0, ev=0;
-      const mu = Math.log(S)+(r-q-0.5*sigma*sigma)*T;
+    // POP and EV under the risk-neutral lognormal, worked in z-space over ±7σ so nothing gets
+    // chopped off at the chart edges. EV is a trapezoid sum; POP uses exact CDF mass per
+    // interval and interpolates the break-even when the sign flips mid-step, so it doesn't
+    // wobble with the grid. Both discounted from the first expiry.
+    function computePOPEV(fn, S, T, r, q, sigma) {
+      const mu = Math.log(S) + (r - q - 0.5*sigma*sigma)*T;
       const std = sigma*Math.sqrt(T);
-      for (let i=0;i<=n;i++) {
-        const ST = low+i*step; if (ST<=0) continue;
-        const z = (Math.log(ST)-mu)/std;
-        const dens = normPDF(z)/(ST*std);
-        const po = fn(ST);
-        const w = dens*step;
-        tot += w; if (po>0) popM += w; ev += po*w;
+      const n = 1400, zLo = -7, zHi = 7, dz = (zHi - zLo)/n;
+      let zPrev = zLo, pPrev = fn(Math.exp(mu + std*zPrev)), cPrev = normCDF(zPrev);
+      let pop = 0, ev = pPrev*normPDF(zPrev)*dz*0.5;
+      for (let i=1; i<=n; i++) {
+        const z = zLo + i*dz, p = fn(Math.exp(mu + std*z)), cdf = normCDF(z);
+        ev += p*normPDF(z)*dz*(i===n ? 0.5 : 1);
+        if (pPrev > 0 && p > 0) pop += cdf - cPrev;
+        else if ((pPrev > 0) !== (p > 0)) {
+          const cx = normCDF(zPrev + dz*pPrev/(pPrev - p));
+          pop += pPrev > 0 ? cx - cPrev : cdf - cx;
+        }
+        zPrev = z; pPrev = p; cPrev = cdf;
       }
-      return { pop: tot>0 ? popM/tot*100 : 0, ev: ev*Math.exp(-r*T) };
+      return { pop: pop*100, ev: ev*Math.exp(-r*T) };
     }
 
     // ======================== MONTE CARLO ========================
     function runMonteCarlo() {
-      if (!legs.length) return;
-      const params = getParams();
-      const strat = computeStrategy(params);
+      if (!lastCalc) return;
+      const { strat, params, sigmaAvg, T1 } = lastCalc;
       const nSims = +document.getElementById('mcSims').value || 3000;
       document.getElementById('mcStatus').textContent = 'Simulerar...';
       setTimeout(() => {
-        const { S, r, q, defIV, ivShift, daysG } = params;
-        // Use average sigma and max T for simplicity
-        let sumSig=0, maxT=0;
-        for (const leg of legs) {
-          sumSig += getLegSigma(leg, defIV, ivShift);
-          maxT = Math.max(maxT, getLegT(leg, daysG));
+        const { S, r, q } = params;
+        const sigma = sigmaAvg, T = T1;
+        const drift = (r - q - 0.5*sigma*sigma)*T, vol = sigma*Math.sqrt(T);
+        const pnl = new Float64Array(nSims);
+        // Terminal price under GBM has a closed form, so one draw per path — no need to
+        // shuffle through 180 daily steps to land on the same lognormal. Antithetic pairs
+        // (z and −z) cut the noise roughly in half for free.
+        for (let s=0; s<nSims; s+=2) {
+          const z = boxMuller();
+          pnl[s] = strat.payoffAt(S*Math.exp(drift + vol*z));
+          if (s+1 < nSims) pnl[s+1] = strat.payoffAt(S*Math.exp(drift - vol*z));
         }
-        const sigma = sumSig / legs.length;
-        const T = maxT;
-        const mu = (r - q - 0.5*sigma*sigma);
-        const paths = [];
-        const terminalPnLs = [];
-        const nSteps = Math.max(10, Math.round(T*365/2));
-        const dt = T / nSteps;
+        // The pretty picture still wants full paths, so simulate a handful properly
         const showPaths = 50;
-
-        for (let s=0; s<nSims; s++) {
-          let price = S;
-          const path = s < showPaths ? [price] : null;
-          for (let t=0; t<nSteps; t++) {
-            const z = boxMuller();
-            price *= Math.exp(mu*dt + sigma*Math.sqrt(dt)*z);
-            if (path) path.push(price);
-          }
-          if (path) paths.push(path);
-          terminalPnLs.push(strat.payoffAt(price));
+        const nSteps = Math.max(10, Math.min(250, Math.round(T*365)));
+        const dt = T/nSteps, stepDrift = (r - q - 0.5*sigma*sigma)*dt, stepVol = sigma*Math.sqrt(dt);
+        const paths = [];
+        for (let p=0; p<showPaths; p++) {
+          let price = S; const path = [price];
+          for (let t=0; t<nSteps; t++) { price *= Math.exp(stepDrift + stepVol*boxMuller()); path.push(price); }
+          paths.push(path);
         }
 
-        // Stats
-        terminalPnLs.sort((a,b)=>a-b);
-        const mean = terminalPnLs.reduce((a,b)=>a+b,0)/nSims;
-        const pop = terminalPnLs.filter(p=>p>0).length / nSims * 100;
-        const var95 = terminalPnLs[Math.floor(nSims*0.05)];
-        const cvar95 = terminalPnLs.slice(0, Math.floor(nSims*0.05)).reduce((a,b)=>a+b,0) / Math.max(1,Math.floor(nSims*0.05));
-        const median = terminalPnLs[Math.floor(nSims/2)];
-        // skew approx
-        const std = Math.sqrt(terminalPnLs.reduce((a,b)=>a+(b-mean)**2,0)/nSims);
-        const skew = std>0 ? terminalPnLs.reduce((a,b)=>a+((b-mean)/std)**3,0)/nSims : 0;
+        const sorted = Array.from(pnl).sort((a,b)=>a-b);
+        const mean = sorted.reduce((a,b)=>a+b,0)/nSims;
+        const pop = sorted.filter(p=>p>0).length / nSims * 100;
+        const tail = Math.max(1, Math.floor(nSims*0.05));
+        const var95 = sorted[tail-1];
+        const cvar95 = sorted.slice(0, tail).reduce((a,b)=>a+b,0) / tail;
+        const median = sorted[Math.floor(nSims/2)];
+        const std = Math.sqrt(sorted.reduce((a,b)=>a+(b-mean)**2,0)/nSims);
+        const skew = std>0 ? sorted.reduce((a,b)=>a+((b-mean)/std)**3,0)/nSims : 0;
 
-        lastMC = { paths, terminalPnLs, mean, pop, var95, cvar95, median, skew, nSims, sigma, T };
+        lastMC = { paths, terminalPnLs: sorted, mean, pop, var95, cvar95, median, skew, nSims, sigma, T };
 
-        // Histogram
         const bins = 40;
-        const minP = terminalPnLs[0], maxP = terminalPnLs[nSims-1];
-        const binW = (maxP-minP)/(bins||1) || 1;
+        const minP = sorted[0], maxP = sorted[nSims-1];
+        const binW = (maxP-minP)/bins || 1;
         const hist = new Array(bins).fill(0);
         const binX = [];
         for (let i=0;i<bins;i++) binX.push(minP + (i+0.5)*binW);
-        for (const p of terminalPnLs) {
+        for (const p of sorted) {
           let idx = Math.floor((p-minP)/binW);
           if (idx>=bins) idx=bins-1; if (idx<0) idx=0;
           hist[idx]++;
         }
 
-        Plotly.newPlot('chartMCHist', [{
+        Plotly.react('chartMCHist', [{
           x: binX, y: hist, type: 'bar',
           marker: { color: binX.map(x => x>=0 ? 'rgba(52,211,153,0.7)' : 'rgba(251,113,133,0.7)') }
         }], {
           paper_bgcolor:'transparent', plot_bgcolor:'transparent',
           font:{color:'#94a3b8',size:10}, margin:{t:10,r:10,b:30,l:40},
-          xaxis:{title:'Terminal P/L',gridcolor:'rgba(255,255,255,0.04)'},
+          xaxis:{title:'P/L vid första förfall',gridcolor:'rgba(255,255,255,0.04)'},
           yaxis:{title:'Antal',gridcolor:'rgba(255,255,255,0.04)'},
           bargap:0.05
         }, {responsive:true, displayModeBar:false});
 
-        // Paths
         const pathTraces = paths.map((p,i) => ({
           x: p.map((_,j)=>j*dt*365),
           y: p,
@@ -1198,11 +1292,11 @@
           line:{width:0.8, color: i%2? 'rgba(99,102,241,0.35)':'rgba(34,211,238,0.35)'},
           showlegend:false, hoverinfo:'skip'
         }));
-        Plotly.newPlot('chartMCPaths', pathTraces, {
+        Plotly.react('chartMCPaths', pathTraces, {
           paper_bgcolor:'transparent', plot_bgcolor:'transparent',
           font:{color:'#94a3b8',size:10}, margin:{t:10,r:10,b:30,l:40},
           xaxis:{title:'Dagar',gridcolor:'rgba(255,255,255,0.04)'},
-          yaxis:{title:'Pris',gridcolor:'rgba(255,255,255,0.04)'}
+          yaxis:{title:axisLabel(),gridcolor:'rgba(255,255,255,0.04)'}
         }, {responsive:true, displayModeBar:false});
 
         document.getElementById('mcMetrics').innerHTML = `
@@ -1212,7 +1306,7 @@
           <div class="glass rounded-xl p-3 text-center"><div class="text-[10px] text-slate-500">CVaR 95%</div><div class="text-lg font-bold font-mono text-rose-300">${fmt(cvar95)}</div></div>
           <div class="glass rounded-xl p-3 text-center"><div class="text-[10px] text-slate-500">Skewness</div><div class="text-lg font-bold font-mono text-amber-300">${fmt(skew,2)}</div></div>
         `;
-        document.getElementById('mcStatus').textContent = `${nSims.toLocaleString('sv-SE')} simuleringar klara`;
+        document.getElementById('mcStatus').textContent = `${nSims.toLocaleString('sv-SE')} simuleringar (antitetiska par) · horisont ${fmt(strat.firstExpiry,0)} dagar · σ ${fmt(sigma*100,1)} %`;
       }, 30);
     }
     function boxMuller() {
@@ -1230,63 +1324,96 @@
       if (!isFinite(n)) return n>0 ? '∞' : '−∞';
       return n.toLocaleString('sv-SE', {minimumFractionDigits:d, maximumFractionDigits:d});
     }
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+    function expiryLabel(strat) {
+      return strat.multiExpiry ? `första förfall (dag ${fmt(strat.firstExpiry,0)})` : 'förfall';
+    }
 
+    // recalc() does the maths once and only paints the tab you're actually looking at.
+    // The other panels are flagged dirty and catch up when you click over to them —
+    // no more re-rendering three 3D surfaces because someone nudged the IV slider.
     function recalc() {
-      if (!legs.length) {
+      if (!legs.some(legOK)) {
+        lastCalc = null;
         document.getElementById('metricsGrid').innerHTML = '<div class="col-span-2 text-slate-500 text-xs py-2">Lägg till ben</div>';
         document.getElementById('heroMetrics').innerHTML = '';
         document.getElementById('analysisCards').innerHTML = '';
+        markAllDirty();
+        renderActivePanel();
         return;
       }
       const params = getParams();
       const strat = computeStrategy(params);
-      const { S, daysG, r, q, defIV } = params;
-      const strikes = legs.map(l=>l.strike);
-      const minK = Math.min(...strikes, S*0.85);
-      const maxK = Math.max(...strikes, S*1.15);
+      const strikes = strat.details.map(d=>d.leg.strike);
+      const minK = Math.min(...strikes, params.S*0.85);
+      const maxK = Math.max(...strikes, params.S*1.15);
       const low = Math.max(0.5, minK*0.55);
       const high = maxK*1.45;
 
-      const extremes = analyzeExtremes(strat.payoffAt, low, high);
+      const extremes = analyzeExtremes(strat, low, high);
       const bes = findBreakevens(strat.payoffAt, low, high);
-      const sigmaAvg = legs.reduce((s,l)=>s+getLegSigma(l,defIV,params.ivShift),0)/legs.length;
-      const maxT = Math.max(...legs.map(l=>getLegT(l,daysG)));
-      const { pop, ev } = computePOPEV(strat.payoffAt, S, maxT, r, q, sigmaAvg, low, high);
-      const expMove = S * sigmaAvg * Math.sqrt(maxT);
+      const sigmaAvg = strat.details.reduce((s,d)=>s+d.sigma,0)/strat.details.length;
+      const T1 = strat.firstExpiry/365;
+      const { pop, ev } = computePOPEV(strat.payoffAt, params.S, T1, params.r, params.q, sigmaAvg);
+      const expMove = params.S * sigmaAvg * Math.sqrt(T1);
 
-      renderQuick(strat, extremes, bes, pop, ev, expMove);
-      renderHero(strat, extremes, pop, ev, expMove);
-      renderAnalysisCards(strat, extremes, pop, ev);
-      updateOverviewCharts(strat, params, low, high, bes, sigmaAvg, maxT);
-      updatePayoffPanel(strat, params, low, high, bes);
-      updateGreeksPanel(strat, params, low, high);
-      updateSurface(strat, params, low, high);
-      updateLegsDetail(strat, params);
-      updateDeep(strat, params, extremes, bes, pop, ev, sigmaAvg, expMove);
-      try { buildScenarioMatrix(); } catch(e) {}
+      lastCalc = { strat, params, low, high, extremes, bes, sigmaAvg, T1, pop, ev, expMove };
+      renderQuick(lastCalc);
+      renderAnalysisCards(lastCalc);
+      markAllDirty();
+      renderActivePanel();
     }
 
-    function renderQuick(strat, ext, bes, pop, ev, expMove) {
+    function renderActivePanel() {
+      const tab = activeTab;
+      if (!PANEL_DIRTY[tab]) return;
+      if (!lastCalc) {
+        if (tab === 'scenario') buildScenarioMatrix(null);
+        if (tab === 'legs') document.getElementById('legsDetailTable').innerHTML = '';
+        if (tab === 'risk') document.getElementById('deepContent').innerHTML = '';
+        return;
+      }
+      const c = lastCalc;
+      switch (tab) {
+        case 'overview': renderHero(c); updateOverviewCharts(c); break;
+        case 'payoff':   updatePayoffPanel(c); break;
+        case 'greeks':   updateGreeksPanel(c); break;
+        case 'surface':  updateSurface(c); break;
+        case 'scenario': buildScenarioMatrix(c); break;
+        case 'monte':    runMonteCarlo(); break;
+        case 'legs':     updateLegsDetail(c); break;
+        case 'risk':     updateDeep(c); break;
+        default: return;
+      }
+      PANEL_DIRTY[tab] = false;
+    }
+
+    function renderQuick(c) {
+      const { strat, extremes: ext, bes } = c;
       const net = strat.netPrem;
       document.getElementById('metricsGrid').innerHTML = `
         <div class="glass rounded-lg p-2.5"><div class="text-[9px] text-slate-500 uppercase">Netto</div><div class="text-sm font-semibold font-mono ${net>0?'metric-neg':'metric-pos'}">${net>0?'Debet':'Kredit'} ${fmt(Math.abs(net))}</div></div>
         <div class="glass rounded-lg p-2.5"><div class="text-[9px] text-slate-500 uppercase">Theo</div><div class="text-sm font-semibold font-mono text-cyan-300">${fmt(strat.theo)}</div></div>
         <div class="glass rounded-lg p-2.5"><div class="text-[9px] text-slate-500 uppercase">Max vinst</div><div class="text-sm font-semibold font-mono metric-pos">${ext.unlimProfit?'∞':fmt(ext.maxProfit)}</div></div>
         <div class="glass rounded-lg p-2.5"><div class="text-[9px] text-slate-500 uppercase">Max förlust</div><div class="text-sm font-semibold font-mono metric-neg">${ext.unlimLoss?'−∞':fmt(ext.maxLoss)}</div></div>
-        <div class="glass rounded-lg p-2.5 col-span-2"><div class="text-[9px] text-slate-500 uppercase">Break-even</div><div class="text-xs font-mono text-slate-200">${bes.length?bes.map(b=>fmt(b,1)).join(' · '):'—'}</div></div>
+        <div class="glass rounded-lg p-2.5 col-span-2"><div class="text-[9px] text-slate-500 uppercase">Break-even${strat.multiExpiry?' (dag '+fmt(strat.firstExpiry,0)+')':''}</div><div class="text-xs font-mono text-slate-200">${bes.length?bes.map(b=>fmt(b,1)).join(' · '):'—'}</div></div>
       `;
     }
 
-    function renderHero(strat, ext, pop, ev, expMove) {
+    function renderHero(c) {
+      const { strat, pop, ev, expMove } = c;
       document.getElementById('heroMetrics').innerHTML = `
         <div class="glass rounded-xl p-3 border border-emerald-500/15"><div class="text-[10px] text-emerald-400/70 uppercase">POP</div><div class="text-xl font-bold font-mono text-emerald-300">${fmt(pop,1)}%</div></div>
         <div class="glass rounded-xl p-3 border border-cyan-500/15"><div class="text-[10px] text-cyan-400/70 uppercase">EV (RN)</div><div class="text-xl font-bold font-mono text-cyan-300">${fmt(ev)}</div></div>
         <div class="glass rounded-xl p-3 border border-indigo-500/15"><div class="text-[10px] text-indigo-400/70 uppercase">Delta</div><div class="text-xl font-bold font-mono text-indigo-300">${fmt(strat.greeks.delta,3)}</div></div>
-        <div class="glass rounded-xl p-3 border border-amber-500/15"><div class="text-[10px] text-amber-400/70 uppercase">Förväntad rörelse (1σ)</div><div class="text-xl font-bold font-mono text-amber-300">±${fmt(expMove,1)}</div></div>
+        <div class="glass rounded-xl p-3 border border-amber-500/15"><div class="text-[10px] text-amber-400/70 uppercase">Förväntad rörelse (1σ, dag ${fmt(strat.firstExpiry,0)})</div><div class="text-xl font-bold font-mono text-amber-300">±${fmt(expMove,1)}</div></div>
       `;
     }
 
-    function renderAnalysisCards(strat, ext, pop, ev) {
+    function renderAnalysisCards(c) {
+      const { strat, extremes: ext } = c;
       document.getElementById('analysisCards').innerHTML = `
         <div class="glass rounded-xl p-3"><div class="text-[10px] text-slate-500">Reward / Risk</div><div class="text-base font-bold font-mono text-white">${ext.unlimProfit||ext.unlimLoss||!ext.maxLoss? '—': fmt(Math.abs(ext.maxProfit/ext.maxLoss),2)}</div></div>
         <div class="glass rounded-xl p-3"><div class="text-[10px] text-slate-500">Theta / dag</div><div class="text-base font-bold font-mono ${strat.greeks.theta<0?'text-rose-300':'text-emerald-300'}">${fmt(strat.greeks.theta,3)}</div></div>
@@ -1308,29 +1435,15 @@
         ...extra
       };
     }
+    function linspace(a, b, n) { const out=[]; for (let i=0;i<=n;i++) out.push(a + i*(b-a)/n); return out; }
 
-    function updateOverviewCharts(strat, params, low, high, bes, sigmaAvg, maxT) {
-      const n=260, xs=[], pays=[], theos=[];
-      const step=(high-low)/n;
-      for (let i=0;i<=n;i++) {
-        const ST=low+i*step; xs.push(ST);
-        pays.push(strat.payoffAt(ST));
-        let th=0;
-        for (const leg of legs) {
-          const T=getLegT(leg,params.daysG);
-          const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
-          th += legMult(leg)*bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig).price;
-        }
-        theos.push(th - strat.netPrem);
-      }
-      // Profit/loss zone fills
-      const profitX=[], profitY=[], lossX=[], lossY=[];
-      for (let i=0;i<xs.length;i++) {
-        if (pays[i] >= 0) { profitX.push(xs[i]); profitY.push(pays[i]); lossX.push(xs[i]); lossY.push(0); }
-        else { lossX.push(xs[i]); lossY.push(pays[i]); profitX.push(xs[i]); profitY.push(0); }
-      }
-      Plotly.newPlot('chartOverviewPayoff', [
-        {x:xs, y:pays, name:'Payoff förfall', line:{color:'#a5b4fc', width:2.8}, fill:'tozeroy', fillcolor:'rgba(99,102,241,0.12)'},
+    function updateOverviewCharts(c) {
+      const { strat, params, low, high, bes, sigmaAvg, T1 } = c;
+      const xs = linspace(low, high, 260);
+      const pays = xs.map(strat.payoffAt);
+      const theos = xs.map(ST => strat.theoAt(ST, 0));
+      Plotly.react('chartOverviewPayoff', [
+        {x:xs, y:pays, name:'P/L vid '+expiryLabel(strat), line:{color:'#a5b4fc', width:2.8}, fill:'tozeroy', fillcolor:'rgba(99,102,241,0.12)'},
         {x:xs, y:theos, name:'Theo P/L nu', line:{color:'#22d3ee', width:1.8, dash:'dot'}},
         {x:[low,high], y:[0,0], line:{color:'rgba(255,255,255,0.2)', width:1, dash:'dash'}, showlegend:false, hoverinfo:'skip'},
         {x:[params.S], y:[strat.payoffAt(params.S)], mode:'markers', marker:{size:10, color:'#fbbf24', symbol:'diamond'}, name:axisLabel()}
@@ -1339,87 +1452,56 @@
         annotations: bes.slice(0,3).map(b => ({x:b, y:0, text:'BE '+b.toFixed(1), showarrow:false, yshift:14, font:{size:10, color:'#fb7185'}}))
       }), {responsive:true, displayModeBar:false});
 
-      // Delta
-      const dx=[], dd=[], gg=[], vv=[];
-      for (let i=0;i<=90;i++) {
-        const ST=low+i*(high-low)/90; dx.push(ST);
-        let d=0, g=0, v=0;
-        for (const leg of legs) {
-          const T=getLegT(leg,params.daysG);
-          const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
-          const gr=bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig);
-          const m=legMult(leg);
-          d += m*gr.delta; g += m*gr.gamma; v += m*gr.vega;
-        }
-        dd.push(d); gg.push(g); vv.push(v);
-      }
-      Plotly.newPlot('chartOverviewDelta', [{x:dx,y:dd,line:{color:'#818cf8',width:2.2},fill:'tozeroy',fillcolor:'rgba(129,140,248,0.12)'}], commonLayout({showlegend:false,yaxis:{title:'Delta'}}), {responsive:true,displayModeBar:false});
+      // Delta / Gamma / Vega profiles, one Greek pass per grid point
+      const dx = linspace(low, high, 90);
+      const dd=[], gg=[], vv=[];
+      for (const ST of dx) { const g = strat.greeksAt(ST); dd.push(g.delta); gg.push(g.gamma); vv.push(g.vega); }
+      Plotly.react('chartOverviewDelta', [{x:dx,y:dd,line:{color:'#818cf8',width:2.2},fill:'tozeroy',fillcolor:'rgba(129,140,248,0.12)'}], commonLayout({showlegend:false,yaxis:{title:'Delta'}}), {responsive:true,displayModeBar:false});
 
-      // Density
-      const dens=[], pays2=[];
-      const mu=Math.log(params.S)+(params.r-params.q-0.5*sigmaAvg*sigmaAvg)*maxT;
-      const std=sigmaAvg*Math.sqrt(maxT);
-      let maxD=0;
-      for (let i=0;i<=180;i++) {
-        const ST=low+i*(high-low)/180;
-        const z=ST>0?(Math.log(ST)-mu)/std:10;
-        const d=ST>0?normPDF(z)/(ST*std):0;
-        dens.push(d); pays2.push(strat.payoffAt(ST)); if(d>maxD)maxD=d;
-      }
-      const sc = Math.max(...pays2.map(Math.abs),1)/(maxD||1)*0.5;
-      Plotly.newPlot('chartOverviewDens', [
-        {x:Array.from({length:181},(_,i)=>low+i*(high-low)/180), y:dens.map(d=>d*sc), name:'RN densitet', fill:'tozeroy', fillcolor:'rgba(34,211,238,0.14)', line:{color:'#22d3ee',width:1.3}},
-        {x:Array.from({length:181},(_,i)=>low+i*(high-low)/180), y:pays2, name:'Payoff', line:{color:'#6366f1',width:2}}
+      // Risk-neutral density to the first expiry, scaled to sit nicely on top of the payoff
+      const densX = linspace(low, high, 180);
+      const mu = Math.log(params.S)+(params.r-params.q-0.5*sigmaAvg*sigmaAvg)*T1;
+      const std = sigmaAvg*Math.sqrt(T1);
+      const dens = densX.map(ST => (ST>0 && std>0) ? normPDF((Math.log(ST)-mu)/std)/(ST*std) : 0);
+      const pays2 = densX.map(strat.payoffAt);
+      const maxD = Math.max(...dens, 1e-12);
+      const sc = Math.max(...pays2.map(Math.abs),1)/maxD*0.5;
+      Plotly.react('chartOverviewDens', [
+        {x:densX, y:dens.map(d=>d*sc), name:'RN densitet', fill:'tozeroy', fillcolor:'rgba(34,211,238,0.14)', line:{color:'#22d3ee',width:1.3}},
+        {x:densX, y:pays2, name:'Payoff', line:{color:'#6366f1',width:2}}
       ], commonLayout(), {responsive:true,displayModeBar:false});
 
-      // Radar / bar for relative Greeks
       const g = strat.greeks;
-      const maxAbs = Math.max(Math.abs(g.delta), Math.abs(g.gamma)*50, Math.abs(g.theta)*20, Math.abs(g.vega), Math.abs(g.rho), 0.01);
-      Plotly.newPlot('chartOverviewRadar', [{
+      const scaled = [g.delta, g.gamma*50, g.theta*20, g.vega, g.rho];
+      Plotly.react('chartOverviewRadar', [{
         type: 'bar',
         x: ['Delta', 'Gamma×50', 'Theta×20', 'Vega', 'Rho'],
-        y: [g.delta, g.gamma*50, g.theta*20, g.vega, g.rho],
-        marker: {color: [g.delta, g.gamma*50, g.theta*20, g.vega, g.rho].map(v => v>=0 ? 'rgba(52,211,153,0.75)' : 'rgba(251,113,133,0.75)')}
+        y: scaled,
+        marker: {color: scaled.map(v => v>=0 ? 'rgba(52,211,153,0.75)' : 'rgba(251,113,133,0.75)')}
       }], commonLayout({showlegend:false, yaxis:{title:'Skalad', zeroline:true, zerolinecolor:'rgba(255,255,255,0.2)'}, margin:{t:10,r:10,b:40,l:40}}), {responsive:true,displayModeBar:false});
 
-      // Gamma & Vega
-      Plotly.newPlot('chartOverviewGV', [
+      Plotly.react('chartOverviewGV', [
         {x:dx, y:gg, name:'Gamma', line:{color:'#22d3ee', width:2}},
         {x:dx, y:vv, name:'Vega', yaxis:'y2', line:{color:'#fbbf24', width:2}}
       ], commonLayout({yaxis:{title:'Gamma'}, yaxis2:{title:'Vega', overlaying:'y', side:'right', gridcolor:'transparent'}}), {responsive:true,displayModeBar:false});
 
-      // Individual leg payoffs
-      const legTraces = legs.map((leg, idx) => {
-        const m = legMult(leg);
-        const ys = xs.map(ST => {
-          const intr = leg.type==='call' ? Math.max(ST-leg.strike,0) : Math.max(leg.strike-ST,0);
-          const T = getLegT(leg, params.daysG);
-          const sig = Math.max(getLegSigma(leg, params.defIV, params.ivShift), 1e-4);
-          const prem = leg.premium != null ? leg.premium : bsPrice(leg.type, params.S, leg.strike, T, params.r, params.q, sig);
-          return m * (intr - prem);
-        });
-        const colors = ['#818cf8','#34d399','#fbbf24','#fb7185','#22d3ee','#a78bfa','#f472b6'];
-        return {x:xs, y:ys, name:`Ben ${idx+1} ${leg.type}`, line:{width:1.6, color:colors[idx%colors.length]}, opacity:0.85};
-      });
+      const colors = ['#818cf8','#34d399','#fbbf24','#fb7185','#22d3ee','#a78bfa','#f472b6'];
+      const legTraces = strat.details.map((d, idx) => ({
+        x:xs, y:xs.map(ST => legPnLAt(d, ST, strat.firstExpiry, params)),
+        name:`Ben ${idx+1} ${d.leg.type}${d.days - strat.firstExpiry > 1e-9 ? ' (+'+fmt(d.days-strat.firstExpiry,0)+'d)' : ''}`,
+        line:{width:1.6, color:colors[idx%colors.length]}, opacity:0.85
+      }));
       legTraces.push({x:xs, y:pays, name:'Total', line:{color:'#fff', width:2.5}});
-      Plotly.newPlot('chartOverviewLegs', legTraces, commonLayout({legend:{orientation:'h', y:1.18, font:{size:9}}}), {responsive:true,displayModeBar:false});
+      Plotly.react('chartOverviewLegs', legTraces, commonLayout({legend:{orientation:'h', y:1.18, font:{size:9}}}), {responsive:true,displayModeBar:false});
     }
 
-    function updatePayoffPanel(strat, params, low, high, bes) {
-      // Reuse similar to overview but larger
-      const n=320, xs=[], pays=[], theos=[];
-      const step=(high-low)/n;
-      for (let i=0;i<=n;i++) {
-        const ST=low+i*step; xs.push(ST); pays.push(strat.payoffAt(ST));
-        let th=0;
-        for (const leg of legs) {
-          const T=getLegT(leg,params.daysG); const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
-          th += legMult(leg)*bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig).price;
-        }
-        theos.push(th-strat.netPrem);
-      }
-      Plotly.newPlot('chartPayoff', [
-        {x:xs,y:pays,name:'Payoff vid förfall',line:{color:'#6366f1',width:2.8},fill:'tozeroy',fillcolor:'rgba(99,102,241,0.08)'},
+    function updatePayoffPanel(c) {
+      const { strat, params, low, high, bes, extremes: ext } = c;
+      const xs = linspace(low, high, 320);
+      const pays = xs.map(strat.payoffAt);
+      const theos = xs.map(ST => strat.theoAt(ST, 0));
+      Plotly.react('chartPayoff', [
+        {x:xs,y:pays,name:'P/L vid '+expiryLabel(strat),line:{color:'#6366f1',width:2.8},fill:'tozeroy',fillcolor:'rgba(99,102,241,0.08)'},
         {x:xs,y:theos,name:'Teoretisk P/L (nu)',line:{color:'#22d3ee',width:2,dash:'dot'}},
         {x:[low,high],y:[0,0],line:{color:'rgba(255,255,255,0.2)',width:1,dash:'dash'},showlegend:false,hoverinfo:'skip'},
         {x:[params.S],y:[strat.payoffAt(params.S)],mode:'markers',marker:{size:11,color:'#fbbf24',symbol:'diamond'},name:'Nuvarande '+axisLabel()}
@@ -1428,9 +1510,16 @@
         shapes:bes.map(b=>({type:'line',x0:b,x1:b,y0:0,y1:1,yref:'paper',line:{color:'rgba(251,113,133,0.45)',width:1.2,dash:'dot'}})),
         annotations:bes.map((b,i)=>({x:b,y:0,text:`BE ${fmt(b,1)}`,showarrow:false,yshift:12,font:{size:10,color:'#fb7185'}}))
       }), {responsive:true,displayModeBar:false});
+
+      const card = (label, value, cls, sub='') => `<div class="glass rounded-xl p-3"><div class="text-[10px] text-slate-500">${label}</div><div class="text-base font-bold font-mono ${cls}">${value}</div>${sub?`<div class="text-[10px] text-slate-500 mt-0.5">${sub}</div>`:''}</div>`;
+      document.getElementById('payoffExtra').innerHTML =
+        card('Break-even', bes.length ? bes.map(b=>fmt(b,1)).join(' · ') : '—', 'text-slate-200', 'vid '+expiryLabel(strat)) +
+        card('Max vinst', ext.unlimProfit ? '∞' : fmt(ext.maxProfit), 'text-emerald-300', ext.unlimProfit ? 'obegränsad uppsida' : `kring ${axisLabel().toLowerCase()} ${fmt(ext.maxAt,1)}`) +
+        card('Max förlust', ext.unlimLoss ? '−∞' : fmt(ext.maxLoss), 'text-rose-300', ext.unlimLoss ? 'obegränsad nedsida' : `kring ${axisLabel().toLowerCase()} ${fmt(ext.minAt,1)}`);
     }
 
-    function updateGreeksPanel(strat, params, low, high) {
+    function updateGreeksPanel(c) {
+      const { strat, low, high } = c;
       const g = strat.greeks;
       document.getElementById('greeksTable').innerHTML = `
         <table class="w-full text-xs">
@@ -1446,173 +1535,131 @@
         <p class="text-[10px] text-slate-500 mt-3 leading-relaxed">Tolkning uppdateras i Risk-fliken. Alla värden är position-viktade.</p>
       `;
 
-      const n=110, xs=[], deltas=[], gammas=[], vegas=[], thetas=[], rhos=[];
-      const step=(high-low)/n;
-      for (let i=0;i<=n;i++) {
-        const ST=low+i*step; xs.push(ST);
-        let d=0,gm=0,v=0,th=0,rh=0;
-        for (const leg of legs) {
-          const T=getLegT(leg,params.daysG); const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
-          const gr=bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig); const m=legMult(leg);
-          d+=m*gr.delta; gm+=m*gr.gamma; v+=m*gr.vega; th+=m*gr.theta; rh+=m*gr.rho;
-        }
-        deltas.push(d); gammas.push(gm); vegas.push(v); thetas.push(th); rhos.push(rh);
+      const xs = linspace(low, high, 110);
+      const deltas=[], gammas=[], vegas=[], thetas=[], rhos=[];
+      for (const ST of xs) {
+        const gr = strat.greeksAt(ST);
+        deltas.push(gr.delta); gammas.push(gr.gamma); vegas.push(gr.vega); thetas.push(gr.theta); rhos.push(gr.rho);
       }
-      Plotly.newPlot('chartDeltaGamma', [
+      Plotly.react('chartDeltaGamma', [
         {x:xs,y:deltas,name:'Delta',line:{color:'#818cf8',width:2}},
         {x:xs,y:gammas,name:'Gamma',yaxis:'y2',line:{color:'#22d3ee',width:2}}
       ], commonLayout({
         yaxis:{title:'Delta'}, yaxis2:{title:'Gamma',overlaying:'y',side:'right',gridcolor:'transparent'}
       }), {responsive:true,displayModeBar:false});
 
-      Plotly.newPlot('chartOtherGreeks', [
+      Plotly.react('chartOtherGreeks', [
         {x:xs,y:vegas,name:'Vega',line:{color:'#fbbf24',width:2}},
         {x:xs,y:thetas,name:'Theta',line:{color:'#fb7185',width:2}},
         {x:xs,y:rhos,name:'Rho',line:{color:'#a78bfa',width:1.5,dash:'dot'}}
       ], commonLayout(), {responsive:true,displayModeBar:false});
     }
 
-    function updateSurface(strat, params, low, high) {
-      const ivBase = params.defIV;
-      const ivs = [];
-      for (let i=-10;i<=10;i++) ivs.push(Math.max(0.04, ivBase + i*0.015));
-      const spots = [];
-      for (let i=0;i<=32;i++) spots.push(low + i*(high-low)/32);
-      const daysArr = [];
-      for (let d=2; d<=Math.max(params.daysG*1.6, 45); d+=Math.max(1, Math.round(params.daysG/12))) daysArr.push(d);
+    function updateSurface(c) {
+      const { strat, params, low, high } = c;
+      // IV axis = parallel shift of every leg's own IV, labelled by where the default IV lands
+      const ivDeltas = [];
+      for (let i=-10;i<=10;i++) ivDeltas.push(i*0.015);
+      const ivLabels = ivDeltas.map(d => +((params.defIV + d)*100).toFixed(1));
+      const spots = linspace(low, high, 32);
+      // Calendar axis runs from today down to the first expiry; later legs keep their residual life
+      const nDays = 16;
+      const daysLeft = [];
+      for (let i=0;i<=nDays;i++) { const d = Math.round(strat.firstExpiry*(1 - i/nDays)*100)/100; if (!daysLeft.includes(d)) daysLeft.push(d); }
+      const tOf = d => strat.firstExpiry - d;
 
-      // Helper: theo P/L at given ST, T, sigma
-      function theoAt(ST, T, sig) {
-        let th = 0;
-        for (const leg of legs) {
-          const g = bsGreeks(leg.type, ST, leg.strike, T, params.r, params.q, sig);
-          th += legMult(leg) * g.price;
+      const scene3d = (xTitle, zTitle, eye) => ({
+        paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#94a3b8',size:10},
+        margin:{t:10,r:10,b:10,l:10},
+        scene: {
+          xaxis:{title:xTitle, gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          yaxis:{title:axisLabel(), gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          zaxis:{title:zTitle, gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
+          bgcolor:'transparent', camera:{eye}
         }
-        return th - strat.netPrem;
-      }
-      function deltaAt(ST, T, sig) {
-        let d = 0;
-        for (const leg of legs) {
-          d += legMult(leg) * bsGreeks(leg.type, ST, leg.strike, T, params.r, params.q, sig).delta;
-        }
-        return d;
-      }
-      function vegaAt(ST, T, sig) {
-        let v = 0;
-        for (const leg of legs) {
-          v += legMult(leg) * bsGreeks(leg.type, ST, leg.strike, T, params.r, params.q, sig).vega;
-        }
-        return v;
-      }
+      });
 
-      const T0 = params.daysG / 365;
-      const sig0 = Math.max(getLegSigma(legs[0]||{iv:null}, params.defIV, params.ivShift), 0.05);
-
-      // 1. P/L Heatmap Spot x IV
-      const zPL = spots.map(ST => ivs.map(sig => theoAt(ST, T0, sig)));
-      Plotly.newPlot('chartHeatmap', [{
-        x: ivs.map(v => +(v*100).toFixed(1)), y: spots, z: zPL,
-        type: 'heatmap',
+      // 1. P/L heatmap, spot × IV, marked today
+      const zPL = spots.map(ST => ivDeltas.map(dv => strat.theoAt(ST, 0, dv)));
+      Plotly.react('chartHeatmap', [{
+        x: ivLabels, y: spots, z: zPL, type: 'heatmap',
         colorscale: [[0,'#0f172a'],[0.25,'#1e3a5f'],[0.5,'#312e81'],[0.75,'#4f46e5'],[1,'#22d3ee']],
         colorbar: {title: 'P/L', thickness: 11, len: 0.65}
-      }], commonLayout({xaxis:{title:'IV %'}, yaxis:{title:axisLabel()}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
+      }], commonLayout({xaxis:{title:'IV % (parallellskift)'}, yaxis:{title:axisLabel()}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
 
-      // 2. Delta Heatmap Spot x IV
-      const zDelta = spots.map(ST => ivs.map(sig => deltaAt(ST, T0, sig)));
-      Plotly.newPlot('chartDeltaHeat', [{
-        x: ivs.map(v => +(v*100).toFixed(1)), y: spots, z: zDelta,
-        type: 'heatmap',
+      // 2. Delta heatmap, spot × IV
+      const zDelta = spots.map(ST => ivDeltas.map(dv => strat.greeksAt(ST, 0, dv).delta));
+      Plotly.react('chartDeltaHeat', [{
+        x: ivLabels, y: spots, z: zDelta, type: 'heatmap',
         colorscale: [[0,'#7f1d1d'],[0.35,'#1e1b4b'],[0.5,'#312e81'],[0.65,'#164e63'],[1,'#065f46']],
         colorbar: {title: 'Delta', thickness: 11, len: 0.65}
-      }], commonLayout({xaxis:{title:'IV %'}, yaxis:{title:axisLabel()}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
+      }], commonLayout({xaxis:{title:'IV % (parallellskift)'}, yaxis:{title:axisLabel()}, margin:{t:15,r:55,b:35,l:45}}), {responsive:true, displayModeBar:false});
 
-      // 3. 3D P/L (Spot x Days)
-      const z3PL = spots.map(ST => daysArr.map(d => theoAt(ST, d/365, sig0)));
-      Plotly.newPlot('chart3D', [{
-        x: daysArr, y: spots, z: z3PL, type: 'surface',
+      // 3. 3D P/L (spot × days left)
+      const z3PL = spots.map(ST => daysLeft.map(d => strat.theoAt(ST, tOf(d))));
+      Plotly.react('chart3D', [{
+        x: daysLeft, y: spots, z: z3PL, type: 'surface',
         colorscale: [[0,'#0f172a'],[0.35,'#312e81'],[0.7,'#6366f1'],[1,'#22d3ee']],
         showscale: true, colorbar: {title:'P/L', thickness:11}
-      }], {
-        paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#94a3b8',size:10},
-        margin:{t:10,r:10,b:10,l:10},
-        scene: {
-          xaxis:{title:'Dagar kvar', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          yaxis:{title:axisLabel(), gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          zaxis:{title:'P/L', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          bgcolor:'transparent', camera:{eye:{x:1.55, y:1.45, z:1.15}}
-        }
-      }, {responsive:true, displayModeBar:false});
+      }], scene3d('Dagar kvar', 'P/L', {x:1.55, y:1.45, z:1.15}), {responsive:true, displayModeBar:false});
 
-      // 4. 3D Delta (Spot x Days)
-      const z3D = spots.map(ST => daysArr.map(d => deltaAt(ST, d/365, sig0)));
-      Plotly.newPlot('chart3DDelta', [{
-        x: daysArr, y: spots, z: z3D, type: 'surface',
+      // 4. 3D Delta (spot × days left)
+      const z3D = spots.map(ST => daysLeft.map(d => strat.greeksAt(ST, tOf(d)).delta));
+      Plotly.react('chart3DDelta', [{
+        x: daysLeft, y: spots, z: z3D, type: 'surface',
         colorscale: [[0,'#7f1d1d'],[0.4,'#1e1b4b'],[0.6,'#164e63'],[1,'#065f46']],
         showscale: true, colorbar: {title:'Delta', thickness:11}
-      }], {
-        paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#94a3b8',size:10},
-        margin:{t:10,r:10,b:10,l:10},
-        scene: {
-          xaxis:{title:'Dagar', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          yaxis:{title:axisLabel(), gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          zaxis:{title:'Delta', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          bgcolor:'transparent', camera:{eye:{x:1.5, y:1.4, z:1.2}}
-        }
-      }, {responsive:true, displayModeBar:false});
+      }], scene3d('Dagar kvar', 'Delta', {x:1.5, y:1.4, z:1.2}), {responsive:true, displayModeBar:false});
 
-      // 5. 3D Vega (Spot x IV) at current T
-      const z3V = spots.map(ST => ivs.map(sig => vegaAt(ST, T0, sig)));
-      Plotly.newPlot('chart3DVega', [{
-        x: ivs.map(v => +(v*100).toFixed(1)), y: spots, z: z3V, type: 'surface',
+      // 5. 3D Vega (spot × IV) today
+      const z3V = spots.map(ST => ivDeltas.map(dv => strat.greeksAt(ST, 0, dv).vega));
+      Plotly.react('chart3DVega', [{
+        x: ivLabels, y: spots, z: z3V, type: 'surface',
         colorscale: [[0,'#1c1917'],[0.4,'#78350f'],[0.7,'#fbbf24'],[1,'#fef3c7']],
         showscale: true, colorbar: {title:'Vega', thickness:11}
-      }], {
-        paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#94a3b8',size:10},
-        margin:{t:10,r:10,b:10,l:10},
-        scene: {
-          xaxis:{title:'IV %', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          yaxis:{title:axisLabel(), gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          zaxis:{title:'Vega', gridcolor:'rgba(255,255,255,0.08)', color:'#94a3b8'},
-          bgcolor:'transparent', camera:{eye:{x:1.5, y:1.4, z:1.15}}
-        }
-      }, {responsive:true, displayModeBar:false});
+      }], scene3d('IV %', 'Vega', {x:1.5, y:1.4, z:1.15}), {responsive:true, displayModeBar:false});
 
-      // 6. Time decay curve at current Spot
+      // 6. Time decay at today's spot
       const tDays = [], tPnL = [], tDelta = [];
-      for (let d = Math.max(1, params.daysG); d >= 0; d -= Math.max(1, Math.round(params.daysG/40))) {
-        tDays.push(d);
-        tPnL.push(theoAt(params.S, d/365, sig0));
-        tDelta.push(deltaAt(params.S, d/365, sig0));
+      const stepD = Math.max(0.25, strat.firstExpiry/40);
+      for (let d = strat.firstExpiry; d >= -1e-9; d -= stepD) {
+        const dd = Math.max(d, 0);
+        tDays.push(dd); tPnL.push(strat.theoAt(params.S, tOf(dd))); tDelta.push(strat.greeksAt(params.S, tOf(dd)).delta);
       }
-      Plotly.newPlot('chartTimeDecay', [
+      if (tDays[tDays.length-1] > 1e-9) { tDays.push(0); tPnL.push(strat.theoAt(params.S, strat.firstExpiry)); tDelta.push(strat.greeksAt(params.S, strat.firstExpiry).delta); }
+      Plotly.react('chartTimeDecay', [
         {x: tDays, y: tPnL, name: 'P/L', line:{color:'#6366f1', width:2.5}, fill:'tozeroy', fillcolor:'rgba(99,102,241,0.08)'},
         {x: tDays, y: tDelta, name: 'Delta', yaxis:'y2', line:{color:'#22d3ee', width:2, dash:'dot'}}
       ], commonLayout({
-        xaxis:{title:'Dagar kvar', autorange:'reversed'},
+        xaxis:{title:'Dagar kvar till '+expiryLabel(strat), autorange:'reversed'},
         yaxis:{title:'P/L'},
         yaxis2:{title:'Delta', overlaying:'y', side:'right', gridcolor:'transparent'},
         legend:{orientation:'h', y:1.15}
       }), {responsive:true, displayModeBar:false});
     }
 
-    function updateLegsDetail(strat, params) {
+    function updateLegsDetail(c) {
+      const { strat, params } = c;
       if (!strat.details.length) { document.getElementById('legsDetailTable').innerHTML=''; return; }
       let html = `<table class="w-full text-xs">
         <thead><tr class="text-[9px] text-slate-500 uppercase border-b border-white/10">
           <th class="text-left py-2 pr-2">#</th><th class="text-left">Typ</th><th class="text-left">Pos</th>
           <th class="text-right">Strike</th><th class="text-right">Dagar</th><th class="text-right">IV</th>
           <th class="text-right">Premie</th><th class="text-right">Theo</th><th class="text-right">Δ</th>
-          <th class="text-right">Γ</th><th class="text-right">Θ</th><th class="text-right">Vega</th>
+          <th class="text-right">Γ</th><th class="text-right">Θ</th><th class="text-right">Vega</th><th class="text-right">ρ</th>
           <th class="text-right">IV-solv</th>
         </tr></thead><tbody class="font-mono">`;
       strat.details.forEach((d,i) => {
         const l=d.leg;
+        const ivCell = d.premInvalid
+          ? `<span class="text-rose-300" title="Premien ligger utanför arbitragegränserna (under intrinsic eller över maxvärde) – går inte att lösa">ogiltig</span>`
+          : d.solvedIV!=null ? fmt(d.solvedIV*100,1)+'%' : '—';
         html += `<tr class="border-t border-white/5 hover:bg-white/[0.02]">
           <td class="py-1.5 text-slate-500">${i+1}</td>
           <td class="text-slate-300">${l.type}</td>
           <td class="${l.side==='long'?'text-emerald-400':'text-rose-400'}">${l.side==='long'?'Lång':'Kort'}</td>
           <td class="text-right">${fmt(l.strike,1)}</td>
-          <td class="text-right">${l.days??params.daysG}</td>
+          <td class="text-right">${fmt(d.days,0)}${l.days==null?'<span class="text-slate-600">*</span>':''}</td>
           <td class="text-right">${fmt(d.sigma*100,1)}%</td>
           <td class="text-right">${fmt(d.prem)}</td>
           <td class="text-right text-cyan-300">${fmt(d.theo)}</td>
@@ -1620,15 +1667,17 @@
           <td class="text-right">${fmt(d.greeks.gamma*d.mult,4)}</td>
           <td class="text-right">${fmt(d.greeks.theta*d.mult,3)}</td>
           <td class="text-right">${fmt(d.greeks.vega*d.mult,3)}</td>
-          <td class="text-right text-amber-300">${d.solvedIV!=null?fmt(d.solvedIV*100,1)+'%':'—'}</td>
+          <td class="text-right">${fmt(d.greeks.rho*d.mult,3)}</td>
+          <td class="text-right text-amber-300">${ivCell}</td>
         </tr>`;
       });
       html += `</tbody></table>
-        <p class="text-[10px] text-slate-500 mt-3">IV-solv = implicerad volatilitet om du angett marknadspremie. Theo beräknas alltid med aktuell IV (inkl. what-if shift).</p>`;
+        <p class="text-[10px] text-slate-500 mt-3">IV-solv = implicerad volatilitet om du angett marknadspremie (Newton-Raphson med bisektion som fallback, kontrollerad mot arbitragegränser). Theo beräknas alltid med aktuell IV (inkl. what-if shift). * = följer globalt antal dagar.${params.instrument==='warrant' && params.dilution<1 ? ' Utspädningsfaktor '+fmt(params.dilution,3)+' inbakad i alla position-viktade värden.' : ''}</p>`;
       document.getElementById('legsDetailTable').innerHTML = html;
     }
 
-    function updateDeep(strat, params, ext, bes, pop, ev, sigmaAvg, expMove) {
+    function updateDeep(c) {
+      const { strat, params, extremes: ext, bes, pop, ev, sigmaAvg, expMove } = c;
       const g = strat.greeks;
       const axLbl = axisLabel();
       const scenarios = [
@@ -1641,11 +1690,12 @@
           <div class="glass rounded-xl p-4">
             <h4 class="text-[10px] font-semibold text-slate-400 uppercase mb-2.5">Position</h4>
             <ul class="space-y-1.5 text-xs">
-              <li class="flex justify-between"><span class="text-slate-400">Ben</span><span class="font-mono">${legs.length}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">Ben</span><span class="font-mono">${strat.details.length}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">Förfall</span><span class="font-mono">${strat.multiExpiry ? `dag ${fmt(strat.firstExpiry,0)} – ${fmt(strat.lastExpiry,0)}` : `dag ${fmt(strat.firstExpiry,0)}`}</span></li>
               <li class="flex justify-between"><span class="text-slate-400">Netto premie</span><span class="font-mono ${strat.netPrem>0?'text-rose-300':'text-emerald-300'}">${fmt(strat.netPrem)}</span></li>
               <li class="flex justify-between"><span class="text-slate-400">Teoretiskt värde</span><span class="font-mono text-cyan-300">${fmt(strat.theo)}</span></li>
               <li class="flex justify-between"><span class="text-slate-400">Mark-to-model</span><span class="font-mono ${strat.currentPnL>=0?'text-emerald-300':'text-rose-300'}">${fmt(strat.currentPnL)}</span></li>
-              <li class="flex justify-between"><span class="text-slate-400">Förväntad rörelse 1σ</span><span class="font-mono text-amber-300">±${fmt(expMove,1)}</span></li>
+              <li class="flex justify-between"><span class="text-slate-400">Förväntad rörelse 1σ (till dag ${fmt(strat.firstExpiry,0)})</span><span class="font-mono text-amber-300">±${fmt(expMove,1)}</span></li>
             </ul>
           </div>
           <div class="glass rounded-xl p-4">
@@ -1660,7 +1710,7 @@
           </div>
         </div>
         <div class="glass rounded-xl p-4">
-          <h4 class="text-[10px] font-semibold text-slate-400 uppercase mb-2.5">Scenario (payoff vid förfall)</h4>
+          <h4 class="text-[10px] font-semibold text-slate-400 uppercase mb-2.5">Scenario (P/L vid ${expiryLabel(strat)})</h4>
           <table class="w-full text-xs"><thead><tr class="text-[9px] text-slate-500"><th class="text-left py-1">Scenario</th><th class="text-right">ST</th><th class="text-right">P/L</th></tr></thead>
           <tbody class="font-mono">${scenarios.map(s=>`<tr class="border-t border-white/5"><td class="py-1 text-slate-300 font-sans">${s.n}</td><td class="text-right">${fmt(s.st,1)}</td><td class="text-right ${s.pnl>=0?'text-emerald-300':'text-rose-300'}">${fmt(s.pnl)}</td></tr>`).join('')}</tbody></table>
         </div>
@@ -1671,15 +1721,17 @@
             <p><strong class="text-cyan-300">Gamma ${fmt(g.gamma,4)}</strong> — ${g.gamma>0.008?'Positiv gamma (konvexitet, gynnas av stora rörelser).':g.gamma<-0.008?'Negativ gamma (risk vid gap/rörelse).':'Låg gamma.'}</p>
             <p><strong class="text-rose-300">Theta ${fmt(g.theta,3)}</strong> — ${g.theta<-0.04?'Betydande tidsvärdefall (long premium).':g.theta>0.04?'Positiv theta (short premium).':'Måttlig decay.'} Ca ${fmt(Math.abs(g.theta),2)} per dag.</p>
             <p><strong class="text-amber-300">Vega ${fmt(g.vega,3)}</strong> — ${g.vega>0.08?'Lång volatilitet.':g.vega<-0.08?'Kort volatilitet (IV-crush gynnsam).':'Låg vol-exponering.'}</p>
+            <p><strong class="text-slate-300">Rho ${fmt(g.rho,3)}</strong> — ${params.isB76 ? 'Black-76: räntan påverkar bara diskonteringen, så rho = −T × pris.' : Math.abs(g.rho)<0.02 ? 'Försumbar räntekänslighet.' : g.rho>0 ? 'Gynnas av högre ränta.' : 'Missgynnas av högre ränta.'}</p>
           </div>
         </div>
         <div class="glass rounded-xl p-4">
           <h4 class="text-[10px] font-semibold text-slate-400 uppercase mb-2">Modell & antaganden</h4>
           <ul class="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
-            <li>Black-Scholes-Merton med kontinuerlig utdelning (europeisk exercise).</li>
-            <li>Riskneutralt mått för POP/EV. Monte Carlo = GBM med samma μ och σ.</li>
-            <li>What-if IV/ränta appliceras parallellt. Per-ben dagar stöds.</li>
-            <li>IV-solver: Newton-Raphson. Ingen early exercise, konstant vol, inga hopp.</li>
+            <li>Black-Scholes-Merton med kontinuerlig utdelning (europeisk exercise). Normalfördelningen via Harts algoritm (dubbel precision).</li>
+            <li>Riskneutralt mått för POP/EV, integrerat över hela fördelningen (±7σ). Monte Carlo = GBM med samma μ och σ, antitetiska variabler.</li>
+            <li>Flera förfall: "payoff" utvärderas vid första förfallet, ben med längre löptid prissätts med BSM på återstående tid.</li>
+            <li>What-if IV/ränta appliceras parallellt. Per-ben dagar stöds. Obegränsad vinst/förlust härleds exakt från nettot av call-ben.</li>
+            <li>IV-solver: Newton-Raphson med bisektion, arbitragegränser kontrolleras. Ingen early exercise, konstant vol, inga hopp.</li>
             <li>Alla beräkningar per option (multiplier 1). Skala själv med kontraktstorlek.</li>
           </ul>
         </div>
@@ -1694,10 +1746,10 @@
       document.querySelectorAll('.tab-btn').forEach(b=>{ b.classList.remove('tab-active'); b.classList.add('text-slate-400'); });
       const btn=document.querySelector(`[data-tab="${name}"]`);
       if (btn) { btn.classList.add('tab-active'); btn.classList.remove('text-slate-400'); }
-      setTimeout(()=>window.dispatchEvent(new Event('resize')), 40);
-      if (name==='monte' && !lastMC && legs.length) runMonteCarlo();
-      if (name==='scenario') buildScenarioMatrix();
+      activeTab = name;
+      renderActivePanel();
       if (name==='compare') renderCompare();
+      setTimeout(()=>window.dispatchEvent(new Event('resize')), 40);
     }
 
     function openSaveModal() {
@@ -1711,11 +1763,14 @@
       else {
         list.innerHTML = keys.map(k => {
           const name = k.replace('nexus_opt_','');
+          // encodeURIComponent politely leaves apostrophes alone, which is exactly what breaks
+          // an inline onclick — so those get escaped by hand
+          const enc = encodeURIComponent(name).replace(/'/g, '%27');
           return `<div class="flex items-center justify-between glass rounded-lg p-2.5">
-            <span class="text-sm text-slate-200">${name}</span>
+            <span class="text-sm text-slate-200">${escapeHtml(name)}</span>
             <div class="flex gap-1.5">
-              <button onclick="loadStrategy('${name}')" class="btn-primary text-[10px] px-2 py-1 rounded text-white">Ladda</button>
-              <button onclick="deleteStrategy('${name}')" class="btn-danger text-[10px] px-2 py-1 rounded">Radera</button>
+              <button onclick="loadStrategy(decodeURIComponent('${enc}'))" class="btn-primary text-[10px] px-2 py-1 rounded text-white">Ladda</button>
+              <button onclick="deleteStrategy(decodeURIComponent('${enc}'))" class="btn-danger text-[10px] px-2 py-1 rounded">Radera</button>
             </div>
           </div>`;
         }).join('');
@@ -1724,33 +1779,104 @@
     }
     function openHelp() { document.getElementById('modalHelp').classList.remove('hidden'); }
     function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') document.querySelectorAll('.modal-bg').forEach(m => m.classList.add('hidden'));
+    });
+
+    let toastTimer = null;
+    function showToast(msg) {
+      let el = document.getElementById('toast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'toast';
+        el.className = 'toast';
+        document.body.appendChild(el);
+      }
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+    }
+
+    // ---- State (save / load / share / import) ----
+    function collectState() {
+      const v = id => document.getElementById(id).value;
+      return {
+        v: 2,
+        name: v('strategyName'),
+        instrument: v('instrumentType'),
+        spot: +v('spot'), defaultIV: +v('defaultIV'), rate: +v('rate'), div: +v('div'), days: +v('days'),
+        ivShift: +v('ivShift'), rateShift: +v('rateShift'),
+        warrantShares: +v('warrantShares'), warrantNew: +v('warrantNew'),
+        legs: legs.map(l => ({ type:l.type, side:l.side, qty:l.qty, strike:l.strike, days:l.days, premium:l.premium, iv:l.iv }))
+      };
+    }
+    function applyState(s) {
+      const num = (x, fb) => (x === null || x === undefined || x === '' || Number.isNaN(+x)) ? fb : +x;
+      const numOrNull = x => (x === null || x === undefined || x === '' || Number.isNaN(+x)) ? null : +x;
+      const set = (id, val) => { document.getElementById(id).value = val; };
+      set('instrumentType', INSTRUMENT_INFO[s.instrument] ? s.instrument : 'equity');
+      set('spot', num(s.spot, 100));
+      set('defaultIV', num(s.defaultIV, 22));
+      set('rate', num(s.rate, 2.5));
+      set('div', num(s.div, 1.5));
+      const days = Math.min(365, Math.max(1, num(s.days, 30)));
+      set('days', days); document.getElementById('daysLabel').textContent = days;
+      const ivs = num(s.ivShift, 0);
+      set('ivShift', ivs); document.getElementById('ivShiftLabel').textContent = ivs + ' %';
+      const rs = num(s.rateShift, 0);
+      set('rateShift', rs); document.getElementById('rateShiftLabel').textContent = rs + ' bp';
+      set('warrantShares', num(s.warrantShares, 1000000));
+      set('warrantNew', num(s.warrantNew, 100000));
+      set('strategyName', typeof s.name === 'string' && s.name.trim() ? s.name.slice(0, 80) : 'Strategi');
+      legs = (Array.isArray(s.legs) ? s.legs : []).slice(0, 20).map(l => createLeg({
+        type: l.type === 'put' ? 'put' : 'call',
+        side: l.side === 'short' ? 'short' : 'long',
+        qty: num(l.qty, 1),
+        strike: num(l.strike, 100),
+        days: numOrNull(l.days),
+        premium: numOrNull(l.premium),
+        iv: numOrNull(l.iv)
+      }));
+      renderLegs();
+      onInstrumentChange(); // relabels the panel and runs recalc()
+    }
+    // Older exports/saves used a different shape; massage them into the v2 layout
+    function normalizeImported(data) {
+      if (!data || typeof data !== 'object') throw new Error('Inte ett giltigt strategiobjekt');
+      if (data.v === 2) return data;
+      const p = data.params || {};
+      return {
+        v: 2,
+        name: data.name,
+        instrument: p.instrument || data.instrument,
+        spot: data.spot ?? p.S, days: data.days ?? p.daysG,
+        rate: data.rate ?? p.rawRate,
+        div: data.div ?? (p.q != null && !p.isB76 ? p.q*100 : undefined),
+        defaultIV: data.defaultIV ?? (p.defIV != null ? (p.defIV - (p.ivShift||0))*100 : undefined),
+        ivShift: data.ivShift ?? (p.ivShift != null ? p.ivShift*100 : undefined),
+        legs: data.legs
+      };
+    }
 
     function doSave() {
       const name = document.getElementById('saveNameInput').value.trim() || 'Namnlös';
-      const data = {
-        name, legs, spot: document.getElementById('spot').value,
-        days: document.getElementById('days').value, rate: document.getElementById('rate').value,
-        div: document.getElementById('div').value, defaultIV: document.getElementById('defaultIV').value,
-        ts: Date.now()
-      };
+      const data = { ...collectState(), name, ts: Date.now() };
       localStorage.setItem('nexus_opt_'+name, JSON.stringify(data));
       document.getElementById('strategyName').value = name;
       closeModal('modalSave');
+      showToast('Sparad: ' + name);
     }
     function loadStrategy(name) {
       const raw = localStorage.getItem('nexus_opt_'+name);
       if (!raw) return;
-      const data = JSON.parse(raw);
-      legs = data.legs || [];
-      legId = Math.max(0, ...legs.map(l=>l.id));
-      document.getElementById('spot').value = data.spot || 100;
-      document.getElementById('days').value = data.days || 30;
-      document.getElementById('daysLabel').textContent = data.days || 30;
-      document.getElementById('rate').value = data.rate || 2.5;
-      document.getElementById('div').value = data.div || 1.5;
-      document.getElementById('defaultIV').value = data.defaultIV || 22;
-      document.getElementById('strategyName').value = name;
-      renderLegs(); recalc(); closeModal('modalLoad');
+      try {
+        applyState(normalizeImported({ ...JSON.parse(raw), name }));
+        closeModal('modalLoad');
+      } catch (e) {
+        showToast('Kunde inte läsa sparad strategi');
+        console.error(e);
+      }
     }
     function deleteStrategy(name) {
       localStorage.removeItem('nexus_opt_'+name);
@@ -1758,41 +1884,96 @@
     }
     function saveCurrentName() { /* just UI */ }
 
+    // URL-safe base64 of the JSON state. UTF-8 goes through TextEncoder so "Ålin" survives.
+    function encodeState(s) {
+      const bytes = new TextEncoder().encode(JSON.stringify(s));
+      let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+      return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+    function decodeState(str) {
+      let b64 = str.replace(/-/g,'+').replace(/_/g,'/');
+      while (b64.length % 4) b64 += '=';
+      const bin = atob(b64);
+      const bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    }
+    async function shareLink() {
+      if (!legs.length) { showToast('Inga ben att dela'); return; }
+      const url = location.origin + location.pathname + location.search + '#s=' + encodeState(collectState());
+      history.replaceState(null, '', url);
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast('Länk kopierad – klistra in var du vill');
+      } catch (e) {
+        window.prompt('Kopiera länken:', url);
+      }
+    }
+    function loadFromHash() {
+      const m = location.hash.match(/[#&]s=([A-Za-z0-9_-]+)/);
+      if (!m) return false;
+      try {
+        applyState(normalizeImported(decodeState(m[1])));
+        return true;
+      } catch (e) {
+        console.warn('Kunde inte läsa delad länk', e);
+        showToast('Länken gick inte att läsa');
+        return false;
+      }
+    }
+
     function exportCSV() {
-      if (!legs.length) return;
-      const params = getParams();
-      const strat = computeStrategy(params);
+      if (!lastCalc) return;
+      const { strat, params } = lastCalc;
       const low = Math.max(0.5, params.S*0.5), high = params.S*1.5;
       let csv = 'ST,Payoff,TheoPnL\n';
       for (let i=0;i<=200;i++) {
         const ST = low + i*(high-low)/200;
-        let th=0;
-        for (const leg of legs) {
-          const T=getLegT(leg,params.daysG); const sig=Math.max(getLegSigma(leg,params.defIV,params.ivShift),1e-4);
-          th += legMult(leg)*bsGreeks(leg.type,ST,leg.strike,T,params.r,params.q,sig).price;
-        }
-        csv += `${ST.toFixed(2)},${strat.payoffAt(ST).toFixed(4)},${(th-strat.netPrem).toFixed(4)}\n`;
+        csv += `${ST.toFixed(2)},${strat.payoffAt(ST).toFixed(4)},${strat.theoAt(ST, 0).toFixed(4)}\n`;
       }
-      const blob = new Blob([csv], {type:'text/csv'});
-      const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
-      a.download = (document.getElementById('strategyName').value||'strategy')+'_payoff.csv'; a.click();
+      downloadBlob(csv, 'text/csv', (document.getElementById('strategyName').value||'strategy')+'_payoff.csv');
     }
     function exportJSON() {
-      const data = {
-        name: document.getElementById('strategyName').value,
-        params: getParams(), legs,
-        exported: new Date().toISOString()
+      const state = collectState();
+      const summary = lastCalc ? {
+        netPremium: lastCalc.strat.netPrem, theoretical: lastCalc.strat.theo, greeks: lastCalc.strat.greeks,
+        firstExpiryDays: lastCalc.strat.firstExpiry, pop: lastCalc.pop, ev: lastCalc.ev
+      } : null;
+      const data = { ...state, params: getParams(), summary, exported: new Date().toISOString() };
+      downloadBlob(JSON.stringify(data,null,2), 'application/json', (state.name||'strategy')+'.json');
+    }
+    function downloadBlob(content, type, filename) {
+      const blob = new Blob([content], {type});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = filename; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+    function importJSON(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          applyState(normalizeImported(JSON.parse(reader.result)));
+          switchTab('overview');
+          showToast('Importerad: ' + document.getElementById('strategyName').value);
+        } catch (e) {
+          showToast('Filen gick inte att läsa som strategi');
+          console.error(e);
+        }
       };
-      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
-      const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
-      a.download = (data.name||'strategy')+'.json'; a.click();
+      reader.readAsText(file);
+      input.value = ''; // so picking the same file twice still fires change
     }
 
     // Init
     window.addEventListener('DOMContentLoaded', () => {
       renderGuide();
-      addPreset('bullcall');
-      onInstrumentChange();
+      if (loadFromHash()) {
+        switchTab('overview');
+      } else {
+        addPreset('bullcall');
+        onInstrumentChange();
+      }
     });
   </script>
 </body>
