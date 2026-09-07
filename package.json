@@ -1,6 +1,6 @@
 {
   "name": "options-lab",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "description": "Nexus Options Lab – build step for the Tailwind stylesheet only; the app itself is plain index.html",
   "scripts": {
