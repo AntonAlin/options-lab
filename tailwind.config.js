@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 // Same theme the page used to hand to the play CDN at runtime, now compiled ahead of time.
 module.exports = {
-  content: ['./index.html'],
+  content: ['./options-lab.html'],
   theme: {
     extend: {
       fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
