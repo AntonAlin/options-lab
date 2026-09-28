@@ -1,9 +1,13 @@
 import * as store from '../store.js';
 import { t } from '../i18n.js';
-import { esc, card, pageHead, table, kpi, fmtPct, fmtNum, empty, signCls } from '../ui.js';
-import { rollingVol, monthlyReturns } from '../analytics.js';
+import { esc, card, pageHead, table, kpi, fmtPct, fmtNum, empty, signCls, segmented } from '../ui.js';
+import { rollingVol, monthlyReturns, positionPerformance } from '../analytics.js';
+import { ASSET_CLASSES } from '../instruments.js';
+import { L } from '../i18n.js';
 import * as charts from '../charts.js';
 import { isNum } from '../util.js';
+
+const ui = { window: 252 };
 
 export default {
   render(root, app) {
@@ -60,6 +64,7 @@ export default {
         ], [...stats, ...rel], { dense: true }))}
         ${card(t('perf.dist'), '<div id="chHist" class="chart"></div>', { sub: esc(t('perf.distSub')) })}
       </div>
+      ${card(t('perf.map3d'), `<div class="toolbar">${segmented('win', [['63', t('perf.w3m')], ['252', t('perf.w1y')], ['0', t('perf.wAll')]], String(ui.window))}<span class="muted small">${esc(t('perf.map3dHelp'))}</span></div><div id="ch3d" class="chart chart-3d"></div>`, { sub: esc(t('perf.map3dSub')) })}
       ${card(t('perf.monthly'), `<div class="table-wrap"><table class="tbl dense monthly"><thead><tr><th></th>${mNames.map(m => `<th class="r">${esc(m)}</th>`).join('')}<th class="r">${esc(t('perf.ytd'))}</th></tr></thead><tbody>
         ${years.map(y => `<tr><th scope="row">${y}</th>${Array.from({ length: 12 }, (_, i) => { const r = monthly[y][i + 1]; return `<td class="r num heat" style="${heat(r)}">${isNum(r) ? fmtPct(r, 1) : ''}</td>`; }).join('')}<td class="r num"><strong class="${signCls(monthly[y].ytd)}">${fmtPct(monthly[y].ytd, 1)}</strong></td></tr>`).join('')}
       </tbody></table></div>`)}
@@ -73,6 +78,14 @@ export default {
     charts.render('chDD', charts.lineSpec(d, [{ name: t('perf.dd'), y: perf.drawdown, color: P.neg }], { height: 240, area: 'down' }));
     charts.render('chRV', charts.lineSpec(dates, [{ name: t('perf.rollVol'), y: rollingVol(hp.portfolioRet), color: P.series[1] }], { height: 240, area: true }));
     charts.render('chHist', charts.histogramSpec(hp.portfolioRet, { markers: [{ x: -perf.var95, label: 'VaR 95' }, { x: -perf.var99, label: 'VaR 99' }] }));
+    const pts = positionPerformance(hp, a.v, ui.window || dates.length).map(q => ({
+      name: q.name, group: L(ASSET_CLASSES[q.cls] || { en: q.cls }), color: charts.classColor(q.cls),
+      x: q.ret, y: q.vol, z: q.contribPct, size: Math.abs(q.exposureW),
+      text: `${t('col.weight')}: ${fmtPct(q.weight, 1)} · ${t('risk.share')}: ${fmtPct(risk.headline.sigmaAnnual && a.v.nav ? q.contrib / risk.headline.sigmaAnnual : 0, 1)}`
+    }));
+    charts.render('ch3d', charts.scatter3dSpec(pts, { labels: { x: t('perf.axisRet'), y: t('perf.axisVol'), z: t('perf.axisContrib') } }));
+
+    root.onclick = e => { const s = e.target.closest('[data-seg="win"]'); if (s) { ui.window = +s.dataset.value; app.rerender(); } };
   }
 };
 

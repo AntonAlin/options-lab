@@ -462,3 +462,9 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 14px 0 10px; }
 .meth-formula { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--page); border: 1px solid var(--line); font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; color: var(--ink); overflow-x: auto; }
 .meth-params span { color: var(--muted); }
 @media (max-width: 720px) { .meth-item { grid-template-columns: 1fr; gap: 6px; } }
+
+/* Numbered steps (linked file), 3D chart, collapsible factor detail */
+.steps { margin: 6px 0 12px; padding-left: 22px; display: grid; gap: 6px; font-size: 13px; }
+.steps li strong { display: block; } .steps li span { color: var(--muted); }
+.chart-3d { min-height: 520px; }
+.factor-detail { margin-top: 10px; } .factor-detail summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }

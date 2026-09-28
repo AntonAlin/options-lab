@@ -3,6 +3,8 @@ import { t, L } from '../i18n.js';
 import { esc, kpi, card, pageHead, fmtMoney, fmtPct, fmtNum, table, statusChip, fmtDate } from '../ui.js';
 import { ASSET_CLASSES, typeLabel } from '../instruments.js';
 import * as charts from '../charts.js';
+import * as filelink from '../filelink.js';
+import { backupAge } from '../backup.js';
 import { loadDemo, newPortfolioDialog } from '../app.js';
 
 function welcome(root) {
@@ -56,7 +58,8 @@ export default {
       ${pageHead(p.name, `${esc(t('dash.sub', { date: fmtDate(v.ctx.valDate), n: v.rows.length }))}${p.manager ? ' · ' + esc(p.manager) : ''}`,
         `<a class="btn" href="#/import">${esc(t('nav.import'))}</a><a class="btn btn-primary" href="#/report">${esc(t('dash.exportPdf'))}</a>`)}
       ${alerts.length ? `<div class="alerts">${alerts.map(([tone, msg, link]) => `<div class="alert alert-${tone}"><span>${esc(msg)}</span>${link ? `<a href="#/${link}">${esc(t('common.fix'))} →</a>` : ''}</div>`).join('')}</div>` : ''}
-      <div class="kpi-grid">
+            ${dataAlert(p)}
+<div class="kpi-grid">
         ${kpi(t('kpi.nav'), fmtMoney(v.nav, base, { compact: true }), { sub: t('kpi.navSub', { n: v.valid.length }) })}
         ${kpi(t('kpi.var', { c: fmtNum(H.confidence * 100, 0), h: H.horizonDays }), fmtPct(H.varPct, 2), { sub: `${fmtMoney(H.var, base, { compact: true })} · ${esc(t('method.' + H.method))}`, help: t('help.var') })}
         ${kpi(t('kpi.vol'), fmtPct(H.volPct, 1), { sub: t('kpi.volSub'), help: t('help.vol') })}
@@ -95,8 +98,9 @@ export default {
     const allocItems = alloc.assetClass.filter(x => x.weight >= 0.0005);
     charts.render('chAlloc', charts.donutSpec(allocItems.map(x => ({ label: `${L(ASSET_CLASSES[x.key] || { en: x.key })}  ${fmtPct(x.weight, 1)}`, value: x.value, color: charts.classColor(x.key) })),
       { center: fmtMoney(v.nav, '', { compact: true }), centerSub: `${t('kpi.nav')} · ${base}`, height: 290 }));
-    const groups = Object.entries(risk.param.byFactorGroup).filter(([, val]) => Math.abs(val) > 1e-9).sort((x, y) => y[1] - x[1]);
-    charts.render('chRisk', charts.barHSpec(groups.map(([k, val]) => ({ label: t('factor.' + k), value: risk.param.sigmaAnnual ? val / risk.param.sigmaAnnual : 0, text: fmtPct(risk.param.sigmaAnnual ? val / risk.param.sigmaAnnual : 0, 0) })), { diverging: true }));
+    const rm = risk.headline.byAssetClass ? risk.headline : risk.param;
+    const classes = rm.byAssetClass.filter(c => Math.abs(c.total) > 1e-9);
+    charts.render('chRisk', charts.barHSpec(classes.map(c => ({ label: L(ASSET_CLASSES[c.key] || { en: c.key }), value: rm.sigmaAnnual ? c.total / rm.sigmaAnnual : 0, text: fmtPct(rm.sigmaAnnual ? c.total / rm.sigmaAnnual : 0, 0), color: charts.classColor(c.key) })), { diverging: true }));
     if (perf) {
       const dates = risk.hp.dates;
       const series = [{ name: p.name, y: perf.nav.map(x => x - 1) }];
@@ -108,3 +112,13 @@ export default {
     }
   }
 };
+
+// One line on where the data lives until a file is linked or a fresh backup exists.
+function dataAlert(p) {
+  if (p.demo || !p.positions.length) return '';
+  const fs = filelink.getStatus();
+  if (fs.state === 'linked') return '';
+  const age = backupAge();
+  if (age != null && age < 7) return '';
+  return `<div class="alert alert-info"><span>${esc(fs.state === 'unsupported' ? t('dash.dataUnsupported') : t('dash.dataWhere'))}</span><a class="btn btn-sm btn-primary" href="#/settings">${esc(t('nav.settings'))} →</a></div>`;
+}

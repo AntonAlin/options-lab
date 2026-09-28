@@ -230,9 +230,17 @@ export async function generateReport(p, a, opts) {
       [t('kpi.vol'), fmtPct(P.volPct, 1), Hs ? fmtPct(Hs.volPct, 1) : '-'],
       [t('rep.headline'), H0 === P ? 'X' : '', Hs && H0 === Hs ? 'X' : '']
     ]);
+    const classes = P.byAssetClass.filter(c => Math.abs(c.total) > 1e-9);
+    heading(t('risk.byClass'), t('risk.byClassSub', { m: t('method.parametric') }));
+    await chart(charts.barHGroupedSpec(classes.map(c => classLabel(c.key)), [
+      { name: t('risk.securities'), values: classes.map(c => (P.sigmaAnnual ? c.securities / P.sigmaAnnual : 0)) },
+      { name: t('risk.derivativesCol'), values: classes.map(c => (P.sigmaAnnual ? c.derivatives / P.sigmaAnnual : 0)) }
+    ], { th, height: Math.max(200, 44 * classes.length + 80) }), 55);
+    tableAt([t('exp.assetClass'), t('risk.securities'), t('risk.derivativesCol'), t('risk.contribution'), t('risk.share'), t('risk.standalone')],
+      classes.map(c => [classLabel(c.key), fmtPct(v.nav ? c.securities / v.nav : 0, 2), c.derivatives ? fmtPct(v.nav ? c.derivatives / v.nav : 0, 2) : '-', fmtPct(v.nav ? c.total / v.nav : 0, 2), fmtPct(P.sigmaAnnual ? c.total / P.sigmaAnnual : 0, 0), fmtPct(v.nav ? c.standalone / v.nav : 0, 2)]));
     const groups = Object.entries(P.byFactorGroup).filter(([, x]) => Math.abs(x) > 1e-9).sort((x1, x2) => x2[1] - x1[1]);
-    heading(t('risk.byFactor'), t('risk.byFactorSub'));
-    await chart(charts.barHSpec(groups.map(([g, c]) => ({ label: t('factor.' + g), value: P.sigmaAnnual ? c / P.sigmaAnnual : 0, text: fmtPct(P.sigmaAnnual ? c / P.sigmaAnnual : 0, 0) })), { th, diverging: true }), 55);
+    font(9, 'bold'); ensure(8); txt(t('risk.factorDetail'), M, y); y += 2;
+    tableAt([t('risk.factor'), t('risk.standalone'), t('risk.contribution'), t('risk.share')], groups.map(([g, c]) => [t('factor.' + g), fmtPct(v.nav ? (P.standalone[g] || 0) / v.nav : 0, 2), fmtPct(v.nav ? c / v.nav : 0, 2), fmtPct(P.sigmaAnnual ? c / P.sigmaAnnual : 0, 0)]), { width: CW * 0.7, fontSize: 7.5 });
     const contrib = (Hs && H0 === Hs ? Hs.byPosition : P.byPosition).slice(0, 12);
     heading(t('risk.topContrib'));
     tableAt([t('col.name'), t('col.weight'), t('risk.contribVol'), t('risk.share')], contrib.map(x => [x.row.name.slice(0, 44), fmtPct(x.row.weight, 1), fmtPct(v.nav ? x.contrib / v.nav : 0, 2), fmtPct(x.pct, 1)]));

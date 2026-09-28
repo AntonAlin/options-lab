@@ -111,7 +111,7 @@ export default {
 // ---- linked file --------------------------------------------------------------------------------------
 function fileCardHtml() {
   const fs = filelink.getStatus();
-  if (fs.state === 'unsupported') return `<p class="muted small">${esc(t('file.unsupported'))}</p>`;
+  if (fs.state === 'unsupported') return `<div class="alert alert-warn"><span>${esc(t('file.unsupported'))}</span></div><p class="muted small">${esc(t('file.unsupportedHow'))}</p>`;
   const when = iso => new Date(iso).toLocaleString(lang() === 'sv' ? 'sv-SE' : 'en-GB');
   const linked = fs.state !== 'none';
   return `
@@ -123,6 +123,11 @@ function fileCardHtml() {
         </div>
       </div>` : ''}
     <p class="muted small">${esc(t('file.body'))}</p>
+    <ol class="steps">
+      <li><strong>${esc(t('file.step1'))}</strong><span>${esc(t('file.step1b'))}</span></li>
+      <li><strong>${esc(t('file.step2'))}</strong><span>${esc(t('file.step2b'))}</span></li>
+      <li><strong>${esc(t('file.step3'))}</strong><span>${esc(t('file.step3b'))}</span></li>
+    </ol>
     <div class="toolbar wrap">
       <label class="inline">${esc(t('file.format'))} ${selectHtml('id="fileKind"', [['json', t('file.kind.json')], ['csv', t('file.kind.csv')], ['xlsx', t('file.kind.xlsx')]], fs.kind || 'json')}</label>
       <button class="btn btn-primary" data-act="file:new">${esc(linked ? t('file.linkOther') : t('file.linkNew'))}</button>

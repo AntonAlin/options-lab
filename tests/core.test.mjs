@@ -621,3 +621,21 @@ test('cost basis: average-cost book with fees, short through zero, FX effect and
   assert.equal(r.txs.length, 2); assert.equal(r.txs[0].side, 'buy'); close(r.txs[0].price, 52.5, 1e-12); assert.equal(r.txs[1].date, '2026-04-01');
   assert.deepEqual(r.unmatched.map(u => u.reason), ['no_position']);
 });
+
+test('risk by asset class adds up to the portfolio volatility, and the performance map has a point per covered position', async () => {
+  const { positionPerformance } = await import('../js/analytics.js');
+  const { sum } = await import('../js/util.js');
+  const p = buildDemo('2026-09-28');
+  const a = fullAnalysis(p);
+  const P = a.risk.param;
+  close(sum(P.byAssetClass.map(c => c.total)), P.sigmaAnnual, 1e-6 * P.sigmaAnnual);
+  close(sum(P.byAssetClass.map(c => c.securities + c.derivatives)), P.sigmaAnnual, 1e-6 * P.sigmaAnnual);
+  const eq = P.byAssetClass.find(c => c.key === 'equity');
+  assert.ok(eq.derivatives < 0, 'the short index future and the put reduce equity risk');
+  assert.ok(P.byAssetClass.find(c => c.key === 'currency'), 'currency is its own bucket');
+  const H = a.risk.hist;
+  close(sum(H.byAssetClass.map(c => c.total)), H.sigmaAnnual, 1e-6 * H.sigmaAnnual);
+  const pts = positionPerformance(a.risk.hp, a.v, 252);
+  assert.equal(pts.length, a.risk.hp.covered.filter(c => c.key !== 'FX').length);
+  assert.ok(pts.every(q => Number.isFinite(q.ret) && Number.isFinite(q.vol) && Number.isFinite(q.contribPct)));
+});

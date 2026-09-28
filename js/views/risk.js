@@ -1,7 +1,8 @@
 import * as store from '../store.js';
 import { t, lang } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtPct, fmtNum, segmented } from '../ui.js';
-import { typeLabel } from '../instruments.js';
+import { typeLabel, ASSET_CLASSES } from '../instruments.js';
+import { L } from '../i18n.js';
 import { correlationMatrix } from '../analytics.js';
 import * as charts from '../charts.js';
 
@@ -22,6 +23,11 @@ export default {
     const corr = correlationMatrix(risk.hp);
     const contrib = (Hs && H === Hs ? Hs.byPosition : P.byPosition).slice(0, 15);
     const groups = Object.entries(P.byFactorGroup).filter(([, x]) => Math.abs(x) > 1e-9).sort((x, y) => y[1] - x[1]);
+    const useHist = !!(Hs && H === Hs);
+    const model = useHist ? Hs : P;
+    const classes = model.byAssetClass.filter(c => Math.abs(c.total) > 1e-9);
+    const clsLabel = k => L(ASSET_CLASSES[k] || { en: k });
+    const share = x => (model.sigmaAnnual ? x / model.sigmaAnnual : 0);
 
     root.innerHTML = `
       ${pageHead(t('nav.risk'), esc(t('risk.sub')))}
@@ -40,12 +46,19 @@ export default {
         ${kpi(t('risk.divBenefit'), fmtPct(P.sigmaAnnual ? P.diversification / (P.sigmaAnnual + P.diversification) : 0, 0), { sub: t('risk.divSub'), help: t('help.div') })}
       </div>
       <div class="grid-2">
-        ${card(t('risk.byFactor'), '<div id="chFactor" class="chart"></div>' + table([
+        ${card(t('risk.byClass'), '<div id="chClass" class="chart"></div>' + table([
+          { key: 'g', label: t('exp.assetClass'), fmt: c => `<span class="swatch" style="background:${charts.classColor(c.key)}"></span>${esc(clsLabel(c.key))}` },
+          { key: 'sec', label: t('risk.securities'), align: 'right', fmt: c => fmtPct(v.nav ? c.securities / v.nav : 0, 2) },
+          { key: 'der', label: t('risk.derivativesCol'), align: 'right', fmt: c => c.derivatives ? `<span class="${c.derivatives < 0 ? 'pos' : ''}">${fmtPct(v.nav ? c.derivatives / v.nav : 0, 2)}</span>` : '—' },
+          { key: 'c', label: t('risk.contribution'), align: 'right', fmt: c => `<strong>${fmtPct(v.nav ? c.total / v.nav : 0, 2)}</strong>` },
+          { key: 'p', label: t('risk.share'), align: 'right', fmt: c => fmtPct(share(c.total), 0) },
+          ...(useHist ? [] : [{ key: 's', label: t('risk.standalone'), align: 'right', fmt: c => fmtPct(v.nav ? c.standalone / v.nav : 0, 2) }])
+        ], classes, { dense: true }) + `<details class="factor-detail"><summary>${esc(t('risk.factorDetail'))}</summary>` + table([
           { key: 'g', label: t('risk.factor'), fmt: ([g]) => esc(t('factor.' + g)) },
           { key: 's', label: t('risk.standalone'), align: 'right', fmt: ([g]) => fmtPct(v.nav ? (P.standalone[g] || 0) / v.nav : 0, 2) },
           { key: 'c', label: t('risk.contribution'), align: 'right', fmt: ([, c]) => fmtPct(v.nav ? c / v.nav : 0, 2) },
           { key: 'p', label: t('risk.share'), align: 'right', fmt: ([, c]) => fmtPct(P.sigmaAnnual ? c / P.sigmaAnnual : 0, 0) }
-        ], groups, { dense: true }), { sub: esc(t('risk.byFactorSub')) })}
+        ], groups, { dense: true }) + '</details>', { sub: esc(t('risk.byClassSub', { m: t('method.' + (useHist ? 'historical' : 'parametric')) })) })}
         ${card(t('risk.topContrib'), table([
           { key: 'n', label: t('col.name'), fmt: x => `${esc(x.row.name)}<div class="cell-sub">${esc(typeLabel(x.row.pos.type, lang()))}</div>` },
           { key: 'w', label: t('col.weight'), align: 'right', fmt: x => fmtPct(x.row.weight, 1) },
@@ -69,7 +82,10 @@ export default {
       ${card(t('risk.assumptions'), `<p class="muted small">${esc(t('risk.assumptionsBody'))}</p><a class="btn btn-sm" href="#/settings">${esc(t('risk.editAssumptions'))}</a>`)}
     `;
 
-    charts.render('chFactor', charts.barHSpec(groups.map(([g, c]) => ({ label: t('factor.' + g), value: P.sigmaAnnual ? c / P.sigmaAnnual : 0, text: fmtPct(P.sigmaAnnual ? c / P.sigmaAnnual : 0, 0) })), { diverging: true }));
+    charts.render('chClass', charts.barHGroupedSpec(classes.map(c => clsLabel(c.key)), [
+      { name: t('risk.securities'), values: classes.map(c => share(c.securities)) },
+      { name: t('risk.derivativesCol'), values: classes.map(c => share(c.derivatives)) }
+    ], { height: Math.max(200, 44 * classes.length + 80) }));
     if (corr && corr.labels.length > 1) charts.render('chCorr', charts.heatmapSpec(corr.labels, corr.matrix));
 
     root.onclick = e => {

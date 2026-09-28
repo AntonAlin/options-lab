@@ -221,6 +221,25 @@ export function factorModel(v) {
   const byFactorGroup = {};
   factors.forEach((f, k) => { byFactorGroup[f.group] = (byFactorGroup[f.group] || 0) + (sigma ? s[k] * Cs[k] / sigma : 0); });
   byFactorGroup.specific = sigma ? sum(specVar) / sigma : 0;
+  // The same Euler contributions rolled up the way a manager thinks: per asset class, with the
+  // market factor, stock-specific risk, implied vol and the derivatives on that class in one
+  // bucket. Currency is its own bucket across all positions, because that is where the hedges
+  // net against the foreign holdings.
+  const byAssetClass = {};
+  const bucketOf = (x, f) => (f && f.group === 'currency' ? 'currency' : x.r.assetClass);
+  const addTo = (key, part, val) => { const b = byAssetClass[key] || (byAssetClass[key] = { key, total: 0, securities: 0, derivatives: 0, standalone: 0 }); b.total += val; b[part] += val; };
+  v.valid.forEach((x, i) => {
+    const part = x.def.group === 'derivatives' ? 'derivatives' : 'securities';
+    factors.forEach((f, k) => { const c = sigma ? S[i][k] * Cs[k] / sigma : 0; if (c) addTo(bucketOf(x, f), part, c); });
+    if (specVar[i]) addTo(x.r.assetClass, part, sigma ? specVar[i] / sigma : 0);
+  });
+  // Stand-alone vol of each bucket: the positions' own factors (FX excluded) or, for currency, the FX factors of everyone.
+  for (const b of Object.values(byAssetClass)) {
+    const sb = factors.map((f, k) => sum(v.valid.map((x, i) => (bucketOf(x, f) === b.key ? S[i][k] : 0))));
+    let vv = sum(v.valid.map((x, i) => (x.r.assetClass === b.key && b.key !== 'currency' ? specVar[i] : 0)));
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) vv += sb[i] * cov[i][j] * sb[j];
+    b.standalone = Math.sqrt(Math.max(0, vv));
+  }
   const byPosition = v.valid.map((x, i) => {
     const contrib = sigma ? (sum(S[i].map((si, k) => si * Cs[k])) + specVar[i]) / sigma : 0;
     return { row: x, contrib, pct: sigma ? contrib / sigma : 0 };
@@ -239,7 +258,7 @@ export function factorModel(v) {
     var: z * sigH, es: sigH * normPDF(z) / (1 - risk.confidence),
     varPct: v.nav ? z * sigH / v.nav : 0, esPct: v.nav ? sigH * normPDF(z) / (1 - risk.confidence) / v.nav : 0,
     confidence: risk.confidence, horizonDays: risk.horizonDays,
-    byFactorGroup, standalone, byPosition, diversification: sum(Object.values(standalone)) - sigma
+    byFactorGroup, byAssetClass: Object.values(byAssetClass).sort((a, b) => b.total - a.total), standalone, byPosition, diversification: sum(Object.values(standalone)) - sigma
   };
 }
 
@@ -308,6 +327,23 @@ export function historicalPnl(v) {
   };
 }
 
+// Per-position return, volatility and risk contribution over the last `window` observations of
+// the back-cast — the three axes of the performance map. Weight and market value size the marker.
+export function positionPerformance(hp, v, window = 252) {
+  if (!hp) return [];
+  const n = hp.dates.length, from = Math.max(1, n - window);
+  const port = hp.portfolioPnl.slice(from).map(x => num(x));
+  const sdPort = stdev(port);
+  return hp.covered.filter(c => c.key !== 'FX' && c.exposure).map(c => {
+    const pnl = c.pnl.slice(from).map(x => num(x));
+    const rets = pnl.map(x => x / c.exposure);
+    const total = rets.reduce((g, r) => g * (1 + r), 1) - 1;
+    const vol = stdev(rets) * Math.sqrt(252);
+    const contrib = sdPort ? covariance(pnl, port) / sdPort * Math.sqrt(252) : 0;
+    return { row: c.row, name: c.row.name, cls: c.row.r.assetClass, ret: total, retAnn: rets.length >= 20 ? Math.pow(1 + total, 252 / rets.length) - 1 : total, vol, contrib, contribPct: v.nav ? contrib / v.nav : 0, weight: c.row.weight, exposureW: v.nav ? c.exposure / v.nav : 0, obs: rets.length };
+  });
+}
+
 export function perfStats(ret, { rf = 0, periodsPerYear = 252, bench = null } = {}) {
   const r = ret.filter(isNum);
   if (r.length < 5) return null;
@@ -369,11 +405,14 @@ export function historicalRisk(v, hp = historicalPnl(v)) {
   }).sort((x, y) => y.contrib - x.contrib);
   const sigA = sd * Math.sqrt(252);
   byPosition.forEach(b => { b.pct = sigA ? b.contrib / sigA : 0; });
+  const cls = {};
+  for (const b of byPosition) { const k = b.row.r.assetClass, part = b.row.def.group === 'derivatives' ? 'derivatives' : 'securities'; const o = cls[k] || (cls[k] = { key: k, total: 0, securities: 0, derivatives: 0 }); o.total += b.contrib; o[part] += b.contrib; }
+  const byAssetClass = Object.values(cls).sort((a, b) => b.total - a.total);
   return {
     method: 'historical', var: -q * scale, es: -mean(tail) * scale,
     varPct: v.nav ? -q * scale / v.nav : 0, esPct: v.nav ? -mean(tail) * scale / v.nav : 0,
     sigmaAnnual: sigA, volPct: v.nav ? sigA / v.nav : 0,
-    confidence: risk.confidence, horizonDays: risk.horizonDays, obs: pnl.length, coverage: hp.coverage, byPosition
+    confidence: risk.confidence, horizonDays: risk.horizonDays, obs: pnl.length, coverage: hp.coverage, byPosition, byAssetClass
   };
 }
 
