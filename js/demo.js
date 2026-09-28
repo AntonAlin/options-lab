@@ -39,27 +39,38 @@ export function buildDemo(valDate) {
     { type: 'fund', name: 'Nordic High Yield Fund A', ticker: 'NHYF', isin: '', issuer: 'Demo Fund Management', price: 131.4, ccy: 'SEK', subClass: 'fixed_income', duration: 1.1, beta: 0.25, liquidityDays: 3, country: 'SE', _value: 40e6 },
     { type: 'govt_bond', name: 'Sweden 0.75% 2029', ticker: 'SGB 29', issuer: 'Kingdom of Sweden', price: 95.9, ccy: 'SEK', coupon: 0.75, freq: '1', maturity: plus(32), rating: 'AAA', country: 'SE', _value: 70e6 },
     { type: 'govt_bond', name: 'Sweden 2.25% 2032', ticker: 'SGB 32', issuer: 'Kingdom of Sweden', price: 100.8, ccy: 'SEK', coupon: 2.25, freq: '1', maturity: plus(68), rating: 'AAA', country: 'SE', _value: 55e6 },
+    { type: 'govt_bond', name: 'US Treasury 4.125% 2031', ticker: 'T 4.125 31', issuer: 'US Treasury', price: 101.3, ccy: 'USD', coupon: 4.125, freq: '2', maturity: plus(62), rating: 'AA+', country: 'US', _value: 30e6 },
     { type: 'govt_bond', name: 'Germany 2.50% 2035', ticker: 'DBR 35', issuer: 'Federal Republic of Germany', price: 98.1, ccy: 'EUR', coupon: 2.5, freq: '1', maturity: plus(104), rating: 'AAA', country: 'DE', _value: 35e6 },
     { type: 'corp_bond', name: 'Volvo Treasury 3.625% 2029', ticker: 'VOLVO 29', issuer: 'Volvo', price: 101.4, ccy: 'EUR', coupon: 3.625, freq: '1', maturity: plus(36), rating: 'A', sector: 'Industrials', country: 'SE', adv: 2e6, _value: 28e6 },
     { type: 'corp_bond', name: 'Stadshypotek 1.50% 2028 (covered)', ticker: 'STADS 28', issuer: 'Stadshypotek', price: 97.7, ccy: 'SEK', coupon: 1.5, freq: '1', maturity: plus(22), rating: 'AAA', sector: 'Financials', country: 'SE', _value: 45e6 },
     { type: 'corp_bond', name: 'Vattenfall 2.875% 2033', ticker: 'VATT 33', issuer: 'Vattenfall', price: 97.2, ccy: 'SEK', coupon: 2.875, freq: '1', maturity: plus(80), rating: 'BBB+', sector: 'Utilities', country: 'SE', _value: 22e6 },
+    { type: 'corp_bond', name: 'Ørsted 3.25% 2031', ticker: 'ORSTED 31', issuer: 'Ørsted', price: 99.4, ccy: 'EUR', coupon: 3.25, freq: '1', maturity: plus(58), rating: 'BBB+', sector: 'Utilities', country: 'DK', adv: 1.5e6, _value: 18e6 },
     { type: 'frn', name: 'Castellum FRN 2028', ticker: 'CAST FRN 28', issuer: 'Castellum', price: 100.6, ccy: 'SEK', coupon: 4.05, spread: 185, freq: '4', maturity: plus(19), rating: 'BBB-', sector: 'Real Estate', country: 'SE', _value: 24e6 },
     { type: 'frn', name: 'Heimstaden Bostad FRN 2027', ticker: 'HEIM FRN 27', issuer: 'Heimstaden Bostad', price: 98.9, ccy: 'SEK', coupon: 5.3, spread: 310, freq: '4', maturity: plus(14), rating: 'BB+', sector: 'Real Estate', country: 'SE', _value: 16e6 },
     { type: 'frn', name: 'SBAB FRN 2029', ticker: 'SBAB FRN 29', issuer: 'SBAB', price: 100.3, ccy: 'SEK', coupon: 3.1, spread: 90, freq: '4', maturity: plus(40), rating: 'A', sector: 'Financials', country: 'SE', _value: 26e6 },
     { type: 'money_market', name: 'Swedish T-bill', ticker: 'SSVX', issuer: 'Riksgälden', yield: 1.95, ccy: 'SEK', maturity: plus(3), rating: 'AAA', country: 'SE', _value: 40e6 },
+    { type: 'money_market', name: 'Nordea commercial paper', ticker: 'NDA CP', issuer: 'Nordea Bank', yield: 2.2, ccy: 'SEK', maturity: plus(2), rating: 'A+', country: 'FI', _value: 25e6 },
     { type: 'cash', name: 'Custody account SEK', issuer: 'SEB', qty: 38e6, ccy: 'SEK' },
+    { type: 'cash', name: 'Custody account NOK', issuer: 'SEB', qty: 4.5e6, ccy: 'NOK' },
     { type: 'cash', name: 'Custody account USD', issuer: 'SEB', qty: 1.2e6, ccy: 'USD' },
     { type: 'cash', name: 'Margin account EUR', issuer: 'Nordea', qty: 0.9e6, ccy: 'EUR' },
     { type: 'future', name: 'OMXS30 Index Future', ticker: 'OMXS30F', qty: -120, price: 2655, multiplier: 100, ccy: 'SEK', underlyingClass: 'equity', maturity: plus(3), beta: 1, mtm: 0, reportedNotional: 31860000 },
     { type: 'future', name: 'US 10y T-Note Future', ticker: 'TY', qty: -35, price: 111.2, multiplier: 1000, ccy: 'USD', underlyingClass: 'rates', maturity: plus(3), duration: 6.3, mtm: 0 },
+    { type: 'future', name: 'Euro-Bund Future', ticker: 'RX', qty: 25, price: 128.4, multiplier: 1000, ccy: 'EUR', underlyingClass: 'rates', maturity: plus(3), duration: 8.6, mtm: 0, reportedNotional: 3210000 },
+    { type: 'future', name: 'Brent Crude Future', ticker: 'CO', qty: 30, price: 67.8, multiplier: 1000, ccy: 'USD', underlyingClass: 'commodity', maturity: plus(2), mtm: 0 },
     { type: 'option', name: 'OMXS30 Put 2400', ticker: 'OMXS30P2400', qty: 250, optType: 'put', strike: 2400, maturity: plus(3), underlyingPrice: 2655, vol: 21, multiplier: 100, ccy: 'SEK', underlyingClass: 'equity', rate: 2, reportedDelta: -0.152 },
-    { type: 'option', name: 'Volvo B Call 300', ticker: 'VOLVB 300C', issuer: 'Volvo', qty: 400, optType: 'call', strike: 300, maturity: plus(2), underlyingPrice: 285, vol: 26, multiplier: 100, ccy: 'SEK', underlyingClass: 'equity', rate: 2, sector: 'Industrials', country: 'SE', reportedDelta: 0.52 },
+    { type: 'option', name: 'Volvo B Call 270', ticker: 'VOLVB 270C', issuer: 'Volvo', qty: 400, optType: 'call', strike: 270, maturity: plus(2), underlyingPrice: 262.0, vol: 26, multiplier: 100, ccy: 'SEK', underlyingClass: 'equity', rate: 2, divYield: 2.8, sector: 'Industrials', country: 'SE', reportedDelta: 0.52 },
+    // USD put / SEK call: the right to sell USD at 9.60, protecting the unhedged part of the USD book.
+    { type: 'option', name: 'USD put / SEK call 9.60', ticker: 'USDSEK P9.60', issuer: 'SEB', qty: 40, optType: 'put', strike: 9.6, maturity: plus(4), underlyingPrice: 10.0, vol: 9, multiplier: 100000, ccy: 'SEK', underlyingClass: 'fx', buyCcy: 'USD', rate: 2, divYield: 4.0 },
     { type: 'fx_forward', name: 'Sell USD / buy SEK', buyCcy: 'SEK', buyAmount: 118.2e6, sellCcy: 'USD', sellAmount: 11.8e6, maturity: plus(3), issuer: 'Nordea' },
     { type: 'fx_forward', name: 'Sell EUR / buy SEK', buyCcy: 'SEK', buyAmount: 78.6e6, sellCcy: 'EUR', sellAmount: 7e6, maturity: plus(3), issuer: 'SEB' },
     { type: 'irs', name: 'SEK 7y payer swap', qty: 60e6, ccy: 'SEK', direction: 'pay', fixedRate: 2.3, marketRate: 2.42, freq: '1', maturity: plus(84), issuer: 'LCH' },
+    { type: 'irs', name: 'EUR 5y receiver swap', qty: 4e6, ccy: 'EUR', direction: 'receive', fixedRate: 2.55, marketRate: 2.35, freq: '1', maturity: plus(60), issuer: 'LCH' },
+    { type: 'cds', name: 'Volvo 5y CDS (sold protection)', issuer: 'Volvo', qty: 2e6, ccy: 'EUR', protection: 'sell', spread: 100, marketSpread: 85, maturity: plus(60), rating: 'A', sector: 'Industrials', country: 'SE' },
     { type: 'cds', name: 'iTraxx Crossover 5y', issuer: 'iTraxx Europe Crossover', qty: 4e6, ccy: 'EUR', protection: 'buy', spread: 500, marketSpread: 285, maturity: plus(60), rating: 'BB-', sector: 'Index' },
     { type: 'commodity', name: 'Physical Gold ETC', ticker: 'PHAU', isin: 'JE00B1VS3770', issuer: 'WisdomTree', price: 262.0, ccy: 'USD', sector: 'Precious metals', adv: 250000, _value: 25e6 },
     { type: 'alternative', name: 'Nordic Buyout Fund IV', ticker: 'NBF IV', issuer: 'Demo Capital', altType: 'private_equity', qty: 1, price: 30e6, ccy: 'SEK', liquidityDays: 365, country: 'SE', _value: null },
+    { type: 'alternative', name: 'Nordic Macro Hedge Fund', ticker: 'NMHF', issuer: 'Demo Alternatives', altType: 'hedge_fund', qty: 1, price: 22e6, ccy: 'SEK', liquidityDays: 30, beta: 0.3, country: 'SE', _value: null },
     { type: 'alternative', name: 'Nordic Logistics Property Fund', ticker: 'NLPF', issuer: 'Demo Real Estate', altType: 'real_estate', qty: 1, price: 18e6, ccy: 'SEK', liquidityDays: 90, country: 'SE', _value: null }
   ];
 
@@ -100,7 +111,7 @@ function syntheticHistory(positions, valDate, years = 3) {
   }
   const n = dates.length, dt = 1 / 252;
   // Factor shocks: equity market (with occasional stress clusters), rates (bp), credit (bp), FX, gold.
-  const F = { eq: [], ir: [], cs: [], usd: [], eur: [], nok: [], dkk: [], chf: [], gold: [], em: [] };
+  const F = { eq: [], ir: [], cs: [], usd: [], eur: [], nok: [], dkk: [], chf: [], gold: [], em: [], oil: [] };
   let regime = 1;
   for (let t = 0; t < n; t++) {
     // Calm most of the time, with short high-volatility spells (~6 weeks, a few times a decade).
@@ -118,6 +129,7 @@ function syntheticHistory(positions, valDate, years = 3) {
     F.chf.push(0.07 * Math.sqrt(dt) * (-0.4 * zEq + 0.3 * zFx + 0.86 * gaussian(rng)));
     F.gold.push(0.05 * dt + 0.15 * Math.sqrt(dt) * (0.1 * zEq + 0.99 * gaussian(rng)));
     F.em.push(0.05 * dt + 0.2 * regime * Math.sqrt(dt) * (0.75 * zEq + 0.66 * gaussian(rng)));
+    F.oil.push(0.02 * dt + 0.32 * Math.sqrt(dt) * (0.3 * zEq + 0.95 * gaussian(rng)));
   }
   const walkBack = (last, rets) => {
     const out = new Array(n);
@@ -129,6 +141,7 @@ function syntheticHistory(positions, valDate, years = 3) {
   for (const p of positions) {
     const key = p.ticker;
     if (!key || ['cash', 'fx_forward', 'irs', 'cds', 'option'].includes(p.type)) continue;
+    const isBond = ['govt_bond', 'corp_bond', 'frn', 'money_market'].includes(p.type);
     let rets;
     if (['equity'].includes(p.type)) {
       const spec = 0.22;
@@ -137,12 +150,13 @@ function syntheticHistory(positions, valDate, years = 3) {
     else if (p.type === 'fund') rets = F.cs.map((c, t) => 0.05 * dt - (c * 2.5 + F.ir[t] * 1.1) / 1e4);
     else if (p.type === 'commodity') rets = F.gold;
     else if (p.type === 'alternative') {
-      // Appraisal-based NAVs: smoothed and only moving monthly.
+      // Appraisal-based NAVs move monthly; a hedge fund NAV is monthly too but far less equity-like.
       let acc = 0;
-      rets = F.eq.map((e, t) => { acc += 0.5 * e + 0.0003; if (t % 21 === 0) { const r = acc; acc = 0; return r; } return 0; });
+      const b = p.altType === 'hedge_fund' ? 0.25 : 0.5, drift = p.altType === 'hedge_fund' ? 0.00025 : 0.0003, spec = p.altType === 'hedge_fund' ? 0.06 : 0;
+      rets = F.eq.map((e, t) => { acc += b * e + drift + spec * Math.sqrt(dt) * gaussian(rng); if (t % 21 === 0) { const r = acc; acc = 0; return r; } return 0; });
     } else if (p.type === 'future') {
-      rets = p.underlyingClass === 'rates' ? F.ir.map(x => -x * (p.duration || 6) / 1e4) : F.eq;
-    } else if (['govt_bond', 'corp_bond', 'frn', 'money_market'].includes(p.type)) {
+      rets = p.underlyingClass === 'rates' ? F.ir.map(x => -x * (p.duration || 6) / 1e4) : p.underlyingClass === 'commodity' ? F.oil : F.eq;
+    } else if (isBond) {
       const years = Math.max(0.1, (parseISODate(p.maturity) - parseISODate(valDate)) / DAY_MS / 365.25);
       const dur = p.type === 'frn' ? 0.25 : p.type === 'money_market' ? years : years * 0.9;
       const sdur = p.type === 'govt_bond' || p.type === 'money_market' ? 0 : years * 0.9;

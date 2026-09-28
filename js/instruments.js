@@ -323,7 +323,7 @@ export const INSTRUMENTS = {
     fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'divYield', 'beta', 'duration', 'buyCcy', 'reportedNotional', 'reportedDelta', 'reportedDeltaExposure', 'strategy', 'notes'],
     required: ['name', 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'multiplier', 'ccy'],
     defaults: { multiplier: 100, optType: 'call', underlyingClass: 'equity', rate: 2.5, vol: 20, beta: 1 },
-    labels: { qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)', sv: 'Utdelningsyield % (valuta: utländsk ränta)' }, buyCcy: { en: 'Currency bought (FX options)', sv: 'Köpt valuta (valutaoptioner)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
+    labels: { qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)', sv: 'Utdelningsyield % (valuta: utländsk ränta)' }, buyCcy: { en: 'Underlying currency (FX options; put = short it)', sv: 'Underliggande valuta (valutaoptioner; put = kort)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -373,9 +373,15 @@ export const INSTRUMENTS = {
       const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
       const rr = num(p.rate, 2.5) / 100, q = cls === 'rates' || cls === 'commodity' ? rr : num(p.divYield, 0) / 100;
       const S = num(p.underlyingPrice), sig = num(p.vol) / 100, K = num(p.strike);
-      const move = cls === 'equity' ? s.eq * num(p.beta, 1) : cls === 'commodity' ? s.cmd : cls === 'fx' ? (s.fx?.[p.buyCcy] ?? s.fxAll ?? 0) : 0;
+      // Underlying move per asset class. A rate or credit option is on a bond/futures price, so the
+      // rates/spread shock reaches it through the underlying's duration, not only the discount rate.
+      const dur = num(p.duration, 0);
+      const move = cls === 'equity' ? s.eq * num(p.beta, 1) : cls === 'commodity' ? s.cmd : cls === 'fx' ? (s.fx?.[p.buyCcy] ?? s.fxAll ?? 0)
+        : cls === 'rates' ? -dur * (s.rates || 0) / 1e4 : cls === 'credit' ? -dur * ((s.rates || 0) + (s.cs || 0)) / 1e4 : 0;
+      const r1 = rr + (s.rates || 0) / 1e4;
+      const q1 = cls === 'rates' || cls === 'commodity' ? r1 : q; // Black-76: carry moves with the rate
       const v0 = bsm(p.optType, S, K, T, rr, q, sig).price;
-      const v1 = bsm(p.optType, S * (1 + move), K, T, rr + (s.rates || 0) / 1e4, q, Math.max(0.01, sig + (s.vol || 0) / 100)).price;
+      const v1 = bsm(p.optType, S * (1 + move), K, T, r1, q1, Math.max(0.01, sig + (s.vol || 0) / 100)).price;
       const fxMove = 1 + (s.fx?.[p.ccy] ?? (p.ccy === ctx.base ? 0 : s.fxAll ?? 0));
       const units = num(p.qty) * num(p.multiplier, 1);
       const mv0 = units * (isNum(p.price) ? p.price : v0) * fx0;

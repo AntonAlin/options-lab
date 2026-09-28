@@ -24,8 +24,9 @@ export function pieces(x) {
   const { pos, r, def } = x;
   const deriv = def.group === 'derivatives';
   if (deriv) {
-    // FX forwards are currency hedges, not asset-class bets: their economic value is just the MTM.
-    const econ = pos.type === 'fx_forward' ? r.mv : r.net;
+    // FX forwards and FX options are currency hedges, not asset-class bets: their economic value
+    // is just the MTM. The currency split itself lives on the Exposure page.
+    const econ = pos.type === 'fx_forward' || pos.underlyingClass === 'fx' ? r.mv : r.net;
     return [{ cls: r.assetClass, mv: r.mv, econ, deriv: true }];
   }
   if ((pos.type === 'fund' || pos.type === 'etf') && (pos.subClass || 'mixed') === 'mixed') {
@@ -132,13 +133,14 @@ export function derivativesBook(v) {
     // Commitment (UCITS style): delta-adjusted for options, notional for the rest; FX forwards
     // count the bought leg because the sold one is its funding.
     const commitment = x.pos.type === 'fx_forward' ? Math.abs(d.notional) : Math.abs(d.deltaExp);
-    return { x, pos: x.pos, name: x.name, type: x.pos.type, und: underlyingOf(x.pos), ...d, commitment, source: d.used ? 'reported' : 'model' };
+    const isFx = x.pos.type === 'fx_forward' || x.pos.underlyingClass === 'fx';
+    return { x, pos: x.pos, name: x.name, type: x.pos.type, und: underlyingOf(x.pos), ...d, commitment, isFx, source: d.used ? 'reported' : 'model' };
   });
   const nav = v.nav, W = y => (nav ? y / nav : 0);
   const byUnd = new Map();
   for (const r of rows) {
     const u = byUnd.get(r.und) || { key: r.und, notional: 0, grossNotional: 0, deltaExp: 0, commitment: 0, n: 0 };
-    u.notional += r.notional; u.grossNotional += Math.abs(r.notional); u.deltaExp += r.type === 'fx_forward' ? 0 : r.deltaExp; u.commitment += r.commitment; u.n++;
+    u.notional += r.notional; u.grossNotional += Math.abs(r.notional); u.deltaExp += r.isFx ? 0 : r.deltaExp; u.commitment += r.commitment; u.n++;
     byUnd.set(r.und, u);
   }
   const grossNotional = sum(rows.map(r => Math.abs(r.notional)));
@@ -154,7 +156,7 @@ export function derivativesBook(v) {
     mismatches: rows.filter(r => r.mismatch).length,
     grossNotional, grossNotionalW: W(grossNotional),
     commitment, commitmentW: W(commitment),
-    netDelta: sum(rows.filter(r => r.type !== 'fx_forward').map(r => r.deltaExp)),
+    netDelta: sum(rows.filter(r => !r.isFx).map(r => r.deltaExp)),
     optionNetDelta: sum(options.map(r => r.deltaExp)),
     optionModelDelta: sum(options.map(r => r.modelDeltaExp))
   };

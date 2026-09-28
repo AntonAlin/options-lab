@@ -147,7 +147,7 @@ export function currencyExposure(v) {
   const gross = {}, hedge = {};
   for (const x of v.valid) {
     for (const [c, a] of Object.entries(x.r.fx)) {
-      if (x.pos.type === 'fx_forward' || (x.pos.type === 'future' && x.pos.underlyingClass === 'fx')) hedge[c] = (hedge[c] || 0) + a;
+      if (x.pos.type === 'fx_forward' || (['future', 'option'].includes(x.pos.type) && x.pos.underlyingClass === 'fx')) hedge[c] = (hedge[c] || 0) + a;
       else gross[c] = (gross[c] || 0) + a;
     }
   }
