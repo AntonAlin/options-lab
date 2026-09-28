@@ -120,6 +120,32 @@ export function barVSpec(labels, values, { th = currentTheme(), fmt = 'num', div
   };
 }
 
+// Stacked monthly amounts (inflows up, outflows down) with an optional running total on the
+// same currency axis — one unit, so no second y-axis.
+export function stackedBarSpec(labels, series, { th = currentTheme(), height = 320, line = null } = {}) {
+  const P = THEMES[th];
+  const data = series.map((s, i) => ({
+    type: 'bar', name: s.name, x: labels, y: s.values,
+    marker: { color: rgba(s.color || P.series[i % 8], 0.85), line: { color: s.color || P.series[i % 8], width: 1 } },
+    hovertemplate: `${s.name}: <b>%{y:,.0f}</b><extra></extra>`
+  }));
+  if (line) data.push({
+    type: 'scatter', mode: 'lines+markers', name: line.name, x: labels, y: line.values,
+    line: { color: P.ink2, width: 2, dash: 'dot' }, marker: { size: 6, color: P.ink2 },
+    hovertemplate: `${line.name}: <b>%{y:,.0f}</b><extra></extra>`
+  });
+  return {
+    data,
+    layout: baseLayout(th, {
+      height, barmode: 'relative', bargap: 0.3, showlegend: true, hovermode: 'x unified',
+      legend: { orientation: 'h', y: 1.02, x: 0, yanchor: 'bottom', font: { color: P.ink2, size: 11 } },
+      margin: { l: 8, r: 16, t: 30, b: 28 },
+      xaxis: axis(P, { gridcolor: 'rgba(0,0,0,0)', type: 'category', tickfont: { color: P.ink2, size: 11 } }),
+      yaxis: axis(P, { zeroline: true, separatethousands: true, tickformat: '~s' })
+    })
+  };
+}
+
 // ---- donut ---------------------------------------------------------------------------------------------
 // items: [{ label, value, color? }] — share of total, centre shows `center` / `centerSub`.
 export function donutSpec(items, { th = currentTheme(), height = 300, center = '', centerSub = '' } = {}) {

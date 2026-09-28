@@ -10,7 +10,7 @@
 //  then add an entry to INSTRUMENTS. Nothing else has to change. See the README for an example.
 // ============================================================================================
 import { bsm, bondAnalytics, swapAnnuity } from './pricing.js';
-import { isNum, num, yearsBetween } from './util.js';
+import { isNum, num, freqOf, yearsBetween } from './util.js';
 
 // ---- asset classes, used for allocation and the risk model ----------------------------------
 export const ASSET_CLASSES = {
@@ -155,7 +155,7 @@ function bondRisk(p, ctx, { floating = false, government = false } = {}) {
   const r = blank(ctx.base);
   const fx = fxOrWarn(p, ctx, r);
   const a = bondAnalytics({
-    valuationDate: ctx.valDate, maturity: p.maturity, couponPct: num(p.coupon), freq: num(p.freq, 1),
+    valuationDate: ctx.valDate, maturity: p.maturity, couponPct: num(p.coupon), freq: freqOf(p.freq, 1),
     cleanPrice: isNum(p.price) ? p.price : undefined, yieldPct: isNum(p.yield) ? p.yield : undefined
   });
   if (!a) {
@@ -167,7 +167,7 @@ function bondRisk(p, ctx, { floating = false, government = false } = {}) {
   }
   const mv = (isNum(p.mtm) ? p.mtm : num(p.qty) * a.dirty / 100) * fx;
   // A floater's rate duration is the time to the next reset; its spread duration is the full thing.
-  const f = Math.max(1, num(p.freq, 4));
+  const f = freqOf(p.freq, 4);
   const rateDur = floating ? Math.min(a.yearsToMaturity, 1 / f) : a.modDur;
   const spreadDur = a.modDur;
   Object.assign(r, {
@@ -392,7 +392,7 @@ export const INSTRUMENTS = {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
       const N = num(p.qty) * fx;
-      const { annuity, years } = swapAnnuity(ctx.valDate, p.maturity, num(p.freq, 1), num(p.marketRate));
+      const { annuity, years } = swapAnnuity(ctx.valDate, p.maturity, freqOf(p.freq, 1), num(p.marketRate));
       const sign = p.direction === 'pay' ? -1 : 1;
       const est = sign * N * (num(p.fixedRate) - num(p.marketRate)) / 100 * annuity;
       const mv = isNum(p.mtm) ? p.mtm * fx : est;

@@ -393,3 +393,91 @@ test('saved templates are recognised on a later file even with columns reordered
   assert.equal(detectTemplate([tpl], [{ name: 'x', rows: [['a', 'b', 'c']] }]), null);
   assert.throws(() => validateTemplate({ name: 'bad', headers: [], mapping: { a: 'not_a_field' } }));
 });
+
+test('cash-flow calendar: coupons, redemptions, FX legs, CDS premiums, option expiry', async () => {
+  const { cashflows, toICS } = await import('../js/fund.js');
+  const { sum } = await import('../js/util.js');
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  p.fxEur = { EUR: 1, SEK: 11, USD: 1.1 };
+  p.positions = [
+    { id: 'b', type: 'corp_bond', name: 'B', issuer: 'X', qty: 1000000, price: 100, coupon: 4, freq: '2', maturity: '2027-06-15', ccy: 'SEK' },
+    { id: 'f', type: 'fx_forward', buyCcy: 'SEK', buyAmount: 1000000, sellCcy: 'USD', sellAmount: 100000, maturity: '2026-12-18' },
+    { id: 'c', type: 'cds', issuer: 'Y', qty: 10000000, ccy: 'EUR', protection: 'buy', spread: 100, marketSpread: 100, maturity: '2031-12-20' },
+    { id: 'o', type: 'option', name: 'Put', qty: 10, optType: 'put', strike: 110, maturity: '2026-10-16', underlyingPrice: 100, vol: 20, multiplier: 100, ccy: 'SEK' },
+    { id: 'cash', type: 'cash', name: 'Cash', qty: 50000, ccy: 'SEK' }
+  ];
+  const cf = cashflows(valuePortfolio(p), { months: 12 });
+  const coupons = cf.events.filter(e => e.kind === 'coupon');
+  assert.deepEqual(coupons.map(e => e.date), ['2026-12-15', '2027-06-15']);
+  close(coupons[0].amount, 20000, 1e-9);
+  assert.equal(cf.events.find(e => e.kind === 'redemption').amount, 1000000);
+  const legs = cf.events.filter(e => e.kind === 'fx_settle');
+  close(sum(legs.map(e => e.amountBase)), 0, 1e-6, 'forward at spot nets to zero');
+  const prem = cf.events.filter(e => e.kind === 'cds_premium');
+  assert.deepEqual(prem.map(e => e.date), ['2026-12-20', '2027-03-20', '2027-06-20', '2027-09-20']);
+  close(prem[0].amount, -25000, 1e-9, 'buyer pays 100bp/4 on 10m');
+  const opt = cf.events.find(e => e.kind === 'option_expiry');
+  assert.equal(opt.cash, false); close(opt.amount, 10 * 100 * 10, 1e-9);
+  const total = sum(cf.buckets.map(b => b.net));
+  close(cf.buckets[cf.buckets.length - 1].cashAfter, 50000 + total, 1e-6);
+  const ics = toICS(cf.events, { fundName: 'Test' });
+  assert.ok(ics.startsWith('BEGIN:VCALENDAR') && ics.includes('DTSTART;VALUE=DATE:20261215'));
+});
+
+test('risk indicators: SRRI band from weekly vol, VEV equals vol for normal returns', async () => {
+  const { riskIndicators, bandOf, SRRI_BANDS, MRM_BANDS } = await import('../js/fund.js');
+  const { mulberry32, gaussian } = await import('../js/util.js');
+  assert.equal(bandOf(0.004, SRRI_BANDS), 1); assert.equal(bandOf(0.05, SRRI_BANDS), 4); assert.equal(bandOf(0.3, SRRI_BANDS), 7);
+  assert.equal(bandOf(0.11, MRM_BANDS), 3);
+  // 5 years of business days, lognormal with 8 % annual vol → SRRI 4 (5–10 %), MRM 3 (5–12 %)
+  const rng = mulberry32(7), dates = [], prices = [];
+  let px = 100;
+  for (let d = new Date(Date.UTC(2021, 8, 27)); dates.length < 1300; d = new Date(d.getTime() + 86400000)) {
+    if (d.getUTCDay() === 0 || d.getUTCDay() === 6) continue;
+    dates.push(d.toISOString().slice(0, 10)); prices.push(px);
+    px *= Math.exp(0.08 / Math.sqrt(256) * gaussian(rng) - 0.5 * 0.0064 / 256);
+  }
+  const r = riskIndicators({ dates, prices }, { rhpYears: 5 });
+  close(r.srriVol, 0.08, 0.01, 'weekly vol ≈ 8 %');
+  assert.equal(r.srri, 4);
+  close(r.vev, 0.08, 0.008, 'VEV ≈ vol for near-normal returns');
+  assert.equal(r.mrm, 3); assert.equal(r.sri, 3);
+  assert.ok(r.srriFull && r.sriEnough);
+  assert.equal(riskIndicators({ dates, prices }, { rhpYears: 5, crm: 4 }).sri, 5, 'credit risk class 4 lifts SRI to 5');
+});
+
+test('indicative NAV per unit, fee accrual and a redemption simulation', async () => {
+  const { navPerUnit, simulateFlow } = await import('../js/fund.js');
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  p.fxEur = { EUR: 1, SEK: 11 };
+  p.positions = [
+    { id: 'e', type: 'equity', name: 'A', issuer: 'A', qty: 9000, price: 100, ccy: 'SEK', adv: 1e6 },
+    { id: 'c', type: 'cash', name: 'Cash', issuer: 'Bank', qty: 100000, ccy: 'SEK' }
+  ]; // NAV 1 000 000
+  const v = valuePortfolio(p);
+  const one = navPerUnit(v, { classes: [{ id: 'a', name: 'A', ccy: 'SEK', units: 10000, feePct: 3.65 }], liabilities: 10000, feeFrom: '2026-09-18' });
+  // (1 000 000 − 10 000) = 990 000; fee 3.65 % × 10 days / 365 = 0.1 % → 989 010 / 10 000
+  close(one.classes[0].navPerUnit, 98.901, 1e-9);
+  const two = navPerUnit(v, { classes: [
+    { id: 'sek', name: 'SEK', ccy: 'SEK', units: 5000, lastNav: 100, feePct: 0 },
+    { id: 'eur', name: 'EUR', ccy: 'EUR', units: 500, lastNav: 90.909090909, feePct: 0 }
+  ] });
+  close(two.classes[0].share, 0.5, 1e-6);
+  close(two.classes[1].navPerUnit * 11 * 500, 500000, 1e-3, 'EUR class holds half the fund');
+  assert.equal(navPerUnit(v, { classes: [{ id: 'a', units: 1, ccy: 'SEK' }, { id: 'b', units: 1, ccy: 'SEK' }] }).reason, 'need_last_nav');
+  const red = simulateFlow(p, one, 'a', -150000);
+  assert.equal(red.coveredByCash, false);
+  assert.equal(red.overdraft, true);
+  close(red.unitsDelta, -150000 / 98.901, 1e-9);
+  const sub = simulateFlow(p, one, 'a', 200000);
+  close(sub.cashAfter, 300000, 1e-9);
+});
+
+test('semi-annual bonds are priced semi-annually even when the frequency is stored as text', () => {
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-01-15' });
+  p.positions = [{ id: 'b', type: 'corp_bond', name: 'B', issuer: 'X', qty: 100, yield: 4, coupon: 4, freq: '2', maturity: '2031-01-15', ccy: 'SEK' }];
+  const r = valuePortfolio(p).valid[0].r;
+  close(r.mv, 100, 1e-6, 'a 4 % semi-annual bond at a 4 % semi-annual yield prices at par');
+  const a = bondAnalytics({ valuationDate: '2026-01-15', maturity: '2031-01-15', couponPct: 4, freq: 2, yieldPct: 4 });
+  close(r.fi.modDur, a.modDur, 1e-12);
+});

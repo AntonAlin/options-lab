@@ -17,7 +17,7 @@ export const DEFAULT_CMA = {
   corrRatesRates: 0.75, corrFxFx: 0.55, corrCmdFx: -0.1
 };
 
-export const DEFAULT_RISK = { confidence: 0.99, horizonDays: 1, riskFree: 2.0, participation: 20, method: 'auto' };
+export const DEFAULT_RISK = { confidence: 0.99, horizonDays: 1, riskFree: 2.0, participation: 20, method: 'auto', rhp: 5, crm: 1, sriSource: '', cfMonths: 12 };
 
 export const DEFAULT_LIMITS = {
   issuerMax: { on: true, value: 10 },
@@ -79,6 +79,7 @@ export function load() {
 export function upgradePortfolio(p) {
   p.cma = { ...DEFAULT_CMA, ...(p.cma || {}) };
   p.risk = { ...DEFAULT_RISK, ...(p.risk || {}) };
+  p.fund = { classes: [], liabilities: 0, receivables: 0, feeFrom: '', ...(p.fund || {}) };
   const lim = JSON.parse(JSON.stringify(DEFAULT_LIMITS));
   for (const [k, v] of Object.entries(p.limits || {})) if (lim[k]) lim[k] = { ...lim[k], ...v };
   p.limits = lim;

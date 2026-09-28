@@ -10,7 +10,7 @@ import { loadScript, isNum, slug } from './util.js';
 export const JSPDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 export const AUTOTABLE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
 
-export const SECTIONS = ['summary', 'holdings', 'exposure', 'risk', 'fixedIncome', 'performance', 'stress', 'liquidity', 'compliance'];
+export const SECTIONS = ['summary', 'holdings', 'exposure', 'risk', 'riskClass', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance'];
 
 // Standard PDF fonts are WinAnsi; map the few characters Intl and our labels produce that it lacks.
 function clean(s) {
@@ -246,6 +246,61 @@ export async function generateReport(p, a, opts) {
     const lbl = h => h === 1 ? t('liq.1d') : h === 365 ? t('liq.1y') : t('liq.nd', { n: h });
     tableAt([t('liq.horizon'), t('liq.normal'), t('liq.stressed')], liq.buckets.map((b, i) => [lbl(b.h), fmtPct(b.pct, 1), fmtPct(liqStressed.buckets[i].pct, 1)]), { width: CW * 0.6 });
     tableAt([t('col.name'), t('col.weight'), t('liq.days'), t('liq.basis')], liq.rows.slice(0, 10).map(q => [q.row.name.slice(0, 44), fmtPct(q.row.weight, 2), fmtNum(q.days, 0), t('liq.basis.' + q.basis)]));
+  }
+
+  // ---- risk class (SRI / SRRI) ------------------------------------------------------------------------------------
+  if (sections.has('riskClass') && a.ri) {
+    doc.addPage(); y = M + 6;
+    const ri = a.ri;
+    heading(t('nav.riskClass'), t('ri.sub'));
+    const boxes = (cls, label) => {
+      ensure(24);
+      font(9, 'bold', INK2); txt(label, M, y + 3); y += 6;
+      const bw = 14, gap = 2.5;
+      for (let i = 1; i <= 7; i++) {
+        const x = M + (i - 1) * (bw + gap);
+        if (i === cls) { doc.setFillColor(...ACCENT); doc.roundedRect(x, y, bw, 10, 1.5, 1.5, 'F'); font(11, 'bold', [255, 255, 255]); }
+        else { doc.setFillColor(241, 241, 237); doc.roundedRect(x, y, bw, 10, 1.5, 1.5, 'F'); font(11, 'bold', MUTED); }
+        txt(String(i), x + bw / 2, y + 6.8, { align: 'center' });
+      }
+      y += 15;
+    };
+    boxes(ri.sri, `SRI (PRIIPs KID): ${ri.sri} / 7`);
+    boxes(ri.srri, `SRRI (UCITS): ${ri.srri} / 7`);
+    tableAt([t('rep.measure'), ''], [
+      [t('ri.vev'), fmtPct(ri.vev, 2)], ['MRM / CRM', `${ri.mrm} / ${ri.crm}`], [t('ri.weeklyVol'), fmtPct(ri.srriVol, 2)],
+      [t('ri.rhp'), `${ri.rhpYears} ${t('ri.years')}`], [t('ri.period'), `${fmtDate(ri.from)} - ${fmtDate(ri.to)}`],
+      [t('ri.source'), p.risk?.sriSource || t('ri.srcPortfolio')]
+    ], { width: CW * 0.7 });
+    if (!ri.srriFull || !ri.sriEnough) para(t('ri.short', { y: fmtNum(ri.yearsAvail, 1) }), 8, [170, 110, 0]);
+    para(t('ri.method'), 7.5, MUTED);
+  }
+
+  // ---- cash-flow calendar ------------------------------------------------------------------------------------------
+  if (sections.has('cashflow') && a.cf && a.cf.events.length) {
+    doc.addPage(); y = M + 6;
+    const cf = a.cf;
+    heading(t('nav.cashflow'), t('cf.chartSub', { base }));
+    const P = charts.palette(th);
+    const KC = { coupon: 2, redemption: 0, fx_settle: 1, swap: 5, cds_premium: 7, option_expiry: 3, future_expiry: 6 };
+    const kinds = Object.keys(KC).filter(k => cf.buckets.some(b => b.byKind[k]));
+    const ml = m => new Date(m + '-01T00:00:00Z').toLocaleDateString(lang() === 'sv' ? 'sv-SE' : 'en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+    await chart(charts.stackedBarSpec(cf.buckets.map(b => ml(b.month)), kinds.map(k => ({ name: t('cf.kind.' + k), values: cf.buckets.map(b => b.byKind[k] || 0), color: P.series[KC[k] % 8] })), { th, line: { name: t('cf.projected'), values: cf.buckets.map(b => b.cashAfter) } }), 70);
+    tableAt([t('cf.date'), t('cf.event'), t('col.name'), t('col.ccy'), t('cf.amountBase', { base })],
+      cf.events.slice(0, 40).map(e => [e.date, t('cf.kind.' + e.kind) + (e.estimate ? ' *' : ''), e.name.slice(0, 40), e.ccy, cellV(fmtNum(e.amountBase, 0), e.cash ? e.amountBase : 0)]),
+      { fontSize: 7.5, didParseCell: colorPnl([4]), columnStyles: { 0: { halign: 'left' }, 1: { halign: 'left' }, 2: { halign: 'left' }, 3: { halign: 'left' }, 4: { halign: 'right' } } });
+    para(t('cf.method'), 7.5, MUTED);
+  }
+
+  // ---- indicative NAV per unit -------------------------------------------------------------------------------------
+  if (sections.has('nav') && a.nav && a.nav.ok) {
+    if (!sections.has('cashflow')) { doc.addPage(); y = M + 6; }
+    const nv = a.nav;
+    heading(t('nav.nav'), t('navp.honest'));
+    tableAt([t('navp.className'), t('col.ccy'), t('navp.units'), t('navp.navUnit'), t('navp.lastNav'), t('navp.vsLastShort')],
+      nv.classes.map(c => [c.name || c.ccy, c.ccy, fmtNum(c.units, 2), fmtNum(c.navPerUnit, 4), c.lastNav ? fmtNum(c.lastNav, 4) : '-', c.vsLast != null ? cellV(fmtPct(c.vsLast, 2, { sign: true }), c.vsLast) : '-']),
+      { didParseCell: colorPnl([5]) });
+    tableAt(['', base], [[t('navp.gross'), fmtMoney(nv.gross)], [t('navp.minusLiab'), fmtMoney(-nv.liabilities)], [t('navp.plusRec'), fmtMoney(nv.receivables)], [t('navp.minusFees'), fmtMoney(-nv.accruedFees)], [t('navp.net'), fmtMoney(nv.net)]], { width: CW * 0.6 });
   }
 
   // ---- compliance -----------------------------------------------------------------------------------------------

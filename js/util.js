@@ -13,6 +13,8 @@ export function escapeHtml(s) {
 
 export const isNum = x => typeof x === 'number' && Number.isFinite(x);
 export const num = (x, fb = 0) => (isNum(x) ? x : fb);
+// Payments per year. Select fields store it as text ("2"), so parse rather than type-check.
+export const freqOf = (x, fb = 1) => { const n = Math.round(+x); return Number.isFinite(n) && n >= 1 ? n : fb; };
 export const sum = arr => arr.reduce((a, b) => a + b, 0);
 export const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
