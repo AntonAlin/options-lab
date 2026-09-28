@@ -78,6 +78,8 @@ export const FIELDS = {
   underlyingPrice: { type: 'number', en: 'Underlying price', sv: 'Underliggande kurs', aliases: ['underlyingprice', 'spot', 'underlying', 'underliggande', 'underliggandekurs', 'spotpris'] },
   vol:         { type: 'number', en: 'Implied vol %', sv: 'Implicit vol %', aliases: ['vol', 'iv', 'impliedvol', 'impliedvolatility', 'volatility', 'volatilitet', 'implicitvolatilitet'] },
   rate:        { type: 'number', en: 'Risk-free rate %', sv: 'Riskfri ränta %', aliases: ['rate', 'riskfreerate', 'rfr', 'riskfriränta'] },
+  divYield:    { type: 'number', en: 'Dividend / foreign rate %', sv: 'Utdelning / utländsk ränta %', aliases: ['divyield', 'dividendyield', 'dividend', 'q', 'foreignrate', 'utdelningsyield', 'utdelning', 'direktavkastning'] },
+  strategy:    { type: 'text', en: 'Strategy', sv: 'Strategi', aliases: ['strategy', 'strategi', 'book', 'bok', 'portfoliogroup', 'group', 'grupp'] },
   underlyingClass: { type: 'select', en: 'Underlying', sv: 'Underliggande tillgång', options: ['equity', 'rates', 'commodity', 'fx', 'credit'], aliases: ['underlyingclass', 'underlyingtype', 'underlyingasset', 'tillgångsslag', 'underliggandetyp'] },
   duration:    { type: 'number', en: 'Duration (yrs)', sv: 'Duration (år)', aliases: ['duration', 'modifiedduration', 'modduration', 'ctdduration', 'duration(år)', 'durationår'] },
   buyCcy:      { type: 'ccy', en: 'Buy currency', sv: 'Köpvaluta', aliases: ['buyccy', 'buycurrency', 'köpvaluta', 'ccy1'] },
@@ -189,7 +191,7 @@ export const INSTRUMENTS = {
   equity: {
     en: 'Equity', sv: 'Aktie', group: 'securities', icon: 'EQ',
     hint: { en: 'Listed shares. Quantity in shares, price per share.', sv: 'Noterade aktier. Antal aktier, kurs per aktie.' },
-    fields: [...COMMON, 'qty', 'price', 'ccy', ...CLASSIFY, 'beta', 'adv', 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'ccy', ...CLASSIFY, 'beta', 'adv', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'ccy'],
     defaults: { beta: 1 },
     risk(p, ctx) {
@@ -280,7 +282,7 @@ export const INSTRUMENTS = {
   future: {
     en: 'Future', sv: 'Termin (future)', group: 'derivatives', icon: 'FUT',
     hint: { en: 'Contracts × price × multiplier = notional. Daily margined, so market value is ~0 and the notional is the exposure. For bond futures enter the CTD modified duration.', sv: 'Kontrakt × kurs × multiplikator = nominellt värde. Marginalavräknas dagligen, så marknadsvärdet är ~0 och det nominella värdet är exponeringen. För obligationsterminer anges CTD:ns modifierade duration.' },
-    fields: [...COMMON, 'qty', 'price', 'multiplier', 'ccy', 'underlyingClass', 'maturity', 'duration', 'beta', 'buyCcy', 'mtm', 'country', 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'multiplier', 'ccy', 'underlyingClass', 'maturity', 'duration', 'beta', 'buyCcy', 'mtm', 'country', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'multiplier', 'ccy', 'underlyingClass'],
     defaults: { multiplier: 1, underlyingClass: 'equity', beta: 1 },
     labels: { qty: { en: 'Contracts (negative = short)', sv: 'Kontrakt (negativt = kort)' }, buyCcy: { en: 'Currency bought (FX futures)', sv: 'Köpt valuta (valutaterminer)' }, duration: { en: 'Duration (bond futures)', sv: 'Duration (obligationsterminer)' }, mtm: { en: 'Variation margin (unsettled)', sv: 'Ej avräknad variationsmarginal' } },
@@ -310,17 +312,17 @@ export const INSTRUMENTS = {
   option: {
     en: 'Listed option', sv: 'Option', group: 'derivatives', icon: 'OPT',
     hint: { en: 'Priced with Black-Scholes-Merton (Black-76 when the underlying is rates or commodity). Leave price empty to use the model value. Delta-adjusted notional counts as exposure.', sv: 'Prissätts med Black-Scholes-Merton (Black-76 för ränte- och råvaruunderliggande). Lämna kurs tom för modellvärde. Deltajusterat nominellt belopp räknas som exponering.' },
-    fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'beta', 'duration', 'buyCcy', 'notes'],
+    fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'divYield', 'beta', 'duration', 'buyCcy', 'strategy', 'notes'],
     required: ['name', 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'multiplier', 'ccy'],
     defaults: { multiplier: 100, optType: 'call', underlyingClass: 'equity', rate: 2.5, vol: 20, beta: 1 },
-    labels: { qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, buyCcy: { en: 'Currency bought (FX options)', sv: 'Köpt valuta (valutaoptioner)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
+    labels: { qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)', sv: 'Utdelningsyield % (valuta: utländsk ränta)' }, buyCcy: { en: 'Currency bought (FX options)', sv: 'Köpt valuta (valutaoptioner)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
       const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
       const cls = p.underlyingClass || 'equity';
       const rr = num(p.rate, 2.5) / 100;
-      const q = cls === 'rates' || cls === 'commodity' ? rr : 0; // Black-76 on a forward
+      const q = cls === 'rates' || cls === 'commodity' ? rr : num(p.divYield, 0) / 100; // Black-76 on a forward; else BSM/Garman-Kohlhagen
       const S = num(p.underlyingPrice), sig = num(p.vol) / 100;
       const g = bsm(p.optType, S, num(p.strike), T, rr, q, sig);
       const units = num(p.qty) * num(p.multiplier, 1);
@@ -347,7 +349,7 @@ export const INSTRUMENTS = {
       const fx0 = ctx.fx(p.ccy);
       if (!isNum(fx0)) return 0;
       const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
-      const rr = num(p.rate, 2.5) / 100, q = cls === 'rates' || cls === 'commodity' ? rr : 0;
+      const rr = num(p.rate, 2.5) / 100, q = cls === 'rates' || cls === 'commodity' ? rr : num(p.divYield, 0) / 100;
       const S = num(p.underlyingPrice), sig = num(p.vol) / 100, K = num(p.strike);
       const move = cls === 'equity' ? s.eq * num(p.beta, 1) : cls === 'commodity' ? s.cmd : cls === 'fx' ? (s.fx?.[p.buyCcy] ?? s.fxAll ?? 0) : 0;
       const v0 = bsm(p.optType, S, K, T, rr, q, sig).price;

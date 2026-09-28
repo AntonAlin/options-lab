@@ -68,10 +68,10 @@ export default {
     const cum = [{ name: p.name, y: perf.nav.map(x => x - 1) }];
     if (bench && B) { let g = 1; cum.push({ name: p.benchmark, y: [0, ...bench.slice(1).map(r => (g *= 1 + (isNum(r) ? r : 0)) - 1)] }); }
     const d = dates.slice(dates.length - cum[0].y.length);
-    charts.render('chCum', charts.lineSpec(d, cum, { height: 320, zero: true }));
+    charts.render('chCum', charts.lineSpec(d, cum, { height: 360, zero: true, area: true, rangeButtons: true }));
     const P = charts.palette();
-    charts.render('chDD', charts.lineSpec(d, [{ name: t('perf.dd'), y: perf.drawdown, color: P.neg }], { height: 240, area: true }));
-    charts.render('chRV', charts.lineSpec(dates, [{ name: t('perf.rollVol'), y: rollingVol(hp.portfolioRet) }], { height: 240 }));
+    charts.render('chDD', charts.lineSpec(d, [{ name: t('perf.dd'), y: perf.drawdown, color: P.neg }], { height: 240, area: 'down' }));
+    charts.render('chRV', charts.lineSpec(dates, [{ name: t('perf.rollVol'), y: rollingVol(hp.portfolioRet), color: P.series[1] }], { height: 240, area: true }));
     charts.render('chHist', charts.histogramSpec(hp.portfolioRet, { markers: [{ x: -perf.var95, label: 'VaR 95' }, { x: -perf.var99, label: 'VaR 99' }] }));
   }
 };

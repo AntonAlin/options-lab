@@ -34,7 +34,7 @@ export default {
     const base = p.baseCcy;
     const q = ui.q.toLowerCase();
     let rows = v.rows.filter(x => (!ui.type || x.pos.type === ui.type) &&
-      (!q || [x.name, x.pos.ticker, x.pos.isin, x.pos.issuer, x.pos.sector].some(s => String(s || '').toLowerCase().includes(q))));
+      (!q || [x.name, x.pos.ticker, x.pos.isin, x.pos.issuer, x.pos.sector, x.pos.strategy].some(s => String(s || '').toLowerCase().includes(q))));
     const sorters = {
       name: x => x.name.toLowerCase(), type: x => typeLabel(x.pos.type, lang()), mv: x => x.r?.mv ?? -Infinity,
       weight: x => x.weight ?? -Infinity, exposure: x => x.r?.exposure ?? -Infinity, ccy: x => x.pos.ccy || '', qty: x => x.pos.qty ?? 0
@@ -46,7 +46,7 @@ export default {
     const typesPresent = [...new Set(p.positions.map(x => x.type))];
     const cols = [
       { key: 'sel', label: '', fmt: x => `<input type="checkbox" class="rowsel" data-id="${x.pos.id}" ${ui.selected.has(x.pos.id) ? 'checked' : ''} aria-label="${esc(t('hold.select'))}">` },
-      { key: 'name', label: t('col.name'), sort: 1, fmt: x => `<button class="linkish cell-name" data-edit="${x.pos.id}">${esc(x.name)}</button><div class="cell-sub">${esc([x.pos.ticker, x.pos.isin].filter(Boolean).join(' · '))}</div>` },
+      { key: 'name', label: t('col.name'), sort: 1, fmt: x => `<button class="linkish cell-name" data-edit="${x.pos.id}">${esc(x.name)}</button><div class="cell-sub">${esc([x.pos.ticker, x.pos.isin].filter(Boolean).join(' · '))}${x.pos.strategy ? `<span class="strategy-tag">${esc(x.pos.strategy)}</span>` : ''}</div>` },
       { key: 'type', label: t('col.type'), sort: 1, cls: 'nowrap', fmt: x => `<span class="type-tag">${esc(INSTRUMENTS[x.pos.type]?.icon || '?')}</span> ${esc(typeLabel(x.pos.type, lang()))}` },
       { key: 'qty', label: t('col.qty'), align: 'right', sort: 1, fmt: x => fmtNum(x.pos.qty ?? x.pos.buyAmount, isNum(x.pos.qty) && Math.abs(x.pos.qty) < 100 && x.pos.qty % 1 ? 2 : 0) },
       { key: 'price', label: t('col.price'), align: 'right', fmt: x => isNum(x.pos.price) ? fmtNum(x.pos.price, x.pos.price < 10 ? 4 : 2) : (isNum(x.pos.yield) ? fmtPct(x.pos.yield / 100, 2) : '—') },

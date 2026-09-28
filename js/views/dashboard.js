@@ -87,7 +87,10 @@ export default {
       ${card(t('dash.compliance'), `<ul class="rule-list">${comp.rules.map(r => `<li>${statusChip(r.status)}<span>${esc(t('limit.' + r.id))}</span><span class="num">${fmtNum(r.value, 1)} % / ${r.dir === 'max' ? '≤' : '≥'} ${fmtNum(r.limit, 1)} %</span></li>`).join('')}</ul>`, { actions: `<a href="#/compliance" class="link">${esc(t('common.details'))} →</a>` })}
     `;
 
-    charts.render('chAlloc', charts.barHSpec(alloc.assetClass.filter(x => Math.abs(x.weight) >= 0.0005).map(x => ({ label: L(ASSET_CLASSES[x.key] || { en: x.key }), value: x.weight, text: fmtPct(x.weight, 1), color: charts.classColor(x.key) }))));
+    // Donut for the headline allocation (long positions only — a donut cannot show negatives).
+    const allocItems = alloc.assetClass.filter(x => x.weight >= 0.0005);
+    charts.render('chAlloc', charts.donutSpec(allocItems.map(x => ({ label: `${L(ASSET_CLASSES[x.key] || { en: x.key })}  ${fmtPct(x.weight, 1)}`, value: x.value, color: charts.classColor(x.key) })),
+      { center: fmtMoney(v.nav, '', { compact: true }), centerSub: `${t('kpi.nav')} · ${base}`, height: 290 }));
     const groups = Object.entries(risk.param.byFactorGroup).filter(([, val]) => Math.abs(val) > 1e-9).sort((x, y) => y[1] - x[1]);
     charts.render('chRisk', charts.barHSpec(groups.map(([k, val]) => ({ label: t('factor.' + k), value: risk.param.sigmaAnnual ? val / risk.param.sigmaAnnual : 0, text: fmtPct(risk.param.sigmaAnnual ? val / risk.param.sigmaAnnual : 0, 0) })), { diverging: true }));
     if (perf) {
@@ -97,7 +100,7 @@ export default {
         let g = 1;
         series.push({ name: p.benchmark, y: [0, ...a.bench.slice(1).map(r => (g *= 1 + (Number.isFinite(r) ? r : 0)) - 1)] });
       }
-      charts.render('chPerf', charts.lineSpec(dates.slice(dates.length - series[0].y.length), series, { height: 260, zero: true }));
+      charts.render('chPerf', charts.lineSpec(dates.slice(dates.length - series[0].y.length), series, { height: 280, zero: true, area: true, rangeButtons: true }));
     }
   }
 };

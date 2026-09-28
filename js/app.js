@@ -103,8 +103,9 @@ function renderTopbar() {
       ${p ? `<label class="valdate" title="${esc(t('top.valdateHelp'))}"><span>${esc(t('top.valdate'))}</span><input type="date" id="valDate" value="${esc(p.valDate || todayISO())}"></label>
         <span class="base-chip" title="${esc(t('top.base'))}">${esc(p.baseCcy)}</span>` : ''}
       <div class="seg lang-seg" role="group" aria-label="Language / Språk">
-        <button data-lang="en" class="${lang() === 'en' ? 'on' : ''}" aria-pressed="${lang() === 'en'}">EN</button>
-        <button data-lang="sv" class="${lang() === 'sv' ? 'on' : ''}" aria-pressed="${lang() === 'sv'}">SV</button>
+        <span class="lang-globe" aria-hidden="true">${icon('M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18')}</span>
+        <button data-lang="en" lang="en" class="${lang() === 'en' ? 'on' : ''}" aria-pressed="${lang() === 'en'}"><span class="long">English</span><span class="short">EN</span></button>
+        <button data-lang="sv" lang="sv" class="${lang() === 'sv' ? 'on' : ''}" aria-pressed="${lang() === 'sv'}"><span class="long">Svenska</span><span class="short">SV</span></button>
       </div>
       <button class="icon-btn" id="themeBtn" aria-label="${esc(t('top.theme'))}" title="${esc(t('top.theme'))}: ${esc(t('theme.' + (store.settings().theme || 'auto')))}">${icon(document.documentElement.dataset.resolvedTheme === 'dark' ? 'M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z' : 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.4-6.4l-.7.7M6.3 17.7l-.7.7m12.8 0l-.7-.7M6.3 6.3l-.7-.7M16 12a4 4 0 11-8 0 4 4 0 018 0z')}</button>
     </div>`;

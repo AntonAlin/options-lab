@@ -263,3 +263,49 @@ test('every literal t("key") used in the code exists in the dictionary', async (
   }
   assert.deepEqual([...missing], []);
 });
+
+test('Options Lab export: positions revalue to the Options Lab price in Portfolio Lab', async () => {
+  const { strategyToPositions, addToWorkspace, listPortfolios } = await import('../js/strategy-export.js');
+  const S = 100, r = 2.5, q = 1.5, sig = 0.22, days = 45;
+  const T = days / 365.25; // Portfolio Lab measures time with actual/365.25 between dates
+  const call = K => bsm('call', S, K, T, r / 100, q / 100, sig).price;
+  const input = {
+    strategyName: 'Bull Call Spread', instrument: 'equity', valDate: '2026-09-28', S, ratePct: r, divPct: q, dilution: 1,
+    contractMult: 100, units: 3, ccy: 'SEK', underlying: 'OMXS30', ticker: '',
+    legs: [
+      { type: 'call', side: 'long', qty: 1, strike: 97, style: 'eu', days, sigma: sig, theo: call(97) },
+      { type: 'call', side: 'short', qty: 1, strike: 105, style: 'eu', days, sigma: sig, theo: call(105) },
+      { type: 'stock', side: 'long', qty: 1, strike: 0, style: 'eu', days, sigma: 0, theo: S }
+    ]
+  };
+  const { positions, notes } = strategyToPositions(input);
+  assert.deepEqual(positions.map(p => p.type), ['option', 'option', 'equity']);
+  assert.deepEqual(positions.map(p => p.qty), [3, -3, 300]);
+  assert.equal(positions[0].maturity, '2026-11-12');
+  assert.equal(positions[0].strategy, 'Bull Call Spread');
+  assert.deepEqual(notes, []);
+  for (const p of positions) assert.deepEqual(validatePosition(p), [], JSON.stringify(p));
+
+  const pf = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  pf.positions = positions;
+  const v = valuePortfolio(pf);
+  close(v.valid[0].r.mv, 300 * call(97), 1e-6, 'long call MV');
+  close(v.valid[1].r.mv, -300 * call(105), 1e-6, 'short call MV');
+  close(v.valid[2].r.mv, 300 * S, 1e-9, 'shares');
+
+  // American legs keep the Options Lab price; FX underlying becomes an FX future
+  const am = strategyToPositions({ ...input, instrument: 'fx', fxCcy: 'EUR', legs: [{ ...input.legs[0], style: 'am', theo: 4.2 }, input.legs[2]] });
+  assert.equal(am.positions[0].price, 4.2);
+  assert.equal(am.positions[0].buyCcy, 'EUR');
+  assert.equal(am.positions[1].type, 'future');
+  assert.equal(am.positions[1].underlyingClass, 'fx');
+  assert.ok(am.notes.includes('american_fixed_price'));
+
+  // Workspace: new portfolio, then append to it
+  const a = addToWorkspace(null, positions, { newName: 'Options', baseCcy: 'SEK' });
+  assert.ok(a.created);
+  assert.equal(a.ws.activeId, a.portfolioId);
+  const b = addToWorkspace(a.ws, positions.slice(0, 1), { portfolioId: a.portfolioId });
+  assert.equal(b.ws.portfolios[a.portfolioId].positions.length, 4);
+  assert.equal(listPortfolios(b.ws)[0].n, 4);
+});

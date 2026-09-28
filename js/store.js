@@ -105,6 +105,9 @@ export function persist() {
 export const storageAvailable = () => storageOk;
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', e => { if (e.key === KEY) { load(); emit('active'); } });
+}
 function emit(reason) { listeners.forEach(fn => { try { fn(reason); } catch (e) { console.error(e); } }); }
 
 export const getState = () => state;

@@ -100,9 +100,10 @@
       </div>
       <div class="flex items-center gap-2 flex-wrap">
         <a href="index.html" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300" title="Tillbaka till portföljplattformen">← Portfolio Lab</a>
-        <div class="flex items-center gap-1" role="group" aria-label="Språk / Language">
-          <button id="langSv" onclick="setLang('sv')" class="outlook-btn btn-ghost text-[11px] px-2 py-1.5 rounded-lg text-slate-300" aria-pressed="true">SV</button>
-          <button id="langEn" onclick="setLang('en')" class="outlook-btn btn-ghost text-[11px] px-2 py-1.5 rounded-lg text-slate-300" aria-pressed="false">EN</button>
+        <div class="flex items-center gap-1 pl-1" role="group" aria-label="Språk / Language">
+          <span class="text-slate-400" aria-hidden="true"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg></span>
+          <button id="langSv" onclick="setLang('sv')" class="outlook-btn btn-ghost text-[11px] px-2 py-1.5 rounded-lg text-slate-300" aria-pressed="true" lang="sv">Svenska</button>
+          <button id="langEn" onclick="setLang('en')" class="outlook-btn btn-ghost text-[11px] px-2 py-1.5 rounded-lg text-slate-300" aria-pressed="false" lang="en">English</button>
         </div>
         <input id="strategyName" type="text" value="Bull Call Spread" placeholder="Strateginamn" class="input-field text-xs px-3 py-1.5 rounded-lg w-40 sm:w-52 font-medium text-white" onchange="saveCurrentName()">
         <button id="btnUndo" onclick="undo()" class="btn-ghost text-[11px] px-2 py-1.5 rounded-lg text-slate-300" title="Ångra (Ctrl+Z)">↶</button>
@@ -119,6 +120,10 @@
         <button onclick="shareLink()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300 flex items-center gap-1" title="Kopiera en länk som återskapar exakt denna strategi">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
           Dela
+        </button>
+        <button onclick="openExportModal()" class="btn-primary text-[11px] px-2.5 py-1.5 rounded-lg text-white flex items-center gap-1" title="Lägg in strategin som innehav i en portfölj i Portfolio Lab">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12h12m0 0l-4-4m4 4l-4 4M20 5v14"/></svg>
+          Till portfölj
         </button>
         <button onclick="openHelp()" class="btn-ghost text-[11px] px-2.5 py-1.5 rounded-lg text-slate-300">?</button>
         <div class="hidden md:flex items-center gap-1.5 text-[10px] text-slate-500 ml-1">
@@ -711,6 +716,17 @@
     </div>
   </div>
 
+  <!-- Export to Portfolio Lab modal -->
+  <div id="modalExport" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4" onclick="if(event.target===this) closeModal(this.id)">
+    <div class="glass-strong rounded-2xl p-5 w-full max-w-2xl animate-in max-h-[88vh] overflow-y-auto">
+      <div class="flex justify-between items-start mb-1">
+        <h3 id="exportTitle" class="text-base font-semibold text-white"></h3>
+        <button onclick="closeModal('modalExport')" class="text-slate-400 hover:text-white" aria-label="✕">✕</button>
+      </div>
+      <div id="exportBody"></div>
+    </div>
+  </div>
+
   <!-- Strategy detail modal -->
   <div id="modalStrat" class="fixed inset-0 z-[100] hidden modal-bg flex items-center justify-center p-4" onclick="if(event.target===this) closeModal(this.id)">
     <div class="glass-strong rounded-2xl p-5 w-full max-w-lg animate-in max-h-[85vh] overflow-y-auto">
@@ -739,7 +755,7 @@
     let LANG = readLang();
     function tr(sv, en) { return LANG === 'en' ? en : sv; }
     function numLocale() { return LANG === 'en' ? 'en-GB' : 'sv-SE'; }
-    const STATIC_EN = {
+    const STATIC_EN = {"Till portfölj": "To portfolio", "Lägg in strategin som innehav i en portfölj i Portfolio Lab": "Add the strategy as holdings in a Portfolio Lab portfolio", 
       "Viktigt:": "Important:",
       "Detta verktyg är endast avsett för utbildningssyfte och illustration av optionsteori (Black-Scholes-Merton). Det utgör": "This tool is intended only for education and to illustrate option theory (Black-Scholes-Merton). It does",
       "inte finansiell rådgivning, investeringsrådgivning eller en rekommendation": "not constitute financial advice, investment advice or a recommendation",
@@ -2758,6 +2774,119 @@
       showToast(`${tr('Rullat','Rolled')} · ${n.cashClose + n.cashOpen >= 0 ? tr('kredit','credit') : tr('debet','debit')} ${fmt(Math.abs(n.cashClose + n.cashOpen))}`);
     }
 
+    // ======================== EXPORT TO PORTFOLIO LAB ========================
+    // Converts the strategy into portfolio positions (js/strategy-export.js, loaded as a module
+    // at the bottom of the page) and writes them into the shared Portfolio Lab workspace.
+    function exportInput() {
+      const v = id => document.getElementById(id)?.value;
+      const { strat, params } = lastCalc;
+      const val = v('exUnder') || '';
+      return {
+        strategyName: document.getElementById('strategyName').value || tr('Strategi', 'Strategy'),
+        instrument: params.instrument, valDate: v('valDate') || todayISO(),
+        S: params.S, ratePct: params.r * 100, divPct: params.isB76 ? 0 : params.q * 100, dilution: params.dilution,
+        contractMult: Math.max(+v('exMult') || 1, 1e-6), units: Math.max(1, Math.round(+v('exUnits') || 1)),
+        ccy: (v('exCcy') || 'SEK').trim().toUpperCase().slice(0, 3), underlying: val.trim(), ticker: (v('exTicker') || '').trim(),
+        fxCcy: (v('exFxCcy') || '').trim().toUpperCase().slice(0, 3),
+        legs: strat.details.map(d => ({ type: d.isStock ? 'stock' : d.leg.type, side: d.leg.side, qty: d.leg.qty, strike: d.leg.strike,
+          style: d.leg.style, days: d.days, expiry: d.leg.expiry || null, sigma: d.sigma, theo: d.theo }))
+      };
+    }
+    function readWorkspace() {
+      try { return JSON.parse(localStorage.getItem(window.NexusExport.WORKSPACE_KEY) || 'null'); } catch (e) { return null; }
+    }
+    function openExportModal() {
+      if (!lastCalc) { showToast(tr('Lägg till ben först', 'Add legs first')); return; }
+      if (!window.NexusExport) { showToast(tr('Exportfunktionen laddas fortfarande – försök igen om en sekund', 'The export feature is still loading – try again in a second')); return; }
+      const ws = readWorkspace();
+      const pfs = window.NexusExport.listPortfolios(ws);
+      const active = ws && ws.activeId && pfs.some(p => p.id === ws.activeId) ? ws.activeId : (pfs[0]?.id || '__new');
+      const activeCcy = pfs.find(p => p.id === active)?.baseCcy || 'SEK';
+      const opt = pfs.map(p => `<option value="${escapeHtml(p.id)}" data-ccy="${escapeHtml(p.baseCcy)}" ${p.id === active ? 'selected' : ''}>${escapeHtml(p.name)} · ${escapeHtml(p.baseCcy)} · ${p.n} ${tr('innehav', 'holdings')}</option>`).join('');
+      const lbl = 'text-[10px] text-slate-500 uppercase tracking-wider';
+      const inp = 'input-field w-full mt-0.5 px-2.5 py-1.5 rounded-lg text-sm text-white';
+      const isFx = lastCalc.params.instrument === 'fx';
+      document.getElementById('exportTitle').textContent = tr('Exportera strategin till Portfolio Lab', 'Export the strategy to Portfolio Lab');
+      document.getElementById('exportBody').innerHTML = `
+        <p class="text-xs text-slate-400 mb-4">${tr('Varje ben blir ett innehav: optioner som optioner, underliggande-ben som aktier (eller terminer för valuta, råvara och ränta). Strike, förfall, IV, ränta och utdelning följer med, och alla ben märks med strateginamnet så att de hålls ihop.', 'Each leg becomes a holding: options as options, underlying legs as shares (or futures for FX, commodity and rates). Strike, expiry, IV, rate and dividend carry over, and every leg is tagged with the strategy name so they stay together.')}</p>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div class="col-span-2"><label class="${lbl}">${tr('Portfölj', 'Portfolio')}</label>
+            <select id="exTarget" class="${inp}" onchange="onExportTargetChange()">${opt}<option value="__new" ${active === '__new' ? 'selected' : ''}>+ ${tr('Ny portfölj…', 'New portfolio…')}</option></select></div>
+          <div id="exNewWrap" class="col-span-2 ${active === '__new' ? '' : 'hidden'}"><label class="${lbl}">${tr('Namn på ny portfölj', 'New portfolio name')}</label>
+            <input id="exNewName" class="${inp}" value="${escapeHtml(tr('Optionsportfölj', 'Options portfolio'))}"></div>
+          <div><label class="${lbl}">${tr('Underliggande (namn)', 'Underlying (name)')} <span class="text-rose-400">*</span></label>
+            <input id="exUnder" class="${inp}" placeholder="${tr('t.ex. OMXS30 eller Volvo B', 'e.g. OMXS30 or Volvo B')}" oninput="updateExportPreview()"></div>
+          <div><label class="${lbl}">Ticker / ISIN</label><input id="exTicker" class="${inp}" placeholder="${tr('valfritt', 'optional')}" oninput="updateExportPreview()"></div>
+          <div><label class="${lbl}">${tr('Valuta', 'Currency')}</label><input id="exCcy" class="${inp} uppercase" maxlength="3" value="${escapeHtml(activeCcy)}" oninput="updateExportPreview()"></div>
+          ${isFx ? `<div><label class="${lbl}">${tr('Utländsk valuta (den som köps/säljs)', 'Foreign currency (the one traded)')}</label><input id="exFxCcy" class="${inp} uppercase" maxlength="3" placeholder="EUR" oninput="updateExportPreview()"></div>` : '<div></div>'}
+          <div><label class="${lbl}">${tr('Kontraktsmultiplikator', 'Contract multiplier')}</label><input id="exMult" type="number" min="1" step="1" class="${inp} font-mono" value="${escapeHtml(document.getElementById('contractMult').value || 100)}" oninput="updateExportPreview()"></div>
+          <div><label class="${lbl}">${tr('Antal strategier', 'Number of strategies')}</label><input id="exUnits" type="number" min="1" step="1" class="${inp} font-mono" value="${escapeHtml(document.getElementById('posCount').value || 1)}" oninput="updateExportPreview()"></div>
+        </div>
+        <div id="exportPreview" class="mb-3"></div>
+        <div class="flex gap-2 justify-end">
+          <button onclick="closeModal('modalExport')" class="btn-ghost text-xs px-3 py-1.5 rounded-lg">${tr('Avbryt', 'Cancel')}</button>
+          <button id="exGo" onclick="doExport()" class="btn-primary text-xs px-3 py-1.5 rounded-lg text-white">${tr('Lägg till i portföljen', 'Add to portfolio')}</button>
+        </div>`;
+      updateExportPreview();
+      document.getElementById('modalExport').classList.remove('hidden');
+      setTimeout(() => document.getElementById('exUnder')?.focus(), 50);
+    }
+    function onExportTargetChange() {
+      const sel = document.getElementById('exTarget');
+      document.getElementById('exNewWrap').classList.toggle('hidden', sel.value !== '__new');
+      const ccy = sel.selectedOptions[0]?.dataset.ccy;
+      if (ccy) document.getElementById('exCcy').value = ccy;
+      updateExportPreview();
+    }
+    const EXPORT_NOTES = {
+      american_fixed_price: ['Amerikanska ben förs över till Options Labs pris (Portfolio Lab värderar optioner europeiskt).', 'American legs carry over at the Options Lab price (Portfolio Lab values options as European).'],
+      warrant_fixed_price: ['Warranter förs över till utspätt pris från Options Lab.', 'Warrants carry over at the diluted Options Lab price.'],
+      fx_ccy_missing: ['Ange den utländska valutan så att valutaexponeringen blir rätt.', 'Enter the foreign currency so the FX exposure comes out right.'],
+      rate_duration: ['Lägg till duration på räntetermin/ränteoption i Portfolio Lab för att få med ränterisken.', 'Add a duration to the rate future/option in Portfolio Lab to capture the rate risk.']
+    };
+    function updateExportPreview() {
+      const box = document.getElementById('exportPreview');
+      if (!box || !window.NexusExport) return;
+      const inp = exportInput();
+      const { positions, notes } = window.NexusExport.strategyToPositions(inp);
+      const legVal = inp.legs.map(l => (l.side === 'short' ? -1 : 1) * l.qty * inp.units * inp.contractMult * (l.type === 'stock' ? inp.S : l.theo * (inp.instrument === 'warrant' ? inp.dilution : 1)));
+      const typeName = t => ({ option: tr('Option', 'Option'), equity: tr('Aktie', 'Equity'), future: tr('Termin', 'Future') }[t] || t);
+      const needName = !inp.underlying && !inp.ticker;
+      box.innerHTML = `
+        <table class="w-full text-xs"><thead><tr class="text-[10px] text-slate-500"><th class="text-left py-1">${tr('Typ', 'Type')}</th><th class="text-left">${tr('Namn', 'Name')}</th><th class="text-right">${tr('Antal', 'Quantity')}</th><th class="text-right">${tr('Värde', 'Value')} (${escapeHtml(inp.ccy)})</th></tr></thead>
+        <tbody class="font-mono">${positions.map((p, i) => `<tr class="border-t border-white/5"><td class="py-1.5 font-sans text-slate-300">${typeName(p.type)}</td><td class="font-sans text-slate-200">${escapeHtml(p.name)}</td><td class="text-right ${p.qty < 0 ? 'text-rose-300' : 'text-emerald-300'}">${fmt(p.qty, 0)}</td><td class="text-right">${p.type === 'future' ? '—' : fmt(legVal[i] ?? 0, 0)}</td></tr>`).join('')}</tbody></table>
+        <p class="text-[11px] text-slate-400 mt-2">${tr('Underliggande kurs','Underlying price')}: <span class="font-mono text-slate-200">${fmt(inp.S, 2)} ${escapeHtml(inp.ccy)}</span> · ${tr('hämtas från Marknad-panelen – kontrollera att den är aktuell','taken from the Market panel – check that it is current')}</p>
+        ${notes.length ? `<ul class="text-[11px] text-amber-300/90 mt-2 space-y-1">${notes.map(n => `<li>• ${tr(...EXPORT_NOTES[n])}</li>`).join('')}</ul>` : ''}
+        ${needName ? `<p class="text-[11px] text-rose-300 mt-2">${tr('Ange namnet på det underliggande instrumentet.', 'Enter the name of the underlying instrument.')}</p>` : ''}`;
+      const go = document.getElementById('exGo');
+      if (go) { go.disabled = needName || !positions.length; go.style.opacity = go.disabled ? '0.5' : '1'; }
+    }
+    function doExport() {
+      const inp = exportInput();
+      if (!inp.underlying && !inp.ticker) { updateExportPreview(); return; }
+      const { positions } = window.NexusExport.strategyToPositions(inp);
+      const sel = document.getElementById('exTarget').value;
+      const target = sel === '__new' ? { newName: (document.getElementById('exNewName').value || '').trim() || tr('Optionsportfölj', 'Options portfolio'), baseCcy: inp.ccy } : { portfolioId: sel };
+      const res = window.NexusExport.addToWorkspace(readWorkspace(), positions, target);
+      try {
+        localStorage.setItem(window.NexusExport.WORKSPACE_KEY, JSON.stringify(res.ws));
+      } catch (e) {
+        showToast(tr('Kunde inte spara – webbläsarens lagring är full eller blockerad', 'Could not save – browser storage is full or blocked'));
+        return;
+      }
+      const pf = res.ws.portfolios[res.portfolioId];
+      document.getElementById('exportBody').innerHTML = `
+        <div class="text-center py-6">
+          <div class="text-4xl mb-2 text-emerald-300">✓</div>
+          <p class="text-sm text-slate-200 mb-1">${tr(`${positions.length} innehav tillagda i <strong>${escapeHtml(pf.name)}</strong>.`, `${positions.length} holdings added to <strong>${escapeHtml(pf.name)}</strong>.`)}</p>
+          <p class="text-xs text-slate-500 mb-5">${tr('Ångra genom att ta bort dem under Innehav i Portfolio Lab.', 'To undo, delete them under Holdings in Portfolio Lab.')}</p>
+          <div class="flex gap-2 justify-center">
+            <button onclick="closeModal('modalExport')" class="btn-ghost text-xs px-3 py-1.5 rounded-lg">${tr('Stanna här', 'Stay here')}</button>
+            <a href="index.html#/holdings" class="btn-primary text-xs px-3 py-1.5 rounded-lg text-white">${tr('Öppna i Portfolio Lab →', 'Open in Portfolio Lab →')}</a>
+          </div>
+        </div>`;
+    }
+
     // ======================== TABS / MODALS / EXPORT ========================
     function switchTab(name) {
       document.querySelectorAll('.tab-panel').forEach(p=>p.classList.add('hidden'));
@@ -3097,6 +3226,11 @@
       HISTORY.undo.length = 0; HISTORY.redo.length = 0; HISTORY.present = historySnapshot();
       updateHistoryButtons();
     });
+  </script>
+  <script type="module">
+    // Options Lab → Portfolio Lab conversion lives in a shared, tested module.
+    import * as NexusExport from './js/strategy-export.js';
+    window.NexusExport = NexusExport;
   </script>
 </body>
 </html>

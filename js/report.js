@@ -119,7 +119,7 @@ export async function generateReport(p, a, opts) {
     }
     heading(t('dash.alloc'));
     const half = (CW - 6) / 2, top = y;
-    await chart(charts.barHSpec(alloc.assetClass.map(x => ({ label: L(ASSET_CLASSES[x.key] || { en: x.key }), value: x.weight, text: fmtPct(x.weight, 1), color: charts.classColor(x.key, th) })), { th }), 58, half);
+    await chart(charts.donutSpec(alloc.assetClass.filter(x => x.weight >= 0.0005).map(x => ({ label: `${L(ASSET_CLASSES[x.key] || { en: x.key })}  ${fmtPct(x.weight, 1)}`, value: x.value, color: charts.classColor(x.key, th) })), { th, height: 260, center: fmtMoney(v.nav, '', { compact: true }), centerSub: base }), 58, half);
     const afterChart = y;
     y = top;
     tableAt([t('dash.top10'), t('col.weight')], conc.top10Rows.map(x => [x.name.slice(0, 38), fmtPct(x.weight, 1)]), { left: M + half + 6, width: half, fontSize: 7.5 });
