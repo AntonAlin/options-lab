@@ -69,7 +69,23 @@ export function parseNumber(raw, dec = '.') {
   return neg ? -n : n;
 }
 
-export function parseDate(raw) {
+// fmt: 'auto' | 'ymd' | 'dmy' | 'mdy' | 'compact' (YYYYMMDD) | 'excel' (serial numbers)
+export const DATE_FORMATS = ['auto', 'ymd', 'dmy', 'mdy', 'compact', 'excel'];
+export function parseDate(raw, fmt = 'auto') {
+  if (fmt !== 'auto' && raw !== null && raw !== undefined && !(raw instanceof Date)) {
+    const s = String(raw).trim();
+    if (!s) return '';
+    let m;
+    if (fmt === 'excel' && /^\d+(\.\d+)?$/.test(s)) return toISODate(new Date(Date.UTC(1899, 11, 30) + Math.floor(+s) * 86400000));
+    if (fmt === 'compact' && (m = s.match(/^(\d{4})(\d{2})(\d{2})/)) && iso(+m[1], +m[2], +m[3])) return iso(+m[1], +m[2], +m[3]);
+    if ((m = s.match(/^(\d{1,4})[-/. ](\d{1,2})[-/. ](\d{1,4})/))) {
+      const [a, b, c] = [+m[1], +m[2], +m[3]];
+      const yy = y => (y < 100 ? y + 2000 : y);
+      const r = fmt === 'ymd' ? iso(yy(a), b, c) : fmt === 'dmy' ? iso(yy(c), b, a) : fmt === 'mdy' ? iso(yy(c), a, b) : '';
+      if (r) return r;
+    }
+    // Declared format did not fit this cell — fall back to auto-detection rather than dropping it.
+  }
   if (raw instanceof Date) return isNaN(raw) ? '' : toISODate(new Date(Date.UTC(raw.getFullYear(), raw.getMonth(), raw.getDate())));
   if (typeof raw === 'number' && raw > 20000 && raw < 80000) { // Excel serial date
     return toISODate(new Date(Date.UTC(1899, 11, 30) + raw * 86400000));
@@ -109,9 +125,20 @@ export async function readFile(file, loadScript) {
   }
   let text = await file.text();
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-  return parseText(text);
+  return parseText(text, name);
 }
-export function parseText(text) {
+// Plain text: JSON and XML are recognised by extension or by their first character, everything
+// else goes through the delimiter sniffer (comma, semicolon, tab, pipe).
+export function parseText(text, name = '') {
+  const head = text.trimStart()[0];
+  if (/\.json$/.test(name) || ((head === '{' || head === '[') && !/\.(csv|tsv|txt)$/.test(name))) {
+    const rows = parseJSONRows(text);
+    return { sheets: [{ name: 'JSON', rows }], decimal: detectDecimal(rows.slice(1, 200).flat(), ','), kind: 'json' };
+  }
+  if (/\.xml$/.test(name) || head === '<') {
+    const rows = parseXMLRows(text);
+    return { sheets: [{ name: 'XML', rows }], decimal: detectDecimal(rows.slice(1, 200).flat(), ','), kind: 'xml' };
+  }
   const delim = detectDelimiter(text);
   const rows = parseCSV(text, delim);
   const decimal = detectDecimal(rows.slice(1, 200).flat(), delim);
@@ -201,13 +228,19 @@ export function normaliseSelect(field, raw) {
   return String(raw).trim();
 }
 
-export function coerce(field, raw, dec) {
+// opts: { scale: number, dateFormat, valueMap: { rawValue: value } } — set per field in the mapping UI.
+export function coerce(field, raw, dec, opts = {}) {
   const spec = FIELDS[field];
   if (!spec) return raw;
   if (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) return undefined;
+  const vm = opts.valueMap && opts.valueMap[String(raw).trim()];
+  if (vm !== undefined && vm !== '') raw = vm;
   switch (spec.type) {
-    case 'number': { const n = parseNumber(raw, dec); return isNum(n) ? n : String(raw); }
-    case 'date': return parseDate(raw) || String(raw);
+    case 'number': {
+      const n = parseNumber(raw, dec);
+      return isNum(n) ? (isNum(opts.scale) && opts.scale !== 1 ? n * opts.scale : n) : String(raw);
+    }
+    case 'date': return parseDate(raw, opts.dateFormat || 'auto') || String(raw);
     case 'ccy': return String(raw).trim().toUpperCase().slice(0, 3);
     case 'select': return field === 'type' ? raw : normaliseSelect(field, raw);
     default: return raw instanceof Date ? toISODate(raw) : String(raw).trim();
@@ -232,18 +265,32 @@ export function inferType(p) {
 }
 
 // Build positions from rows using a column→field mapping.
-export function rowsToPositions(rows, mapping, { decimal = '.', defaultType = 'auto' } = {}) {
-  return rows.map((r, i) => {
+//   constants:  { field: value }   used when the file has no column for it (or the cell is empty)
+//   transforms: { field: { scale, dateFormat } }
+//   typeMap:    { rawTypeValue: typeId | '__skip' } for custodian-specific type codes
+//   skipPattern: 'Total; Summa' — rows containing any of these are ignored
+export function rowsToPositions(rows, mapping, { decimal = '.', defaultType = 'auto', constants = {}, transforms = {}, typeMap = {}, skipPattern = '', dateFormat = 'auto' } = {}) {
+  const skips = String(skipPattern || '').split(/[;|]/).map(x => x.trim().toLowerCase()).filter(Boolean);
+  const out = [];
+  rows.forEach((r, i) => {
+    if (skips.length && r.some(c => { const t = String(c ?? '').toLowerCase(); return skips.some(sk => t.includes(sk)); })) return;
     const p = {};
     let rawType = '';
+    for (const [field, val] of Object.entries(constants || {})) {
+      if (field === 'type' || val === '' || val === null || val === undefined) continue;
+      const v = coerce(field, val, '.', { dateFormat: 'auto' });
+      if (v !== undefined) p[field] = v;
+    }
     mapping.forEach((field, c) => {
       if (!field) return;
       if (field === 'type') { rawType = r[c]; return; }
-      const v = coerce(field, r[c], decimal);
+      const v = coerce(field, r[c], decimal, { dateFormat, ...(transforms[field] || {}) });
       if (v !== undefined) p[field] = v;
     });
-    let type = rawType ? resolveType(rawType) : null;
-    const typeUnknown = !!rawType && !type;
+    const rawKey = String(rawType ?? '').trim();
+    if (rawKey && typeMap[rawKey] === '__skip') return;
+    let type = rawKey ? (typeMap[rawKey] || resolveType(rawKey)) : (constants.type || null);
+    const typeUnknown = !!rawKey && !type;
     if (!type) type = defaultType === 'auto' ? inferType(p) : defaultType;
     // Options/warrants flagged in the type column as "call"/"put".
     if (type === 'option' && !p.optType && /put|sälj/i.test(rawType)) p.optType = 'put';
@@ -255,9 +302,34 @@ export function rowsToPositions(rows, mapping, { decimal = '.', defaultType = 'a
     for (const f of def.fields) if (p[f] !== undefined) pos[f] = p[f];
     if (type === 'cash' && !pos.name) pos.name = 'Cash ' + (pos.ccy || '');
     const errors = validatePosition(pos);
-    if (typeUnknown) errors.unshift({ field: 'type', code: 'type_guessed:' + rawType });
-    return { line: i + 1, pos, errors, raw: r };
+    if (typeUnknown) errors.unshift({ field: 'type', code: 'type_guessed:' + rawKey });
+    out.push({ line: i + 1, pos, errors, raw: r, rawType: rawKey });
   });
+  return out;
+}
+
+// Distinct values of the type column with the instrument type each resolves to.
+export function typeValues(rows, mapping) {
+  const c = mapping.indexOf('type');
+  if (c < 0) return [];
+  const m = new Map();
+  rows.forEach(r => { const k = String(r[c] ?? '').trim(); if (k) m.set(k, (m.get(k) || 0) + 1); });
+  return [...m.entries()].map(([value, count]) => ({ value, count, auto: resolveType(value) })).sort((a, b) => b.count - a.count);
+}
+
+// Mandatory datapoints for the types in play: [{ field, types: [...], oneOf: [..]|null }]
+export function mandatoryFields(types) {
+  const req = new Map();
+  for (const t of types) {
+    const d = INSTRUMENTS[t];
+    if (!d) continue;
+    for (const f of d.required) (req.get(f) || req.set(f, { field: f, types: [], oneOf: null }).get(f)).types.push(t);
+    for (const g of d.requireOneOf || []) {
+      const key = g.join('|');
+      (req.get(key) || req.set(key, { field: key, types: [], oneOf: g }).get(key)).types.push(t);
+    }
+  }
+  return [...req.values()];
 }
 
 // Merge imported positions into an existing list.
@@ -368,3 +440,129 @@ export function templateCSV(type = null) {
 }
 
 export { parseISODate };
+
+// ---- JSON -------------------------------------------------------------------------------------------
+// Accepts an array of objects, an array of arrays, or any object that holds one somewhere
+// ({ "data": { "positions": [...] } }). Nested objects are flattened to dotted keys.
+export function parseJSONRows(text) {
+  const root = JSON.parse(text);
+  const isRecords = a => Array.isArray(a) && a.length && a.every(x => x && typeof x === 'object');
+  const find = (o, depth = 0) => {
+    if (isRecords(o)) return o;
+    if (depth > 6 || !o || typeof o !== 'object') return null;
+    let best = null;
+    for (const v of Object.values(o)) { const f = find(v, depth + 1); if (f && (!best || f.length > best.length)) best = f; }
+    return best;
+  };
+  const recs = find(root);
+  if (!recs) throw new Error('no_records');
+  if (Array.isArray(recs[0])) return recs.map(r => r.map(v => (v === null ? '' : v)));
+  const flat = (o, pre = '', out = {}) => {
+    for (const [k, v] of Object.entries(o)) {
+      const key = pre ? pre + '.' + k : k;
+      if (v && typeof v === 'object' && !Array.isArray(v)) flat(v, key, out);
+      else out[key] = Array.isArray(v) ? v.join('; ') : v;
+    }
+    return out;
+  };
+  const flats = recs.map(r => flat(r));
+  const headers = [];
+  flats.forEach(f => Object.keys(f).forEach(k => { if (!headers.includes(k)) headers.push(k); }));
+  return [headers, ...flats.map(f => headers.map(h => (f[h] === null || f[h] === undefined ? '' : f[h])))];
+}
+
+// ---- XML --------------------------------------------------------------------------------------------
+// Small tolerant parser (elements, attributes, text, CDATA, comments, entities) so it runs in the
+// browser and under Node alike. The record element is the most frequent element that has
+// children or attributes; each record's attributes and descendant leaf values become columns.
+export function parseXMLRows(text) {
+  const ent = s => s.replace(/&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-f]+);/gi, (_, e) => ({ lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" }[e.toLowerCase()] ??
+    (e[1].toLowerCase() === 'x' ? String.fromCodePoint(parseInt(e.slice(2), 16)) : String.fromCodePoint(+e.slice(1)))));
+  const root = { name: '#root', attrs: {}, children: [], text: '' };
+  const stack = [root];
+  const re = /<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!DOCTYPE[\s\S]*?>|<\/([^\s>]+)\s*>|<([^\s/>]+)((?:\s+[^\s=>/]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)/gi;
+  let m;
+  while ((m = re.exec(text))) {
+    const top = stack[stack.length - 1];
+    if (m[1] !== undefined) top.text += m[1];
+    else if (m[2]) { if (stack.length > 1) stack.pop(); }
+    else if (m[3]) {
+      const attrs = {};
+      (m[4] || '').replace(/([^\s=]+)\s*=\s*("([^"]*)"|'([^']*)')/g, (_, k, __, a, b) => { attrs[k.replace(/^.*:/, '')] = ent(a ?? b ?? ''); });
+      const node = { name: m[3].replace(/^.*:/, ''), attrs, children: [], text: '' };
+      top.children.push(node);
+      if (!m[5]) stack.push(node);
+    } else if (m[6]) top.text += ent(m[6]);
+  }
+  const counts = new Map();
+  const walk = (n, depth) => n.children.forEach(c => {
+    if (c.children.length || Object.keys(c.attrs).length) {
+      const k = c.name; const e = counts.get(k) || { n: 0, depth };
+      e.n++; counts.set(k, e);
+    }
+    walk(c, depth + 1);
+  });
+  walk(root, 0);
+  const [recName] = [...counts.entries()].filter(([, e]) => e.n > 1).sort((a, b) => b[1].n - a[1].n || a[1].depth - b[1].depth)[0] || [];
+  if (!recName) throw new Error('no_records');
+  const recs = [];
+  const collect = n => n.children.forEach(c => (c.name === recName ? recs.push(c) : collect(c)));
+  collect(root);
+  const flat = (n, pre, out) => {
+    for (const [k, v] of Object.entries(n.attrs)) out[(pre ? pre + '.' : '') + k] = v;
+    if (!n.children.length) { if (pre && n.text.trim()) out[pre] = n.text.trim(); return out; }
+    n.children.forEach(c => flat(c, pre ? pre + '.' + c.name : c.name, out));
+    return out;
+  };
+  const flats = recs.map(r => flat(r, '', {}));
+  const headers = [];
+  flats.forEach(f => Object.keys(f).forEach(k => { if (!headers.includes(k)) headers.push(k); }));
+  return [headers, ...flats.map(f => headers.map(h => f[h] ?? ''))];
+}
+
+// ---- saved mapping templates ----------------------------------------------------------------------------
+// A template remembers how one file layout maps onto the platform: column → field (keyed by the
+// normalised header text, so column order may change), per-field transforms, constants for
+// fields the file lacks, custom type codes, the header row and number/date conventions.
+export function buildTemplate({ name, header, mapping, headerRow = 0, sheet = '', decimal = '.', dateFormat = 'auto', transforms = {}, constants = {}, typeMap = {}, skipPattern = '', defaultType = 'auto', mode = 'append', id = null }) {
+  const map = {};
+  header.forEach((h, c) => { if (mapping[c]) map[normKey(h) || 'col' + c] = mapping[c]; });
+  const clean = o => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v !== '' && v !== null && v !== undefined));
+  return {
+    id: id || 'tpl_' + Math.random().toString(36).slice(2, 10), name: String(name || 'Template').slice(0, 80), version: 1,
+    created: new Date().toISOString(), headers: header.map(h => normKey(h)).filter(Boolean),
+    headerRow, sheet, decimal, dateFormat, mapping: map,
+    transforms: Object.fromEntries(Object.entries(transforms || {}).filter(([f, t]) => Object.values(map).includes(f) && t && (t.scale !== undefined && t.scale !== 1 || t.dateFormat))),
+    constants: clean(constants), typeMap: clean(typeMap), skipPattern: skipPattern || '', defaultType, mode
+  };
+}
+export function applyTemplateMapping(tpl, header) {
+  return header.map((h, c) => tpl.mapping[normKey(h) || 'col' + c] || '');
+}
+// Share of the template's headers present in this header row (0…1).
+export function templateScore(tpl, header) {
+  if (!tpl || !tpl.headers || !tpl.headers.length) return 0;
+  const have = new Set(header.map(h => normKey(h)).filter(Boolean));
+  return tpl.headers.filter(h => have.has(h)).length / tpl.headers.length;
+}
+// Best template for a parsed file: checks every sheet and the first 15 rows as header candidates.
+export function detectTemplate(templates, sheets, threshold = 0.8) {
+  let best = null;
+  for (const tpl of templates || []) {
+    sheets.forEach((sh, si) => sh.rows.slice(0, 15).forEach((row, ri) => {
+      const sc = templateScore(tpl, row);
+      if (sc >= threshold && (!best || sc > best.score || (sc === best.score && ri === tpl.headerRow))) best = { template: tpl, sheet: si, headerRow: ri, score: sc };
+    }));
+  }
+  return best;
+}
+export function validateTemplate(obj) {
+  if (!obj || typeof obj !== 'object' || !obj.mapping || typeof obj.mapping !== 'object' || !Array.isArray(obj.headers)) throw new Error('invalid_template');
+  const fields = new Set(allFieldKeys());
+  for (const f of Object.values(obj.mapping)) if (!fields.has(f)) throw new Error('invalid_template');
+  return {
+    ...obj, id: obj.id || 'tpl_' + Math.random().toString(36).slice(2, 10), name: String(obj.name || 'Template').slice(0, 80),
+    transforms: obj.transforms || {}, constants: obj.constants || {}, typeMap: obj.typeMap || {},
+    headerRow: Number.isInteger(obj.headerRow) ? obj.headerRow : 0, decimal: obj.decimal === ',' ? ',' : '.', dateFormat: DATE_FORMATS.includes(obj.dateFormat) ? obj.dateFormat : 'auto'
+  };
+}

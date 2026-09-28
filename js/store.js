@@ -50,7 +50,7 @@ export function newPortfolio(o = {}) {
 
 function freshState() {
   const nav = typeof navigator !== 'undefined' ? navigator.language || '' : '';
-  return { version: 1, settings: { lang: /^(sv|nb|nn|no|da)/i.test(nav) ? 'sv' : 'en', theme: 'auto' }, activeId: null, portfolios: {} };
+  return { version: 1, settings: { lang: /^(sv|nb|nn|no|da)/i.test(nav) ? 'sv' : 'en', theme: 'auto' }, activeId: null, portfolios: {}, templates: [] };
 }
 
 let state = freshState();
@@ -113,6 +113,17 @@ function emit(reason) { listeners.forEach(fn => { try { fn(reason); } catch (e) 
 export const getState = () => state;
 export const settings = () => state.settings;
 export function setSetting(k, v) { state.settings[k] = v; persist(); emit('settings'); }
+
+// Import mapping templates are shared by all portfolios in the workspace.
+export const templates = () => (Array.isArray(state.templates) ? state.templates : []);
+export function saveTemplate(t) {
+  state.templates = [...templates().filter(x => x.id !== t.id), t].sort((a, b) => a.name.localeCompare(b.name));
+  persist(); emit('templates');
+}
+export function deleteTemplate(id) {
+  state.templates = templates().filter(x => x.id !== id);
+  persist(); emit('templates');
+}
 
 export function active() { return state.portfolios[state.activeId] || null; }
 export function listPortfolios() { return Object.values(state.portfolios).sort((a, b) => a.name.localeCompare(b.name)); }
@@ -180,6 +191,11 @@ export function importWorkspace(obj, { merge = true } = {}) {
     state.activeId = copy.id;
   }
   if (obj.settings && !merge) state.settings = { ...state.settings, ...obj.settings };
+  if (Array.isArray(obj.templates)) {
+    const byId = new Map(templates().map(t => [t.id, t]));
+    obj.templates.forEach(t => { if (t && t.id && t.mapping) byId.set(t.id, t); });
+    state.templates = [...byId.values()];
+  }
   undoStack = [];
   persist(); emit('active');
   return incoming.length;

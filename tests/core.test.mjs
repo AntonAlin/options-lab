@@ -309,3 +309,87 @@ test('Options Lab export: positions revalue to the Options Lab price in Portfoli
   assert.equal(b.ws.portfolios[a.portfolioId].positions.length, 4);
   assert.equal(listPortfolios(b.ws)[0].n, 4);
 });
+
+test('JSON and XML custodian files become rows', async () => {
+  const { parseText, parseJSONRows, parseXMLRows } = await import('../js/importer.js');
+  const json = JSON.stringify({ asOf: '2026-09-28', data: { positions: [
+    { isin: 'SE0000115446', security: { name: 'Volvo B', ccy: 'SEK' }, qty: 1000, px: 262.5 },
+    { isin: 'SE0000108656', security: { name: 'Ericsson B', ccy: 'SEK' }, qty: 500, px: 79.8, tags: ['a', 'b'] }
+  ] } });
+  const rows = parseJSONRows(json);
+  assert.deepEqual(rows[0], ['isin', 'security.name', 'security.ccy', 'qty', 'px', 'tags']);
+  assert.deepEqual(rows[2], ['SE0000108656', 'Ericsson B', 'SEK', 500, 79.8, 'a; b']);
+  assert.equal(parseText(json, 'x.json').kind, 'json');
+
+  const xml = `<?xml version="1.0"?><!-- custodian --><Statement date="2026-09-28"><Holdings>
+    <Holding id="1" ccy="SEK"><Name>Volvo B</Name><Qty>1 000</Qty><Price>262,50</Price></Holding>
+    <Holding id="2" ccy="EUR"><Name>ASML &amp; Co</Name><Qty>10</Qty><Price><![CDATA[702,00]]></Price></Holding>
+  </Holdings></Statement>`;
+  const x = parseXMLRows(xml);
+  assert.deepEqual(x[0], ['id', 'ccy', 'Name', 'Qty', 'Price']);
+  assert.deepEqual(x[2], ['2', 'EUR', 'ASML & Co', '10', '702,00']);
+  const pt = parseText(xml, 'statement.xml');
+  assert.equal(pt.kind, 'xml');
+  assert.equal(pt.decimal, ',');
+});
+
+test('explicit date formats', () => {
+  assert.equal(parseDate('03/04/2027', 'dmy'), '2027-04-03');
+  assert.equal(parseDate('03/04/2027', 'mdy'), '2027-03-04');
+  assert.equal(parseDate('2027.04.03', 'ymd'), '2027-04-03');
+  assert.equal(parseDate('20270403', 'compact'), '2027-04-03');
+  assert.equal(parseDate('46480', 'excel'), '2027-04-03');
+  assert.equal(parseDate('2027-04-03', 'dmy'), '2027-04-03', 'unambiguous ISO still works when the declared format does not fit');
+});
+
+test('custom mapping: fixed values, scaling, type codes and skipped rows', async () => {
+  const { rowsToPositions, typeValues, mandatoryFields } = await import('../js/importer.js');
+  const rows = [
+    ['EQ_ORD', 'Volvo B', '1000', '262.5', ''],
+    ['GOVT', 'Sweden 2030', '5000000', '0.019', '2030-11-12'],
+    ['CASHBAL', 'Cash', '10', '', ''],
+    ['TOTAL', 'Total', '', '', '']
+  ];
+  const mapping = ['type', 'name', 'qty', 'yield', 'maturity'];
+  const out = rowsToPositions(rows, mapping, {
+    constants: { ccy: 'SEK', rating: 'AAA' }, transforms: { yield: { scale: 100 } },
+    typeMap: { EQ_ORD: 'equity', GOVT: 'govt_bond', CASHBAL: '__skip' }, skipPattern: 'total'
+  });
+  assert.equal(out.length, 2, 'cash row skipped by type code, total row by pattern');
+  assert.equal(out[0].pos.type, 'equity');
+  assert.equal(out[0].pos.ccy, 'SEK');
+  assert.equal(out[1].pos.type, 'govt_bond');
+  close(out[1].pos.yield, 1.9, 1e-12);
+  assert.equal(out[1].pos.rating, 'AAA');
+  assert.deepEqual(out[1].errors, []);
+  assert.ok(out[0].errors.some(e => e.field === 'price' && e.code === 'required'), 'equity still needs a price');
+  const tv = typeValues(rows, mapping);
+  assert.equal(tv.find(v => v.value === 'GOVT').count, 1);
+  const req = mandatoryFields(['equity', 'govt_bond']);
+  assert.ok(req.find(r => r.field === 'ccy').types.length === 2);
+  assert.ok(req.find(r => r.oneOf && r.oneOf.includes('yield')));
+});
+
+test('saved templates are recognised on a later file even with columns reordered', async () => {
+  const { buildTemplate, detectTemplate, applyTemplateMapping, validateTemplate, rowsToPositions } = await import('../js/importer.js');
+  const header = ['Värdepapper', 'Innehav', 'Senast', 'Valuta', 'Kod'];
+  const tpl = buildTemplate({
+    name: 'Depåbank X', header, mapping: ['name', 'qty', 'price', 'ccy', 'type'], headerRow: 1, decimal: ',',
+    constants: { country: 'SE' }, typeMap: { AK: 'equity' }, transforms: { price: { scale: 1 } }
+  });
+  assert.deepEqual(Object.keys(tpl.transforms), [], 'identity transforms are not stored');
+  const next = [['Rapport 2026-10-01'], ['Kod', 'Valuta', 'Värdepapper', 'Senast', 'Innehav', 'Extra'], ['AK', 'SEK', 'Volvo B', '270,1', '1 000', 'x']];
+  const hit = detectTemplate([tpl], [{ name: 'Blad1', rows: next }]);
+  assert.ok(hit, 'template detected');
+  assert.equal(hit.headerRow, 1);
+  const mapping = applyTemplateMapping(hit.template, next[1]);
+  assert.deepEqual(mapping, ['type', 'ccy', 'name', 'price', 'qty', '']);
+  const [row] = rowsToPositions(next.slice(2), mapping, { decimal: ',', constants: tpl.constants, typeMap: tpl.typeMap });
+  assert.equal(row.pos.type, 'equity');
+  assert.equal(row.pos.qty, 1000);
+  close(row.pos.price, 270.1, 1e-12);
+  assert.equal(row.pos.country, 'SE');
+  assert.deepEqual(row.errors, []);
+  assert.equal(detectTemplate([tpl], [{ name: 'x', rows: [['a', 'b', 'c']] }]), null);
+  assert.throws(() => validateTemplate({ name: 'bad', headers: [], mapping: { a: 'not_a_field' } }));
+});
