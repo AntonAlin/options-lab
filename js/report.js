@@ -8,8 +8,12 @@ import * as charts from './charts.js';
 import { treeNodes, overlayRows, classLabel } from './views/allocation.js';
 import { loadScript, isNum, slug } from './util.js';
 
-export const JSPDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-export const AUTOTABLE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+// Pinned versions from the npm mirror on jsDelivr, verified with Subresource Integrity hashes taken
+// from the npm tarballs (the CDN serves those bytes unchanged).
+export const JSPDF_URL = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+export const JSPDF_SRI = 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk';
+export const AUTOTABLE_URL = 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';
+export const AUTOTABLE_SRI = 'sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3';
 
 export const SECTIONS = ['summary', 'holdings', 'allocation', 'exposure', 'derivatives', 'risk', 'riskClass', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance'];
 
@@ -25,8 +29,8 @@ function clean(s) {
 const INK = [11, 11, 11], INK2 = [82, 81, 78], MUTED = [137, 135, 129], ACCENT = [42, 120, 214], RULE = [225, 224, 217], NEG = [196, 50, 50], POS = [0, 110, 0];
 
 export async function generateReport(p, a, opts) {
-  await loadScript(JSPDF_URL);
-  await loadScript(AUTOTABLE_URL);
+  await loadScript(JSPDF_URL, { integrity: JSPDF_SRI });
+  await loadScript(AUTOTABLE_URL, { integrity: AUTOTABLE_SRI });
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   const W = 210, H = 297, M = 16, CW = W - 2 * M;

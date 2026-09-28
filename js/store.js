@@ -50,7 +50,7 @@ export function newPortfolio(o = {}) {
 
 function freshState() {
   const nav = typeof navigator !== 'undefined' ? navigator.language || '' : '';
-  return { version: 1, settings: { lang: /^(sv|nb|nn|no|da)/i.test(nav) ? 'sv' : 'en', theme: 'auto' }, activeId: null, portfolios: {}, templates: [] };
+  return { version: 1, settings: { lang: /^(sv|nb|nn|no|da)/i.test(nav) ? 'sv' : 'en', theme: 'auto', autoBackup: 'weekly', lastBackup: '' }, activeId: null, portfolios: {}, templates: [] };
 }
 
 let state = freshState();
@@ -179,7 +179,7 @@ export function fxFn(p = active()) {
   };
 }
 
-export function exportWorkspace() { return JSON.stringify({ app: 'nexus-portfolio-lab', ...state }, null, 2); }
+export function exportWorkspace(extra = {}) { return JSON.stringify({ app: 'nexus-portfolio-lab', exportedAt: new Date().toISOString(), ...extra, ...state }, null, 2); }
 export function importWorkspace(obj, { merge = true } = {}) {
   if (!obj || typeof obj !== 'object') throw new Error('invalid');
   // Accept a whole workspace or a single exported portfolio.

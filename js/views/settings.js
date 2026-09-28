@@ -1,8 +1,10 @@
 import * as store from '../store.js';
 import { t } from '../i18n.js';
 import { esc, card, pageHead, toast, selectHtml, confirmDialog, fmtDate, segmented } from '../ui.js';
-import { downloadBlob, todayISO } from '../util.js';
-import { loadDemo } from '../app.js';
+import { todayISO } from '../util.js';
+import { loadDemo, downloadBackup, backupAge } from '../app.js';
+import * as filelink from '../filelink.js';
+import { lang } from '../i18n.js';
 
 const CMA_FIELDS = [
   ['equityVol', '%'], ['equitySpecificVol', '%'], ['ratesVolBp', 'bp'], ['creditVolBp', 'bp'], ['fxVol', '%'], ['commodityVol', '%'], ['volOfVolPts', 'pts'],
@@ -42,8 +44,13 @@ export default {
         <p class="muted small">${esc(t('set.cmaBody'))}</p>
         <div class="cma-grid">${CMA_FIELDS.map(([k, unit]) => `<label><span>${esc(t('cma.' + k))}</span><span class="with-unit"><input data-cma="${k}" inputmode="decimal" value="${p.cma[k]}"><em>${unit}</em></span></label>`).join('')}</div>
         <div class="btn-row"><button class="btn btn-sm" data-act="cmaReset">${esc(t('set.cmaReset'))}</button></div>`) : ''}
+      ${card(t('file.title'), fileCardHtml(), { sub: esc(t('file.sub')), id: 'fileCard' })}
       ${card(t('set.data'), `
         <p class="muted small">${esc(t('set.dataBody'))}</p>
+        <div class="toolbar wrap settings-strip">
+          <span>${esc(t('backup.auto'))}</span>${segmented('autoBackup', [['off', t('backup.off')], ['daily', t('backup.daily')], ['weekly', t('backup.weekly')], ['monthly', t('backup.monthly')]], S.autoBackup || 'weekly')}
+          <span class="muted small">${esc(backupAge() == null ? t('backup.never') : t('backup.lastAt', { d: fmtDate(S.lastBackup.slice(0, 10)) }))}</span>
+        </div>
         <div class="btn-row">
           <button class="btn" data-act="backup">${esc(t('set.backup'))}</button>
           <button class="btn" data-act="restore">${esc(t('set.restore'))}</button>
@@ -84,19 +91,75 @@ export default {
         toast(t('set.restored', { n }));
       } catch (err) { toast(t('set.restoreError'), { tone: 'warn' }); }
     });
+    const off = filelink.onChange(() => { const body = root.querySelector('#fileCard .card-body'); if (body) body.innerHTML = fileCardHtml(); });
     root.onclick = async e => {
       const seg = e.target.closest('[data-seg]');
       if (seg) { store.setSetting(seg.dataset.seg, seg.dataset.value); return; }
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'ecb') fetchEcb();
       if (act === 'cmaReset') store.update(pp => { pp.cma = { ...store.DEFAULT_CMA }; }, t('set.cma'));
-      if (act === 'backup') downloadBlob(store.exportWorkspace(), 'application/json', `nexus-portfolio-lab-backup-${todayISO()}.json`);
+      if (act === 'backup') { downloadBackup(); toast(t('backup.done')); }
+      if (act?.startsWith('file:')) fileAction(act.slice(5), root);
       if (act === 'restore') root.querySelector('#restoreFile').click();
       if (act === 'demo') loadDemo();
       if (act === 'reset' && await confirmDialog(t('set.resetConfirm'), { danger: true, ok: t('set.reset') })) { store.resetWorkspace(); toast(t('set.resetDone')); }
     };
+    return off;
   }
 };
+
+// ---- linked file --------------------------------------------------------------------------------------
+function fileCardHtml() {
+  const fs = filelink.getStatus();
+  if (fs.state === 'unsupported') return `<p class="muted small">${esc(t('file.unsupported'))}</p>`;
+  const when = iso => new Date(iso).toLocaleString(lang() === 'sv' ? 'sv-SE' : 'en-GB');
+  const linked = fs.state !== 'none';
+  return `
+    ${linked ? `<div class="file-status ${fs.state}">
+        <div><strong>${esc(fs.name)}</strong> <span class="type-pill">${esc(fs.kind.toUpperCase())}</span><div class="cell-sub">${esc(fs.state === 'linked' ? (fs.lastSaved ? t('file.savedAt', { t: when(fs.lastSaved) }) : t('file.notYetSaved')) : fs.state === 'needs-permission' ? t('file.needsPermission') : t('file.error') + (fs.error ? ': ' + fs.error : ''))}</div></div>
+        <div class="btn-row">
+          ${fs.state === 'needs-permission' ? `<button class="btn btn-sm btn-primary" data-act="file:reconnect">${esc(t('file.reconnect'))}</button>` : `<button class="btn btn-sm" data-act="file:save">${esc(t('file.saveNow'))}</button>`}
+          <button class="btn btn-sm" data-act="file:unlink">${esc(t('file.unlink'))}</button>
+        </div>
+      </div>` : ''}
+    <p class="muted small">${esc(t('file.body'))}</p>
+    <div class="toolbar wrap">
+      <label class="inline">${esc(t('file.format'))} ${selectHtml('id="fileKind"', [['json', t('file.kind.json')], ['csv', t('file.kind.csv')], ['xlsx', t('file.kind.xlsx')]], fs.kind || 'json')}</label>
+      <button class="btn btn-primary" data-act="file:new">${esc(linked ? t('file.linkOther') : t('file.linkNew'))}</button>
+      <button class="btn" data-act="file:existing">${esc(t('file.linkExisting'))}</button>
+    </div>
+    <p class="muted small">${esc(t('file.formatsHelp'))}</p>`;
+}
+async function fileAction(act, root) {
+  const L = lang();
+  try {
+    if (act === 'new') {
+      const kind = root.querySelector('#fileKind')?.value || 'json';
+      await filelink.linkNew(kind);
+      toast(t('file.linked', { name: filelink.getStatus().name }));
+    } else if (act === 'existing') {
+      const r = await filelink.linkExisting();
+      if (r.kind === 'json' && r.workspace) {
+        const n = r.workspace.portfolios ? Object.keys(r.workspace.portfolios).length : 1;
+        if (await confirmDialog(t('file.loadConfirm', { name: r.name, n }), { ok: t('file.loadFromFile') })) {
+          const loaded = store.importWorkspace(r.workspace, { merge: false });
+          toast(t('file.loaded', { n: loaded }));
+        }
+      } else if (!(await confirmDialog(t('file.overwriteConfirm', { name: r.name }), { ok: t('file.overwrite'), danger: true }))) {
+        await filelink.unlink();
+        return;
+      }
+      await filelink.save({ lang: L });
+      toast(t('file.linked', { name: r.name }));
+    } else if (act === 'save') { if (await filelink.save({ lang: L })) toast(t('file.saved')); }
+    else if (act === 'reconnect') await filelink.reconnect();
+    else if (act === 'unlink') { if (await confirmDialog(t('file.unlinkConfirm'))) { await filelink.unlink(); toast(t('file.unlinked')); } }
+  } catch (err) {
+    if (err && err.name === 'AbortError') return; // picker closed
+    console.error(err);
+    toast(t('file.failed'), { tone: 'warn', ms: 7000 });
+  }
+}
 
 // ECB reference rates via the free Frankfurter API (no key, CORS enabled). Rates are EUR-based,
 // which is exactly how they are stored.

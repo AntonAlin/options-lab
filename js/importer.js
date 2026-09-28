@@ -113,12 +113,15 @@ function iso(y, m, d) {
 
 // ---- file reading ----------------------------------------------------------------------------------
 export const XLSX_URL = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+// SheetJS 0.20.x is only published on cdn.sheetjs.com (npm stops at 0.18.5), so its hash has to be
+// taken from that file. Fill in sha384-… after `openssl dgst -sha384 -binary xlsx.full.min.js | openssl base64 -A`.
+export const XLSX_SRI = '';
 
 // Returns { sheets: [{ name, rows: string[][] | any[][] }], decimal }
 export async function readFile(file, loadScript) {
   const name = file.name.toLowerCase();
   if (/\.(xlsx|xlsm|xls|ods)$/.test(name)) {
-    await loadScript(XLSX_URL);
+    await loadScript(XLSX_URL, { integrity: XLSX_SRI });
     const buf = await file.arrayBuffer();
     const wb = window.XLSX.read(buf, { type: 'array', cellDates: true });
     return { sheets: wb.SheetNames.map(n => ({ name: n, rows: sheetRows(wb.Sheets[n]) })), decimal: '.', kind: 'xlsx' };
@@ -432,6 +435,12 @@ export function toCSV(rows, delim = ',') {
     return /[",;\n\r\t]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   return rows.map(r => r.map(esc).join(delim)).join('\r\n');
+}
+// Every position of a portfolio as rows the bulk upload reads straight back: a type column plus
+// each field any of the held instrument types uses. This is what the linked CSV/Excel file holds.
+export function positionRows(p) {
+  const keys = ['type', ...new Set((p.positions || []).flatMap(x => INSTRUMENTS[x.type]?.fields || []))];
+  return [keys, ...(p.positions || []).map(x => keys.map(k => x[k] ?? ''))];
 }
 export function templateCSV(type = null) {
   const cols = templateColumns(type);

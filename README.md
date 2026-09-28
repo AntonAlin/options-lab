@@ -19,10 +19,26 @@ Free portfolio analytics for fund managers, in English and Swedish. It runs enti
 | **Stress tests** | 11 scenarios (GFC 2008, euro crisis 2011, Covid 2020, 2022 rate shock, parallel rate and spread shifts, base-currency moves, stagflation) plus a custom scenario built with sliders. Options are fully repriced. |
 | **Liquidity** | Days-to-liquidate from average daily volume and a participation rate, or type defaults and notice periods. Pro-rata liquidation profile under normal and stressed conditions. |
 | **Compliance** | UCITS-style limits: single issuer, 5/10/40, government issuers, bank deposits, single fund, derivative commitment, OTC counterparty, 7-day liquidity and illiquid assets, plus optional internal limits. Every limit can be switched on or off and edited. |
+| **Asset allocation & derivatives** | Economic exposure per asset class (holdings plus the derivative overlay, mixed funds split by equity share), sunburst/treemap of class → group → holding, mandate targets and ranges. A derivatives page with notional, delta and commitment by underlying, and a model-vs-reported reconciliation: reported notional, delta or delta-adjusted exposure from your broker/custodian file are used when present and flagged when they disagree with the model. |
+| **Fund calculations** | Cash-flow and expiry calendar (coupons, redemptions, FX settlements, swap and CDS payments, option and future expiries; CSV and .ics export), UCITS SRRI and PRIIPs SRI (category 2, Cornish-Fisher VEV) from the price history, and an indicative NAV per unit per share class with fee accrual and a subscription/redemption simulator. |
 | **PDF report** | Multi-page A4 PDF generated locally with jsPDF: summary tiles, commentary, charts and tables for each section, and a disclaimer. |
+| **How we calculate** | A page listing every formula on the site, the simplifications made and the inputs each calculation reads, with the source module named. |
 | **Options Lab** | The original strategy visualiser (payoff, Greeks, vol surface, Monte Carlo and more) is at `options-lab.html`. It is Swedish only for now. |
 
-Plotly (charts) loads from a CDN when the page opens. jsPDF and SheetJS load only when you export a PDF or use an Excel file.
+### Where the data lives
+
+Everything is kept in the browser's `localStorage`. Two ways to keep it somewhere safer:
+
+- **Linked file (Settings).** In Chrome and Edge on desktop the workspace can be linked to a file on your computer through the File System Access API: a JSON file (the whole workspace, lossless — put it on a synced drive or a backed-up folder), or a CSV/Excel file with the active portfolio's positions in the same layout the bulk upload reads. Every change is written about a second later; the file is reconnected after a reload (the browser asks for permission once per session). If the JSON file was changed elsewhere, a banner offers to load it instead of overwriting it.
+- **Backup files.** *Download backup* saves a JSON of all portfolios; the sidebar shows how old the last backup is and an automatic backup is downloaded daily, weekly or monthly (Settings) when none is linked. *Restore from backup* merges a file back in.
+
+### Third-party libraries
+
+Plotly (charts) loads from jsDelivr when the page opens; jsPDF and jspdf-autotable load only when you export a PDF. All three are pinned to exact versions and verified with Subresource Integrity hashes taken from the npm packages, so a tampered CDN file is refused. SheetJS 0.20.3 (Excel import/export, loaded on demand) is only published on `cdn.sheetjs.com` and its hash is left empty in `js/importer.js` (`XLSX_SRI`); fill it in with `openssl dgst -sha384 -binary xlsx.full.min.js | openssl base64 -A` on the file you verified.
+
+### Browser support
+
+Tested in Chromium. The code uses ES2021 (`??`, `||=`, optional chaining) and `color-mix()` for accent colours, so it needs Safari 16.2+, Firefox 113+, Chrome/Edge 111+; older browsers lose only the tinted borders. The linked-file feature is Chrome/Edge desktop only; other browsers get the backup buttons.
 
 ## Adding an instrument type
 
@@ -70,7 +86,11 @@ Nexus Portfolio Lab är en gratis portföljanalysplattform för förvaltare, på
 - **Innehav** i 15 instrumenttyper, var och en med eget formulär, validering och direkt värdering.
 - **Massuppladdning** från Excel, CSV eller inklistrade celler. Semikolon och decimalkomma känns igen, liksom rubriker på svenska och engelska (t.ex. *Värdepapper, Antal, Kurs, Förfallodag*). Läget "Uppdatera befintliga" matchar på ISIN och passar för dagliga kursfiler. Det finns en Excelmall med instruktionsblad.
 - **Analys:** exponering, parametrisk och historisk VaR med riskbidrag, räntebärande (duration, DV01, rating, löptider), avkastning mot jämförelseindex, stresstester, likviditet och UCITS-placeringsregler.
+- **Tillgångsfördelning och derivat:** ekonomisk exponering per tillgångsslag med derivatöverlägg, mandatintervall, samt avstämning av rapporterat nominellt värde och delta (från mäklar-/depåfil) mot modellen.
+- **Fondberäkningar:** kassaflödeskalender med .ics-export, riskklass (UCITS SRRI och PRIIPs SRI) och indikativt NAV per andel med simulering av teckning och inlösen.
 - **PDF-rapport** som skapas lokalt, med sammanfattning, förvaltarkommentar, diagram och tabeller.
+- **Så räknar vi:** en sida som redovisar varje formel, förenkling och indata bakom siffrorna.
+- **Kopplad fil:** i Chrome/Edge kan arbetsytan kopplas till en fil på datorn (JSON, CSV eller Excel) som skrivs automatiskt vid varje ändring. Sidofältet visar hur gammal senaste säkerhetskopian är, och en automatisk säkerhetskopia laddas ner dagligen, veckovis eller månadsvis.
 - **Options Lab**, den tidigare strategivisualiseraren, finns kvar på `options-lab.html`.
 
 Under Inställningar kan du hämta ECB:s referenskurser med ett klick eller ange valutakurser manuellt, justera riskmodellens antaganden och ta en säkerhetskopia (JSON) av alla portföljer.

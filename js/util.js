@@ -121,12 +121,15 @@ export function downloadBlob(content, type, filename) {
 }
 
 const SCRIPT_CACHE = new Map();
-export function loadScript(src) {
+// `integrity` is a Subresource Integrity hash (sha384-…): the browser refuses the file if the CDN
+// serves anything but the exact bytes we hashed. Empty means no check (see README for SheetJS).
+export function loadScript(src, { integrity = '' } = {}) {
   if (!SCRIPT_CACHE.has(src)) {
     SCRIPT_CACHE.set(src, new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = src;
       s.async = true;
+      if (integrity) { s.integrity = integrity; s.crossOrigin = 'anonymous'; }
       s.onload = resolve;
       s.onerror = () => { SCRIPT_CACHE.delete(src); reject(new Error('Failed to load ' + src)); };
       document.head.appendChild(s);

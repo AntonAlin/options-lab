@@ -556,3 +556,33 @@ test('import recognises reported notional and delta columns', () => {
   assert.equal(m[5], 'reportedNotional');
   assert.equal(m[6], 'reportedDeltaExposure');
 });
+
+test('linked file: position rows round-trip through the importer, file kinds by extension', async () => {
+  const { positionRows } = await import('../js/importer.js');
+  const { kindOfName, buildContent } = await import('../js/filelink.js');
+  const p = buildDemo('2026-09-28');
+  const rows = positionRows(p);
+  assert.equal(rows.length, p.positions.length + 1);
+  assert.equal(rows[0][0], 'type');
+  const mapping = autoMapping(rows[0]);
+  const back = rowsToPositions(rows.slice(1), mapping, { decimal: '.' });
+  assert.equal(back.length, p.positions.length);
+  assert.ok(back.every(x => !x.errors.length), JSON.stringify(back.filter(x => x.errors.length).map(x => [x.pos.name, x.errors])));
+  const v0 = valuePortfolio(p), v1 = valuePortfolio({ ...p, positions: back.map(x => x.pos) });
+  close(v1.nav, v0.nav, 1, 'NAV survives the CSV round trip');
+  assert.equal(v1.errorsCount, 0);
+  assert.deepEqual(['a.json', 'B.CSV', 'c.xlsx', 'd.xls', 'e.txt', ''].map(kindOfName), ['json', 'csv', 'xlsx', 'xlsx', null, null]);
+  assert.equal(buildContent('csv', { p: null }), null, 'nothing to mirror without a portfolio');
+});
+
+test('methodology page documents every module and both languages', async () => {
+  const { METHODOLOGY } = await import('../js/methodology.js');
+  const { readdirSync } = await import('node:fs');
+  const modules = new Set(readdirSync(new URL('../js/', import.meta.url).pathname).filter(f => f.endsWith('.js')));
+  for (const s of METHODOLOGY) {
+    assert.ok(s.title.en && s.title.sv && s.items.length, s.id);
+    for (const m of s.module.split('·')) assert.ok(modules.has(m.trim().split(' ')[0]), `${s.id} names an unknown module: ${m}`);
+    for (const it of s.items) assert.ok(it.en && it.sv && it.formula && it.notes && 'en' in it.notes && 'sv' in it.notes, `${s.id}: ${it.en}`);
+  }
+  assert.ok(METHODOLOGY.some(s => s.id === 'risk') && METHODOLOGY.some(s => s.id === 'fund'));
+});
