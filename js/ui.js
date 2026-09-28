@@ -36,12 +36,13 @@ export function fmtPct(x, d = 1, { sign = false } = {}) {
   const s = fmtNum(x * 100, d) + (lang() === 'sv' ? ' %' : '%');
   return sign && x > 0 ? '+' + s : s;
 }
-export function fmtSigned(x, d = 0) { return isNum(x) ? (x > 0 ? '+' : '') + fmtNum(x, d) : '—'; }
 export function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso + 'T00:00:00Z');
   return isNaN(d) ? iso : d.toLocaleDateString(locale(), { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
+// Number typed by the user: spaces as thousands separators, comma or point as decimal.
+export const numIn = s => { const x = parseFloat(String(s ?? '').replace(/[\s\u00a0\u202f]/g, '').replace(',', '.')); return Number.isFinite(x) ? x : null; };
 export const signCls = x => (!isNum(x) || Math.abs(x) < 1e-12 ? '' : x > 0 ? 'pos' : 'neg');
 
 // ---- building blocks -------------------------------------------------------------------------------

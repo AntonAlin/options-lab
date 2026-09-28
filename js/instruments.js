@@ -82,6 +82,7 @@ export const FIELDS = {
   reportedNotional: { type: 'number', en: 'Reported notional', sv: 'Rapporterat nominellt värde', aliases: ['reportednotional', 'notionalamount', 'notionalvalue', 'underlyingnotional', 'contractvalue', 'grossnotional', 'rapporteratnominellt', 'nominelltvärde', 'kontraktsvärde', 'underliggandevärde'] },
   reportedDelta: { type: 'number', en: 'Reported delta', sv: 'Rapporterad delta', aliases: ['delta', 'reporteddelta', 'optiondelta', 'brokerdelta', 'rapporteraddelta', 'deltaper'] },
   reportedDeltaExposure: { type: 'number', en: 'Reported delta-adjusted exposure', sv: 'Rapporterad deltajusterad exponering', aliases: ['deltaadjustedexposure', 'deltaexposure', 'deltanotional', 'deltaadjustednotional', 'deltaequivalent', 'commitment', 'deltajusteradexponering', 'deltajusteratbelopp', 'åtagande'] },
+  costPrice:   { type: 'number', en: 'Average cost per unit', sv: 'Anskaffningsvärde per enhet (GAV)', aliases: ['costprice', 'averagecost', 'avgcost', 'averageprice', 'unitcost', 'bookcost', 'costbasis', 'purchaseprice', 'gav', 'anskaffningsvärde', 'anskaffningskurs', 'snittkurs', 'inköpskurs', 'genomsnittligtanskaffningsvärde'] },
   strategy:    { type: 'text', en: 'Strategy', sv: 'Strategi', aliases: ['strategy', 'strategi', 'book', 'bok', 'portfoliogroup', 'group', 'grupp'] },
   underlyingClass: { type: 'select', en: 'Underlying', sv: 'Underliggande tillgång', options: ['equity', 'rates', 'commodity', 'fx', 'credit'], aliases: ['underlyingclass', 'underlyingtype', 'underlyingasset', 'tillgångsslag', 'underliggandetyp'] },
   duration:    { type: 'number', en: 'Duration (yrs)', sv: 'Duration (år)', aliases: ['duration', 'modifiedduration', 'modduration', 'ctdduration', 'duration(år)', 'durationår'] },
@@ -194,7 +195,7 @@ export const INSTRUMENTS = {
   equity: {
     en: 'Equity', sv: 'Aktie', group: 'securities', icon: 'EQ',
     hint: { en: 'Listed shares. Quantity in shares, price per share.', sv: 'Noterade aktier. Antal aktier, kurs per aktie.' },
-    fields: [...COMMON, 'qty', 'price', 'ccy', ...CLASSIFY, 'beta', 'adv', 'strategy', 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', ...CLASSIFY, 'beta', 'adv', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'ccy'],
     defaults: { beta: 1 },
     risk(p, ctx) {
@@ -210,7 +211,7 @@ export const INSTRUMENTS = {
   etf: {
     en: 'ETF', sv: 'ETF (börshandlad fond)', group: 'funds', icon: 'ETF',
     hint: { en: 'Set the look-through class so an equity ETF is treated as equity risk and a bond ETF as duration.', sv: 'Ange genomlyst tillgångsslag så att en aktie-ETF behandlas som aktierisk och en ränte-ETF som duration.' },
-    fields: [...COMMON, 'qty', 'price', 'ccy', 'subClass', 'equityShare', 'duration', 'beta', ...CLASSIFY, 'adv', 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', 'subClass', 'equityShare', 'duration', 'beta', ...CLASSIFY, 'adv', 'notes'],
     required: ['name', 'qty', 'price', 'ccy', 'subClass'],
     defaults: { subClass: 'equity', beta: 1 },
     risk(p, ctx) { return fundRisk(p, ctx, 1); }
@@ -219,7 +220,7 @@ export const INSTRUMENTS = {
   fund: {
     en: 'Mutual fund', sv: 'Fond (UCITS/AIF)', group: 'funds', icon: 'FND',
     hint: { en: 'Units × NAV. Redemption settles in a few days, so liquidity defaults to 3 days.', sv: 'Andelar × NAV-kurs. Inlösen tar några dagar, så likviditet sätts som standard till 3 dagar.' },
-    fields: [...COMMON, 'qty', 'price', 'ccy', 'subClass', 'equityShare', 'duration', 'beta', 'liquidityDays', ...CLASSIFY, 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', 'subClass', 'equityShare', 'duration', 'beta', 'liquidityDays', ...CLASSIFY, 'notes'],
     required: ['name', 'qty', 'price', 'ccy', 'subClass'],
     defaults: { subClass: 'mixed', equityShare: 50, liquidityDays: 3, beta: 1 },
     risk(p, ctx) { return fundRisk(p, ctx, 3); }
@@ -228,7 +229,7 @@ export const INSTRUMENTS = {
   govt_bond: {
     en: 'Government bond', sv: 'Statsobligation', group: 'fixed_income', icon: 'GOV',
     hint: { en: 'Quantity = nominal amount. Price = clean price in % of par. Give yield instead of price if that is what you have.', sv: 'Antal = nominellt belopp. Kurs = ren kurs i % av nominellt. Ange avkastning i stället för kurs om det är vad du har.' },
-    fields: [...COMMON, 'qty', 'price', 'yield', 'ccy', 'coupon', 'freq', 'maturity', 'rating', 'country', 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'costPrice', 'yield', 'ccy', 'coupon', 'freq', 'maturity', 'rating', 'country', 'notes'],
     required: ['name', 'qty', 'ccy', 'maturity'],
     requireOneOf: [['price', 'yield']],
     defaults: { freq: '1', rating: 'AAA', coupon: 0 },
@@ -239,7 +240,7 @@ export const INSTRUMENTS = {
   corp_bond: {
     en: 'Corporate bond', sv: 'Företagsobligation', group: 'fixed_income', icon: 'CRP',
     hint: { en: 'Fixed-coupon credit. Carries both rate duration and spread duration.', sv: 'Kreditobligation med fast kupong. Bär både ränte- och spreadduration.' },
-    fields: [...COMMON, 'qty', 'price', 'yield', 'ccy', 'coupon', 'freq', 'maturity', 'rating', ...CLASSIFY, 'adv', 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'costPrice', 'yield', 'ccy', 'coupon', 'freq', 'maturity', 'rating', ...CLASSIFY, 'adv', 'notes'],
     required: ['name', 'issuer', 'qty', 'ccy', 'maturity'],
     requireOneOf: [['price', 'yield']],
     defaults: { freq: '1' },
@@ -250,7 +251,7 @@ export const INSTRUMENTS = {
   frn: {
     en: 'Floating rate note', sv: 'FRN (rörlig kupong)', group: 'fixed_income', icon: 'FRN',
     hint: { en: 'Coupon = current fixing + margin. Rate duration is time to next reset; spread duration runs to maturity. Typical for Nordic credit funds.', sv: 'Kupong = aktuell fixing + marginal. Räntedurationen är tid till nästa räntesättning; kreditdurationen löper till förfall. Vanligt i nordiska kreditfonder.' },
-    fields: [...COMMON, 'qty', 'price', 'yield', 'ccy', 'coupon', 'spread', 'freq', 'maturity', 'rating', ...CLASSIFY, 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'costPrice', 'yield', 'ccy', 'coupon', 'spread', 'freq', 'maturity', 'rating', ...CLASSIFY, 'notes'],
     required: ['name', 'issuer', 'qty', 'price', 'ccy', 'maturity'],
     defaults: { freq: '4' },
     labels: { qty: { en: 'Nominal', sv: 'Nominellt belopp' }, price: { en: 'Clean price %', sv: 'Ren kurs %' }, coupon: { en: 'Current coupon %', sv: 'Aktuell kupong %' } },
@@ -260,7 +261,7 @@ export const INSTRUMENTS = {
   money_market: {
     en: 'Money market / T-bill', sv: 'Penningmarknad / statsskuldväxel', group: 'fixed_income', icon: 'MM',
     hint: { en: 'Discount paper and certificates under a year. Enter price in % of par or the yield.', sv: 'Diskonteringspapper och certifikat under ett år. Ange kurs i % av nominellt eller avkastningen.' },
-    fields: [...COMMON, 'qty', 'price', 'yield', 'ccy', 'maturity', 'rating', 'country', 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'costPrice', 'yield', 'ccy', 'maturity', 'rating', 'country', 'notes'],
     required: ['name', 'qty', 'ccy', 'maturity'],
     requireOneOf: [['price', 'yield']],
     labels: { qty: { en: 'Nominal', sv: 'Nominellt belopp' }, price: { en: 'Price %', sv: 'Kurs %' } },
@@ -320,7 +321,7 @@ export const INSTRUMENTS = {
   option: {
     en: 'Listed option', sv: 'Option', group: 'derivatives', icon: 'OPT',
     hint: { en: 'Priced with Black-Scholes-Merton (Black-76 when the underlying is rates or commodity). Leave price empty to use the model value. Delta-adjusted notional counts as exposure.', sv: 'Prissätts med Black-Scholes-Merton (Black-76 för ränte- och råvaruunderliggande). Lämna kurs tom för modellvärde. Deltajusterat nominellt belopp räknas som exponering.' },
-    fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'divYield', 'beta', 'duration', 'buyCcy', 'reportedNotional', 'reportedDelta', 'reportedDeltaExposure', 'strategy', 'notes'],
+    fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'costPrice', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'divYield', 'beta', 'duration', 'buyCcy', 'reportedNotional', 'reportedDelta', 'reportedDeltaExposure', 'strategy', 'notes'],
     required: ['name', 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'multiplier', 'ccy'],
     defaults: { multiplier: 100, optType: 'call', underlyingClass: 'equity', rate: 2.5, vol: 20, beta: 1 },
     labels: { qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)', sv: 'Utdelningsyield % (valuta: utländsk ränta)' }, buyCcy: { en: 'Underlying currency (FX options; put = short it)', sv: 'Underliggande valuta (valutaoptioner; put = kort)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
@@ -468,7 +469,7 @@ export const INSTRUMENTS = {
   commodity: {
     en: 'Commodity / ETC', sv: 'Råvara / ETC', group: 'securities', icon: 'CMD',
     hint: { en: 'Physical holdings or exchange-traded commodities. For futures use the Future type.', sv: 'Fysiska innehav eller börshandlade råvaror. Använd typen Termin för terminer.' },
-    fields: [...COMMON, 'qty', 'price', 'ccy', 'sector', 'adv', 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', 'sector', 'adv', 'notes'],
     required: ['name', 'qty', 'price', 'ccy'],
     risk(p, ctx) {
       const r = blank(ctx.base);
@@ -483,7 +484,7 @@ export const INSTRUMENTS = {
   alternative: {
     en: 'Alternative / unlisted', sv: 'Alternativ / onoterat', group: 'securities', icon: 'ALT',
     hint: { en: 'Private equity, real estate, hedge funds, private credit, crypto. Valued at the last reported NAV; liquidity from the notice period.', sv: 'Onoterat, fastigheter, hedgefonder, direktlån, krypto. Värderas till senast rapporterade NAV; likviditet från uppsägningstiden.' },
-    fields: [...COMMON, 'altType', 'qty', 'price', 'ccy', 'liquidityDays', 'beta', ...CLASSIFY, 'notes'],
+    fields: [...COMMON, 'altType', 'qty', 'price', 'costPrice', 'ccy', 'liquidityDays', 'beta', ...CLASSIFY, 'notes'],
     required: ['name', 'altType', 'qty', 'price', 'ccy'],
     defaults: { altType: 'private_equity', liquidityDays: 180, qty: 1, beta: 0.6 },
     labels: { price: { en: 'Valuation / NAV', sv: 'Värdering / NAV' } },

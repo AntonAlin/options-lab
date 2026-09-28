@@ -586,3 +586,38 @@ test('methodology page documents every module and both languages', async () => {
   }
   assert.ok(METHODOLOGY.some(s => s.id === 'risk') && METHODOLOGY.some(s => s.id === 'fund'));
 });
+
+test('cost basis: average-cost book with fees, short through zero, FX effect and period realised', async () => {
+  const { lotBook, pnlAnalysis, parseTransactions, unitOf } = await import('../js/pnl.js');
+  // 100 @ 10 (+10 fee) → avg 10.10; 100 @ 12 → avg 11.05; sell 150 @ 13 (−15 fee) → realised 150×1.95 − 15
+  const b = lotBook([
+    { date: '2026-01-05', side: 'buy', qty: 100, price: 10, fees: 10 },
+    { date: '2026-02-05', side: 'buy', qty: 100, price: 12, fees: 0 },
+    { date: '2026-03-05', side: 'sell', qty: 150, price: 13, fees: 15 }
+  ], 1);
+  close(b.avg, 11.05, 1e-12); close(b.qty, 50, 1e-12); close(b.realised, 150 * 1.95 - 15, 1e-9); close(b.costLocal, 50 * 11.05, 1e-9);
+  // Selling through zero: 50 long, sell 80 @ 14 → realise 50 × (14 − 11.05), then short 30 @ 14; buy 30 @ 12 covers: realise 30 × 2
+  const c = lotBook([...[
+    { date: '2026-01-05', side: 'buy', qty: 100, price: 10, fees: 10 }, { date: '2026-02-05', side: 'buy', qty: 100, price: 12, fees: 0 },
+    { date: '2026-03-05', side: 'sell', qty: 150, price: 13, fees: 15 }],
+    { date: '2026-04-01', side: 'sell', qty: 80, price: 14, fees: 0 }, { date: '2026-05-01', side: 'buy', qty: 30, price: 12, fees: 0 }
+  ], 1);
+  close(c.qty, 0, 1e-12); close(c.realised, 150 * 1.95 - 15 + 50 * (14 - 11.05) + 30 * 2, 1e-9);
+  assert.equal(c.rows[3].qtyAfter, -30); close(c.rows[3].avgAfter, 14, 1e-12);
+  // FX: bought at 10 SEK/USD, now 11 → the FX effect is the whole gain when the price is unchanged
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-06-30' });
+  p.fxEur = { EUR: 1, SEK: 11, USD: 1 }; // 1 USD = 11 SEK today
+  p.positions = [{ id: 'u', type: 'equity', name: 'US Co', qty: 100, price: 50, ccy: 'USD' }, { id: 'g', type: 'govt_bond', name: 'Bond', qty: 1000000, price: 98, ccy: 'SEK', coupon: 0, maturity: '2028-06-30', costPrice: 95 }, { id: 'k', type: 'cash', name: 'Cash', qty: 1000, ccy: 'SEK' }];
+  p.transactions = [{ id: 't1', posId: 'u', date: '2025-12-01', side: 'buy', qty: 100, price: 50, fees: 0, fx: 10 }];
+  const a = pnlAnalysis(valuePortfolio(p), p, { from: '2026-01-01' });
+  const us = a.rows.find(r => r.pos.id === 'u'), bond = a.rows.find(r => r.pos.id === 'g');
+  close(us.costBase, 100 * 50 * 10, 1e-9); close(us.unrealised, 100 * 50 * 1, 1e-9); close(us.fxEffect, 5000, 1e-9);
+  assert.equal(unitOf(p.positions[1]), 0.01);
+  close(bond.costBase, 1000000 * 0.95, 1e-6); close(bond.unrealised, 1000000 * 0.03, 1e-6); // clean 98 vs cost 95 (dirty = clean, zero coupon)
+  assert.equal(a.covered.length, 2); assert.equal(a.eligible, 2); assert.equal(a.tot.realisedPeriod, 0);
+  // File import: Swedish headers, decimal comma, side words, matching on ticker/name
+  p.positions[0].ticker = 'USCO';
+  const r = parseTransactions([['Datum', 'Typ', 'Värdepapper', 'Antal', 'Kurs', 'Courtage'], ['2026-03-01', 'Köp', 'USCO', '10', '52,5', '9'], ['2026-03-02', 'Sälj', 'Okänd AB', '5', '50', '0'], ['01/04/2026', 'Sälj', 'US Co', '5', '55', '0']], p.positions);
+  assert.equal(r.txs.length, 2); assert.equal(r.txs[0].side, 'buy'); close(r.txs[0].price, 52.5, 1e-12); assert.equal(r.txs[1].date, '2026-04-01');
+  assert.deepEqual(r.unmatched.map(u => u.reason), ['no_position']);
+});

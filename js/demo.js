@@ -90,10 +90,29 @@ export function buildDemo(valDate) {
     return p;
   });
 
+  // Cost basis: most holdings bought below today's price, a few above; three positions carry a
+  // transaction history that reconstructs the holding (so the book and the custodian agree).
+  const crng = mulberry32(7);
+  const txs = [];
+  for (const p of positions) {
+    if (!['equity', 'etf', 'fund', 'commodity', 'alternative', 'govt_bond', 'corp_bond', 'frn', 'money_market', 'option'].includes(p.type)) continue;
+    const ret = -0.08 + 0.42 * crng(); // −8 % … +34 % since purchase
+    if (!(p.price > 0)) continue; // bills on yield and options without a premium stay without cost
+    p.costPrice = Math.round(p.price / (1 + ret) * 100) / 100;
+    if (['NVDA', 'ERIC B', 'VOLVO 29'].includes(p.ticker)) {
+      const unitTxs = p.ticker === 'VOLVO 29'
+        ? [[plus(-20), 'buy', p.qty, 99.1, 0], [plus(-7), 'buy', 5e6, 100.6, 0], [plus(-3), 'sell', 5e6, 101.9, 0]]
+        : [[plus(-18), 'buy', Math.round(p.qty * 0.8), p.costPrice * 0.92, 450], [plus(-9), 'buy', Math.round(p.qty * 0.45), p.costPrice * 1.05, 380], [plus(-4), 'sell', Math.round(p.qty * 0.8) + Math.round(p.qty * 0.45) - p.qty, p.price * 0.96, 410]];
+      unitTxs.forEach(([date, side, qty, price, fees]) => txs.push({ id: uid('tx'), posId: p.id, date, side, qty, price: Math.round(price * 100) / 100, fees, fx: p.ccy === 'USD' ? 10.6 : undefined }));
+      delete p.costPrice;
+    }
+  }
+
   const pf = newPortfolio({
     name: 'Demo: Nordic Balanced Fund', baseCcy: 'SEK', valDate: '', manager: 'Demo Fund Management AB', fundType: 'UCITS',
     positions, fxEur: FX_EUR, fxSource: 'demo', demo: true
   });
+  pf.transactions = txs;
   pf.history = syntheticHistory(positions, valDate);
   pf.benchmark = 'Benchmark 60/40';
   return pf;

@@ -16,7 +16,6 @@ export const num = (x, fb = 0) => (isNum(x) ? x : fb);
 // Payments per year. Select fields store it as text ("2"), so parse rather than type-check.
 export const freqOf = (x, fb = 1) => { const n = Math.round(+x); return Number.isFinite(n) && n >= 1 ? n : fb; };
 export const sum = arr => arr.reduce((a, b) => a + b, 0);
-export const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
 export function mean(a) { return a.length ? sum(a) / a.length : NaN; }
 export function stdev(a, ddof = 1) {
@@ -91,21 +90,6 @@ export function gaussian(rng) {
   while (u === 0) u = rng();
   while (v === 0) v = rng();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
-
-// Cholesky of a symmetric PSD matrix. Tiny negative pivots (from user-edited correlations
-// that are not quite PSD) are floored instead of throwing, so the demo never explodes.
-export function cholesky(M) {
-  const n = M.length, L = M.map(() => new Array(n).fill(0));
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j <= i; j++) {
-      let s = M[i][j];
-      for (let k = 0; k < j; k++) s -= L[i][k] * L[j][k];
-      if (i === j) L[i][j] = Math.sqrt(Math.max(s, 1e-12));
-      else L[i][j] = s / L[j][j];
-    }
-  }
-  return L;
 }
 
 // ---- browser-only helpers --------------------------------------------------------------------

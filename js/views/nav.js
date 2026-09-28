@@ -1,11 +1,10 @@
 import * as store from '../store.js';
 import { t } from '../i18n.js';
-import { esc, card, pageHead, table, kpi, fmtMoney, fmtNum, fmtPct, fmtDate, selectHtml, statusChip, signCls } from '../ui.js';
+import { esc, card, pageHead, table, kpi, fmtMoney, fmtNum, fmtPct, fmtDate, selectHtml, statusChip, signCls, numIn } from '../ui.js';
 import { simulateFlow } from '../fund.js';
 import { uid, todayISO } from '../util.js';
 
 const ui = { classId: '', amount: '', pct: null };
-const numIn = s => parseFloat(String(s).replace(/[\s  ]/g, '').replace(',', '.'));
 
 export default {
   render(root, app) {

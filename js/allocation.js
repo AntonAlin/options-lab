@@ -6,17 +6,10 @@
 // through with their equity share so a 60/40 fund shows up as 60 % equity and 40 % bonds.
 import { regionOf } from './instruments.js';
 import { sum, num, isNum } from './util.js';
-import { RATING_BUCKETS } from './analytics.js';
-import { ratingScore } from './instruments.js';
+import { bucketRating } from './analytics.js';
 
 export const ALLOC_DIMS = ['auto', 'sector', 'region', 'currency', 'type'];
-export const ALLOC_MEASURES = ['economic', 'mv', 'gross'];
 
-function ratingBucket(r) {
-  const s = ratingScore(r);
-  if (s == null) return 'NR';
-  return RATING_BUCKETS[s <= 1 ? 0 : s <= 4 ? 1 : s <= 7 ? 2 : s <= 10 ? 3 : s <= 13 ? 4 : s <= 16 ? 5 : 6];
-}
 
 // One row can land in several classes (a mixed fund). Each piece carries both its market value
 // and its economic exposure, so the two views always add up to the same holdings.
@@ -43,7 +36,7 @@ function groupKey(x, cls, dim, base) {
   const { pos } = x;
   const d = dim === 'auto' ? (cls === 'equity' ? 'sector' : cls === 'fixed_income' ? 'rating' : 'type') : dim;
   if (d === 'sector') return (pos.sector || '').trim() || '—';
-  if (d === 'rating') return pos.type === 'irs' ? '—' : ratingBucket(pos.rating);
+  if (d === 'rating') return pos.type === 'irs' ? '—' : bucketRating(pos.rating);
   if (d === 'region') return regionOf(pos.country);
   if (d === 'currency') return pos.type === 'fx_forward' ? `${pos.buyCcy || '?'}/${pos.sellCcy || '?'}` : (pos.ccy || base);
   return 'type:' + pos.type;

@@ -5,7 +5,7 @@ import { fmtMoney, fmtPct, fmtNum, fmtDate } from './ui.js';
 import { ASSET_CLASSES, REGIONS, typeLabel } from './instruments.js';
 import { monthlyReturns, RATING_BUCKETS } from './analytics.js';
 import * as charts from './charts.js';
-import { treeNodes, overlayRows, classLabel } from './views/allocation.js';
+import { treeNodes, overlayRows, classLabel } from './labels.js';
 import { loadScript, isNum, slug } from './util.js';
 
 // Pinned versions from the npm mirror on jsDelivr, verified with Subresource Integrity hashes taken
@@ -15,7 +15,7 @@ export const JSPDF_SRI = 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/S
 export const AUTOTABLE_URL = 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';
 export const AUTOTABLE_SRI = 'sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3';
 
-export const SECTIONS = ['summary', 'holdings', 'allocation', 'exposure', 'derivatives', 'risk', 'riskClass', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance'];
+export const SECTIONS = ['summary', 'holdings', 'pnl', 'allocation', 'exposure', 'derivatives', 'risk', 'riskClass', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance'];
 
 // Standard PDF fonts are WinAnsi; map the few characters Intl and our labels produce that it lacks.
 function clean(s) {
@@ -162,6 +162,25 @@ export async function generateReport(p, a, opts) {
     tableAt([t('col.ccy'), t('exp.ccyGross'), t('exp.ccyHedge'), t('exp.ccyNet'), t('exp.hedgeRatio')],
       fx.rows.map(r => [r.ccy, fmtPct(r.grossW, 1), fmtPct(v.nav ? r.hedge / v.nav : 0, 1), fmtPct(r.netW, 1), r.gross ? fmtPct(r.hedgeRatio, 0) : '-']));
     tableAt([t('exp.top10'), t('exp.effN'), 'HHI'], [[fmtPct(conc.top10, 1), fmtNum(conc.effectiveN, 1), fmtNum(conc.hhi * 10000, 0)]], { width: CW / 2 });
+  }
+
+  // ---- cost basis & P&L ---------------------------------------------------------------------------------
+  if (sections.has('pnl') && a.pnl && a.pnl.covered.length) {
+    const pn = a.pnl;
+    doc.addPage(); y = M + 6;
+    heading(t('nav.pnl'), t('pnl.sub'));
+    kpiGrid([
+      [t('pnl.costBasis'), fmtMoney(pn.tot.costBase, base, { compact: true }), t('pnl.costBasisSub', { v: fmtMoney(pn.tot.mv, base, { compact: true }) })],
+      [t('pnl.unrealised'), fmtMoney(pn.tot.unrealised, base, { compact: true }), fmtPct(pn.tot.unrealisedPct, 1, { sign: true }) + ' ' + t('pnl.onCost'), pnlColor(pn.tot.unrealised)],
+      [t('pnl.fxEffect'), fmtMoney(pn.tot.fxEffect, base, { compact: true }), t('pnl.fxEffectSub'), pnlColor(pn.tot.fxEffect)],
+      [t('pnl.realisedAll'), fmtMoney(pn.tot.realisedAll, base, { compact: true }), t('pnl.feesSub', { v: fmtMoney(pn.tot.fees, base, { compact: true }) }), pnlColor(pn.tot.realisedAll)]
+    ]);
+    tableAt([t('col.name'), t('col.qty'), t('pnl.avgCost'), t('col.price'), t('pnl.costBase', { base }), t('col.mv', { base }), t('pnl.unrealised'), '%', t('pnl.realisedAll')],
+      pn.covered.map(r => [r.name.slice(0, 36), fmtNum(r.qty, 0), fmtNum(r.avgPerUnit, r.avgPerUnit < 10 ? 4 : 2), fmtNum(r.pos.price, r.pos.price < 10 ? 4 : 2), fmtMoney(r.costBase, '', { compact: true }), fmtMoney(r.mv, '', { compact: true }),
+        cellV(fmtMoney(r.unrealised, '', { compact: true }), r.unrealised), cellV(fmtPct(r.unrealisedPct, 1, { sign: true }), r.unrealised), r.book ? cellV(fmtMoney(r.realisedBase, '', { compact: true }), r.realisedBase) : '-']),
+      { fontSize: 7.5, didParseCell: colorPnl([6, 7, 8]) });
+    if (pn.uncovered.length) para(t('pnl.uncoveredNote', { n: pn.uncovered.length }), 7.5, MUTED);
+    para(t('pnl.method'), 7.5, MUTED);
   }
 
   // ---- asset allocation -----------------------------------------------------------------------------------

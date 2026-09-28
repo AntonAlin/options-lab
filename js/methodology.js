@@ -87,6 +87,16 @@ export const METHODOLOGY = [
     ]
   },
   {
+    id: 'pnl', module: 'pnl.js',
+    title: { en: 'Cost basis and P&L', sv: 'Anskaffningsvärde och resultat' },
+    items: [
+      { en: 'Average cost (transaction log)', sv: 'Genomsnittligt anskaffningsvärde (transaktionslogg)', formula: 'buy:  avg ← (q · avg + Δq · (price·unit + fees/Δq)) / (q + Δq)\nsell: realised = Δq · (price·unit − avg) − fees;  q ← q − Δq  (avg unchanged)\nselling through zero opens a short at the trade price; covering a short realises (avg − price)', notes: { en: 'Average-cost method (the Swedish tax standard, "genomsnittsmetoden"); FIFO is not offered. unit = 1 for shares and fund units, multiplier for options, 1/100 for bonds and bills (price in % of par). Quantities are signed so short positions work symmetrically. The book quantity is compared with the position; a difference is flagged, not corrected.', sv: 'Genomsnittsmetoden (skattestandard i Sverige); FIFO erbjuds inte. unit = 1 för aktier och fondandelar, multiplikator för optioner, 1/100 för obligationer och växlar (kurs i % av nominellt). Kvantiteter har tecken så korta positioner fungerar symmetriskt. Bokens antal jämförs med innehavet; en skillnad flaggas, rättas inte.' }, params: 'transactions: date, side, qty, price, fees, fx' },
+      { en: 'Cost price without transactions', sv: 'Anskaffningsvärde utan transaktioner', formula: 'cost basis = quantity × costPrice × unit × FX_today', notes: { en: 'For holdings loaded from a custodian file. With today\'s FX there is no FX effect to show.', sv: 'För innehav från en depåfil. Med dagens valutakurs finns ingen valutaeffekt att visa.' }, params: 'costPrice' },
+      { en: 'Unrealised P&L and FX effect', sv: 'Orealiserat resultat och valutaeffekt', formula: 'unrealised = MV − cost basis (base ccy)\nlocal part = (price·unit − avg) × q × FX_today;  FX effect = unrealised − local part', notes: { en: 'The FX effect only appears when transactions carry the FX rate of the trade day (cost basis in base currency = Σ q · price · FX_trade). Bond MV is dirty, cost is clean, so accrued interest sits in the unrealised figure. Futures, swaps and forwards are outside the cost basis (no purchase price); their MTM is in the holdings.', sv: 'Valutaeffekten syns bara när transaktionerna har affärsdagens valutakurs (anskaffningsvärde i basvaluta = Σ q · kurs · FX_affärsdag). Obligationers MV är smutsig kurs, anskaffningen ren, så upplupen ränta ligger i det orealiserade. Terminer, swappar och valutaterminer ligger utanför anskaffningsvärdet (inget inköpspris); deras marknadsvärde finns i innehaven.' } },
+      { en: 'Realised P&L per period', sv: 'Realiserat resultat per period', formula: 'Σ realised of sells with trade date ≥ period start (YTD, 12 months, all)', notes: { en: 'In base currency at the trade-day FX when recorded, else today\'s.', sv: 'I basvaluta till affärsdagens valutakurs när den finns, annars dagens.' } }
+    ]
+  },
+  {
     id: 'fund', module: 'fund.js',
     title: { en: 'Fund calculations', sv: 'Fondberäkningar' },
     items: [

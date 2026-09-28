@@ -80,7 +80,7 @@ export function allocations(v) {
     issuer: groupBy(rows.filter(x => !['cash', 'fx_forward', 'irs', 'future'].includes(x.pos.type)), x => x.issuer, mv, nav).slice(0, 15)
   };
 }
-function bucketRating(r) {
+export function bucketRating(r) {
   const s = ratingScore(r);
   if (s == null) return 'NR';
   return ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC-D'][s <= 1 ? 0 : s <= 4 ? 1 : s <= 7 ? 2 : s <= 10 ? 3 : s <= 13 ? 4 : s <= 16 ? 5 : 6];
@@ -590,4 +590,3 @@ export function fullAnalysis(p) {
 }
 
 export { returnsOf };
-export const _test = { groupBy, bucketRating, isGovt };

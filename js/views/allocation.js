@@ -1,35 +1,11 @@
 import * as store from '../store.js';
-import { t, L, lang } from '../i18n.js';
-import { esc, card, pageHead, table, kpi, fmtMoney, fmtPct, segmented, selectHtml, statusChip, signCls } from '../ui.js';
-import { ASSET_CLASSES, REGIONS, typeLabel } from '../instruments.js';
-import { ALLOC_DIMS, allocationTree } from '../allocation.js';
+import { t } from '../i18n.js';
+import { esc, card, pageHead, table, kpi, fmtMoney, fmtPct, segmented, selectHtml, statusChip, signCls, numIn } from '../ui.js';
+import { ALLOC_DIMS } from '../allocation.js';
+import { classLabel, treeNodes, overlayRows } from '../labels.js';
 import * as charts from '../charts.js';
 
 const ui = { measure: 'economic', kind: 'sunburst' };
-const numIn = s => { const x = parseFloat(String(s).replace(/[\s  %]/g, '').replace(',', '.')); return Number.isFinite(x) ? x : null; };
-
-export const classLabel = k => L(ASSET_CLASSES[k] || { en: k });
-export function groupLabel(key) {
-  if (key.startsWith('type:')) return typeLabel(key.slice(5), lang());
-  if (REGIONS[key]) return L(REGIONS[key]);
-  return key;
-}
-
-// Tree nodes with labels and colours attached, shared by the page and the PDF.
-export function treeNodes(v, { measure, dim, base, th }) {
-  return allocationTree(v, { measure, dim, base }).map(n => ({
-    ...n,
-    label: n.kind === 'class' ? classLabel(n.key) : n.kind === 'group' ? groupLabel(n.key) : n.key + (n.share != null && n.share < 1 ? ` (${Math.round(n.share * 100)} %)` : ''),
-    color: charts.classColor(n.cls, th)
-  }));
-}
-
-export function overlayRows(aa, th) {
-  return aa.classes.map(c => ({
-    label: classLabel(c.key), physical: aa.nav ? c.physical / aa.nav : 0, overlay: c.overlayW, econ: c.econW,
-    color: charts.classColor(c.key, th), target: c.target, min: c.min, max: c.max
-  }));
-}
 
 export default {
   render(root, app) {

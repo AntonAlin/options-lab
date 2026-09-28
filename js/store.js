@@ -81,6 +81,7 @@ export function upgradePortfolio(p) {
   p.risk = { ...DEFAULT_RISK, ...(p.risk || {}) };
   p.fund = { classes: [], liabilities: 0, receivables: 0, feeFrom: '', ...(p.fund || {}) };
   p.allocTargets = p.allocTargets && typeof p.allocTargets === 'object' ? p.allocTargets : {};
+  p.transactions = Array.isArray(p.transactions) ? p.transactions : [];
   const lim = JSON.parse(JSON.stringify(DEFAULT_LIMITS));
   for (const [k, v] of Object.entries(p.limits || {})) if (lim[k]) lim[k] = { ...lim[k], ...v };
   p.limits = lim;
@@ -112,7 +113,6 @@ if (typeof window !== 'undefined') {
 }
 function emit(reason) { listeners.forEach(fn => { try { fn(reason); } catch (e) { console.error(e); } }); }
 
-export const getState = () => state;
 export const settings = () => state.settings;
 export function setSetting(k, v) { state.settings[k] = v; persist(); emit('settings'); }
 
@@ -156,7 +156,6 @@ export function update(fn, label = '') {
   p.updatedAt = new Date().toISOString();
   persist(); emit('data');
 }
-export function canUndo() { return undoStack.length > 0; }
 export function undo() {
   const last = undoStack.pop();
   if (!last) return null;

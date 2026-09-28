@@ -3,8 +3,8 @@ import { t, L, lang } from '../i18n.js';
 import { esc, card, pageHead, fmtMoney, fmtPct, fmtNum, table, openModal, closeModal, confirmDialog, toast, selectHtml, empty } from '../ui.js';
 import { INSTRUMENTS, GROUPS, FIELDS, OPTION_LABELS, fieldLabel, typeLabel, validatePosition } from '../instruments.js';
 import { makeCtx } from '../analytics.js';
-import { uid, isNum, downloadBlob, slug, loadScript } from '../util.js';
-import { toCSV, XLSX_URL } from '../importer.js';
+import { uid, isNum, sum, downloadBlob, slug, loadScript } from '../util.js';
+import { toCSV, positionRows, XLSX_URL, XLSX_SRI } from '../importer.js';
 
 const ui = { q: '', type: '', sort: 'mv', dir: -1, selected: new Set() };
 
@@ -111,19 +111,18 @@ export default {
   }
 };
 
-const sum = a => a.reduce((x, y) => x + y, 0);
-
+// The importable position columns plus three computed ones.
 function exportRows(p, v) {
-  const keys = ['type', ...new Set(p.positions.flatMap(x => INSTRUMENTS[x.type]?.fields || []))];
-  const head = [...keys, 'marketValue_' + p.baseCcy, 'weightPct', 'exposurePct'];
-  const body = v.rows.map(x => [...keys.map(k => x.pos[k] ?? ''), x.r ? Math.round(x.r.mv * 100) / 100 : '', x.r ? +(x.weight * 100).toFixed(4) : '', x.r ? +(x.expWeight * 100).toFixed(4) : '']);
-  return [head, ...body];
+  const [head, ...body] = positionRows(p);
+  const byId = new Map(v.rows.map(x => [x.pos.id, x]));
+  return [[...head, 'marketValue_' + p.baseCcy, 'weightPct', 'exposurePct'],
+    ...body.map((row, i) => { const x = byId.get(p.positions[i].id); return [...row, x?.r ? Math.round(x.r.mv * 100) / 100 : '', x?.r ? +(x.weight * 100).toFixed(4) : '', x?.r ? +(x.expWeight * 100).toFixed(4) : '']; })];
 }
 async function exportHoldings(p, v, kind) {
   const rows = exportRows(p, v);
   if (kind === 'csv') { downloadBlob('﻿' + toCSV(rows, lang() === 'sv' ? ';' : ','), 'text/csv;charset=utf-8', slug(p.name) + '-holdings.csv'); return; }
   try {
-    await loadScript(XLSX_URL);
+    await loadScript(XLSX_URL, { integrity: XLSX_SRI });
     const XLSX = window.XLSX;
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Holdings');

@@ -1,8 +1,9 @@
 import * as store from '../store.js';
 import { t } from '../i18n.js';
-import { esc, card, pageHead, toast, selectHtml, confirmDialog, fmtDate, segmented } from '../ui.js';
+import { esc, card, pageHead, toast, selectHtml, confirmDialog, fmtDate, segmented, numIn } from '../ui.js';
 import { todayISO } from '../util.js';
-import { loadDemo, downloadBackup, backupAge } from '../app.js';
+import { loadDemo } from '../app.js';
+import { downloadBackup, backupAge } from '../backup.js';
 import * as filelink from '../filelink.js';
 import { lang } from '../i18n.js';
 
@@ -61,11 +62,10 @@ export default {
       ${card(t('set.about'), `<p class="muted small">${esc(t('set.aboutBody'))}</p><p class="muted small">${esc(t('rep.disclaimer'))}</p>`)}
     `;
 
-    const num = s => parseFloat(String(s).replace(/\s/g, '').replace(',', '.'));
     root.querySelector('#pfForm')?.addEventListener('change', e => {
       const { name, value } = e.target;
       store.update(pp => {
-        if (name === 'riskFree') { const x = num(value); if (Number.isFinite(x)) pp.risk.riskFree = x; }
+        if (name === 'riskFree') { const x = numIn(value); if (x != null) pp.risk.riskFree = x; }
         else if (name === 'valDate') pp.valDate = value === todayISO() ? '' : value;
         else if (name === 'baseCcy') {
           // Keep the EUR-cross table; converting to a new base just re-reads it.
@@ -74,14 +74,14 @@ export default {
       }, t('set.portfolio'));
     });
     root.querySelectorAll('[data-fx]').forEach(inp => inp.addEventListener('change', e => {
-      const c = e.target.dataset.fx, x = num(e.target.value);
+      const c = e.target.dataset.fx, x = numIn(e.target.value);
       if (!(x > 0)) { toast(t('set.fxInvalid'), { tone: 'warn' }); return; }
       // Stored as EUR crosses: EUR per CCY follows from base-per-CCY and EUR-per-base.
       store.update(pp => { const eurBase = pp.fxEur[pp.baseCcy]; pp.fxEur[c] = eurBase / x; pp.fxSource = 'manual'; }, t('set.fx'));
     }));
     root.querySelectorAll('[data-cma]').forEach(inp => inp.addEventListener('change', e => {
-      const x = num(e.target.value);
-      if (Number.isFinite(x)) store.update(pp => { pp.cma[e.target.dataset.cma] = x; }, t('set.cma'));
+      const x = numIn(e.target.value);
+      if (x != null) store.update(pp => { pp.cma[e.target.dataset.cma] = x; }, t('set.cma'));
     }));
     root.querySelector('#restoreFile').addEventListener('change', async e => {
       const f = e.target.files[0];

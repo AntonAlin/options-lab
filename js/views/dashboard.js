@@ -66,6 +66,7 @@ export default {
         ${kpi(t('kpi.liq7'), fmtPct(liq7 && liq.assets ? liq7.value / liq.assets : 0, 0), { sub: t('kpi.liq7Sub'), tone: liq7 && liq.assets && liq7.value / liq.assets < 0.7 ? 'warn' : '' })}
         ${kpi(t('kpi.compliance'), comp.breaches ? `<span class="neg">${comp.breaches} ${esc(t('kpi.breaches'))}</span>` : comp.warnings ? `${comp.warnings} ${esc(t('kpi.warnings'))}` : esc(t('kpi.allClear')), { sub: t('kpi.rulesChecked', { n: comp.rules.length }), tone: comp.breaches ? 'breach' : comp.warnings ? 'warn' : 'ok' })}
         ${a.ri ? kpi(t('kpi.sri'), `${a.ri.sri}<small> / 7</small>`, { sub: `SRRI ${a.ri.srri} · ${esc(t('kpi.sriSub'))}`, help: t('help.sri') }) : ''}
+        ${a.pnl.covered.length ? kpi(t('kpi.unrealised'), `<span class="${a.pnl.tot.unrealised < 0 ? 'neg' : 'pos'}">${fmtMoney(a.pnl.tot.unrealised, base, { compact: true })}</span>`, { sub: `${fmtPct(a.pnl.tot.unrealisedPct, 1, { sign: true })} · ${esc(t('kpi.unrealisedSub', { n: a.pnl.covered.length, total: a.pnl.eligible }))}` }) : ''}
         ${kpi(t('kpi.cf90'), `<span class="${a.cf.next90 < 0 ? 'neg' : ''}">${fmtMoney(a.cf.next90, base, { compact: true })}</span>`, { sub: t('kpi.cf90Sub') })}
         ${a.nav.ok ? kpi(t('kpi.navUnit', { name: a.nav.classes[0].name || a.nav.classes[0].ccy }), `${fmtNum(a.nav.classes[0].navPerUnit, 2)} <small>${esc(a.nav.classes[0].ccy)}</small>`, { sub: a.nav.classes[0].vsLast != null ? `${fmtPct(a.nav.classes[0].vsLast, 2, { sign: true })} ${esc(t('kpi.navUnitSub'))}` : esc(t('kpi.navUnitIndicative')) }) : ''}
       </div>
