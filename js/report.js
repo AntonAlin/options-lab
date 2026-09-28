@@ -5,12 +5,13 @@ import { fmtMoney, fmtPct, fmtNum, fmtDate } from './ui.js';
 import { ASSET_CLASSES, REGIONS, typeLabel } from './instruments.js';
 import { monthlyReturns, RATING_BUCKETS } from './analytics.js';
 import * as charts from './charts.js';
+import { treeNodes, overlayRows, classLabel } from './views/allocation.js';
 import { loadScript, isNum, slug } from './util.js';
 
 export const JSPDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 export const AUTOTABLE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
 
-export const SECTIONS = ['summary', 'holdings', 'exposure', 'risk', 'riskClass', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance'];
+export const SECTIONS = ['summary', 'holdings', 'allocation', 'exposure', 'derivatives', 'risk', 'riskClass', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance'];
 
 // Standard PDF fonts are WinAnsi; map the few characters Intl and our labels produce that it lacks.
 function clean(s) {
@@ -157,6 +158,42 @@ export async function generateReport(p, a, opts) {
     tableAt([t('col.ccy'), t('exp.ccyGross'), t('exp.ccyHedge'), t('exp.ccyNet'), t('exp.hedgeRatio')],
       fx.rows.map(r => [r.ccy, fmtPct(r.grossW, 1), fmtPct(v.nav ? r.hedge / v.nav : 0, 1), fmtPct(r.netW, 1), r.gross ? fmtPct(r.hedgeRatio, 0) : '-']));
     tableAt([t('exp.top10'), t('exp.effN'), 'HHI'], [[fmtPct(conc.top10, 1), fmtNum(conc.effectiveN, 1), fmtNum(conc.hhi * 10000, 0)]], { width: CW / 2 });
+  }
+
+  // ---- asset allocation -----------------------------------------------------------------------------------
+  if (sections.has('allocation') && a.aa) {
+    const aa = a.aa;
+    doc.addPage(); y = M + 6;
+    heading(t('nav.allocation'), t('aa.sub'));
+    await chart(charts.overlaySpec(overlayRows(aa, th), { th, names: { physical: t('aa.physical'), overlay: t('aa.overlayCol'), econ: t('aa.m.economic'), target: t('aa.target') } }), Math.min(95, 14 + 9 * aa.classes.length));
+    const stColor = { ok: POS, warn: [170, 110, 0], breach: NEG };
+    tableAt([t('exp.assetClass'), t('aa.m.mv'), t('aa.overlayCol'), t('aa.m.economic'), t('aa.long'), t('aa.short'), t('aa.target'), 'Min-max', ''],
+      aa.classes.map(c => [classLabel(c.key), fmtPct(c.mvW, 1), c.overlay ? cellV(fmtPct(c.overlayW, 1, { sign: true }), c.overlay) : '-', fmtPct(c.econW, 1), fmtPct(c.longW, 1), c.short ? fmtPct(c.shortW, 1) : '-',
+        c.target != null ? fmtPct(c.target, 1) : '-', c.min != null || c.max != null ? `${c.min != null ? fmtPct(c.min, 0) : '0'} - ${c.max != null ? fmtPct(c.max, 0) : '-'}` : '-',
+        c.status ? { content: t('status.' + c.status), _s: c.status } : '']),
+      { didParseCell: d => { colorPnl([2])(d); if (d.section === 'body' && d.column.index === 8 && d.row.raw[8]?._s) { d.cell.styles.textColor = stColor[d.row.raw[8]._s]; d.cell.styles.fontStyle = 'bold'; } } });
+    const nodes = treeNodes(v, { measure: 'economic', dim: p.risk?.allocDim || 'auto', base, th });
+    if (nodes.length) { heading(t('aa.map'), t('aa.mapHelp')); await chart(charts.hierarchySpec(nodes, { th, kind: 'treemap', shortLabel: t('aa.shortLbl'), height: 520 }), 105); }
+    para(t('aa.method'), 7.5, MUTED);
+  }
+
+  // ---- derivatives -------------------------------------------------------------------------------------------
+  if (sections.has('derivatives') && a.db && a.db.count) {
+    const db = a.db;
+    if (sections.has('allocation')) { ensure(80); } else { doc.addPage(); y = M + 6; }
+    heading(t('nav.derivatives'), t('der.sub'));
+    kpiGrid([
+      [t('der.count'), String(db.count), t('der.countSub', { n: db.rows.filter(r => r.type === 'option').length })],
+      [t('der.coverage'), `${db.withReported} / ${db.reportable}`, t('der.coverageSub', { n: db.usingReported })],
+      [t('der.mismatches'), String(db.mismatches), t('der.mismatchSub', { d: '0.05' }), db.mismatches ? NEG : INK],
+      [t('der.commitment'), fmtPct(db.commitmentW, 1), t('der.commitmentSub')]
+    ]);
+    const cm = x => (x == null ? '-' : fmtMoney(x, '', { compact: true }));
+    tableAt([t('col.name'), t('der.notional'), t('der.deltaModel'), t('der.deltaRep'), t('der.expModel'), t('der.expRep'), t('der.source')],
+      db.rows.map(r => [r.name.slice(0, 38), cm(r.notional), r.type === 'option' ? fmtNum(r.modelDelta, 3) : '1', r.type === 'option' && (r.repDelta ?? r.impliedDelta) != null ? fmtNum(r.repDelta ?? r.impliedDelta, 3) : '-',
+        r.type === 'fx_forward' ? '-' : cm(r.modelDeltaExp), cm(r.repDeltaExp), { content: r.mismatch ? t('der.check') : r.used ? t('der.src.reported') : t('der.src.model'), _m: r.mismatch }]),
+      { fontSize: 7.5, didParseCell: d => { if (d.section === 'body' && d.column.index === 6 && d.row.raw[6]?._m) { d.cell.styles.textColor = NEG; d.cell.styles.fontStyle = 'bold'; } } });
+    para(t('der.method'), 7.5, MUTED);
   }
 
   // ---- risk ------------------------------------------------------------------------------------------------

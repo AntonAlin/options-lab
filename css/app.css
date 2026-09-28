@@ -434,3 +434,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 14px 0 10px; }
 .form-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 700px) { .form-grid.three { grid-template-columns: minmax(0, 1fr); } }
 .kpi-value small { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+.check-inline { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; }
+.check-inline input { width: 16px; height: 16px; accent-color: var(--accent); }
+.tgt-in { width: 64px; min-width: 0; padding: 4px 6px; text-align: right; font-variant-numeric: tabular-nums; }

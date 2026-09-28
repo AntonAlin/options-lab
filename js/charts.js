@@ -146,6 +146,72 @@ export function stackedBarSpec(labels, series, { th = currentTheme(), height = 3
   };
 }
 
+// ---- allocation ------------------------------------------------------------------------------------
+// Physical holdings plus derivative overlay per class, stacked (overlay can be negative), with the
+// resulting economic weight as a diamond and the mandate range as a thin band behind the bars.
+// rows: [{ label, physical, overlay, econ, color, min?, max?, target? }] as weights of NAV.
+export function overlaySpec(rows, { th = currentTheme(), names = {}, height = null } = {}) {
+  const P = THEMES[th];
+  const r = [...rows].reverse();
+  const y = r.map(x => x.label);
+  const pct = '%{x:.1%}';
+  const data = [
+    { type: 'bar', orientation: 'h', name: names.physical || 'Physical', y, x: r.map(x => x.physical),
+      marker: { color: r.map(x => rgba(x.color, 0.85)), line: { color: r.map(x => x.color), width: 1 } },
+      hovertemplate: `<b>%{y}</b><br>${names.physical || 'Physical'}: ${pct}<extra></extra>` },
+    { type: 'bar', orientation: 'h', name: names.overlay || 'Derivatives', y, x: r.map(x => x.overlay),
+      marker: { color: r.map(x => rgba(x.color, 0.28)), line: { color: r.map(x => x.color), width: 1.5, dash: 'dot' }, pattern: { shape: '/', fgcolor: r.map(x => rgba(x.color, 0.7)), size: 6 } },
+      hovertemplate: `<b>%{y}</b><br>${names.overlay || 'Derivatives'}: ${pct}<extra></extra>` },
+    { type: 'scatter', mode: 'markers+text', name: names.econ || 'Economic', y, x: r.map(x => x.econ),
+      marker: { symbol: 'diamond', size: 12, color: P.ink, line: { color: P.surface, width: 2 } },
+      text: r.map(x => (x.econ * 100).toFixed(1) + '%'), textposition: 'middle right', textfont: { color: P.ink, size: 11 }, cliponaxis: false,
+      hovertemplate: `<b>%{y}</b><br>${names.econ || 'Economic'}: ${pct}<extra></extra>` }
+  ];
+  const withTarget = r.filter(x => isNum(x.target));
+  if (withTarget.length) data.push({
+    type: 'scatter', mode: 'markers', name: names.target || 'Target', y: withTarget.map(x => x.label), x: withTarget.map(x => x.target),
+    marker: { symbol: 'line-ns-open', size: 22, color: P.accent, line: { width: 3, color: P.accent } },
+    hovertemplate: `<b>%{y}</b><br>${names.target || 'Target'}: ${pct}<extra></extra>`
+  });
+  const shapes = r.map((x, i) => (isNum(x.min) || isNum(x.max)) ? {
+    type: 'rect', xref: 'x', yref: 'y', x0: isNum(x.min) ? x.min : 0, x1: isNum(x.max) ? x.max : Math.max(1, x.econ), y0: i - 0.45, y1: i + 0.45,
+    fillcolor: rgba(P.accent, 0.08), line: { color: rgba(P.accent, 0.35), width: 1, dash: 'dot' }, layer: 'below'
+  } : null).filter(Boolean);
+  return {
+    data,
+    layout: baseLayout(th, {
+      barmode: 'relative', bargap: 0.35, showlegend: true, shapes,
+      height: height || Math.max(220, 44 * rows.length + 80),
+      legend: { orientation: 'h', y: 1.02, x: 0, yanchor: 'bottom', font: { color: P.ink2, size: 11 } },
+      margin: { l: 8, r: 50, t: 30, b: 28 },
+      xaxis: axis(P, { ...pctTick, zeroline: true }),
+      yaxis: axis(P, { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: P.ink2, size: 12 } })
+    })
+  };
+}
+
+// Class → group → holding as a sunburst or treemap. nodes: [{ id, parent, label, size, signed, weight,
+// color, short }]; sizes are absolute, shorts are drawn hatched so they stand out from longs.
+export function hierarchySpec(nodes, { th = currentTheme(), kind = 'sunburst', height = 460, shortLabel = 'short' } = {}) {
+  const P = THEMES[th];
+  const trace = {
+    type: kind, ids: nodes.map(n => n.id), parents: nodes.map(n => n.parent), values: nodes.map(n => n.size),
+    labels: nodes.map(n => n.label), branchvalues: 'total', sort: true,
+    customdata: nodes.map(n => [n.weight, n.short ? ` (${shortLabel})` : '']),
+    marker: {
+      colors: nodes.map(n => rgba(n.color, n.parent === '' ? 0.92 : n.short ? 0.35 : n.kind === 'group' ? 0.7 : 0.5)),
+      line: { color: th === 'dark' ? '#0b0b12' : '#ffffff', width: 1.5 },
+      ...(kind === 'treemap' ? { pattern: { shape: nodes.map(n => (n.short ? '/' : '')), fgcolor: P.neg, size: 7 } } : {})
+    },
+    insidetextfont: { family: FONT, color: th === 'dark' ? '#f8fafc' : '#0f172a' },
+    hovertemplate: '<b>%{label}</b>%{customdata[1]}<br>%{customdata[0]:+.2%} NAV<br>%{percentRoot:.1%}<extra></extra>',
+    texttemplate: '%{label}<br>%{customdata[0]:.1%}'
+  };
+  if (kind === 'sunburst') Object.assign(trace, { maxdepth: 3, insidetextorientation: 'radial', leaf: { opacity: 1 } });
+  else Object.assign(trace, { maxdepth: 3, tiling: { pad: 2 }, pathbar: { visible: true, textfont: { family: FONT } }, textposition: 'middle center' });
+  return { data: [trace], layout: baseLayout(th, { height, margin: { l: 4, r: 4, t: kind === 'treemap' ? 28 : 4, b: 4 } }) };
+}
+
 // ---- donut ---------------------------------------------------------------------------------------------
 // items: [{ label, value, color? }] — share of total, centre shows `center` / `centerSub`.
 export function donutSpec(items, { th = currentTheme(), height = 300, center = '', centerSub = '' } = {}) {

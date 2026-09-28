@@ -14,7 +14,8 @@ export function makeCtx(p) {
     base: p.baseCcy,
     valDate: p.valDate || todayISO(),
     fx: ccy => { if (!ccy || ccy === p.baseCcy) return 1; const c = eur[ccy]; return isNum(c) && isNum(b) && c > 0 ? b / c : undefined; },
-    cma: { ...cma, equitySpecificVol: cma.equitySpecificVol / 100 }
+    cma: { ...cma, equitySpecificVol: cma.equitySpecificVol / 100 },
+    useReported: p.risk?.useReported !== false
   };
 }
 

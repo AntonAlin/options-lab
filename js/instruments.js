@@ -79,6 +79,9 @@ export const FIELDS = {
   vol:         { type: 'number', en: 'Implied vol %', sv: 'Implicit vol %', aliases: ['vol', 'iv', 'impliedvol', 'impliedvolatility', 'volatility', 'volatilitet', 'implicitvolatilitet'] },
   rate:        { type: 'number', en: 'Risk-free rate %', sv: 'Riskfri ränta %', aliases: ['rate', 'riskfreerate', 'rfr', 'riskfriränta'] },
   divYield:    { type: 'number', en: 'Dividend / foreign rate %', sv: 'Utdelning / utländsk ränta %', aliases: ['divyield', 'dividendyield', 'dividend', 'q', 'foreignrate', 'utdelningsyield', 'utdelning', 'direktavkastning'] },
+  reportedNotional: { type: 'number', en: 'Reported notional', sv: 'Rapporterat nominellt värde', aliases: ['reportednotional', 'notionalamount', 'notionalvalue', 'underlyingnotional', 'contractvalue', 'grossnotional', 'rapporteratnominellt', 'nominelltvärde', 'kontraktsvärde', 'underliggandevärde'] },
+  reportedDelta: { type: 'number', en: 'Reported delta', sv: 'Rapporterad delta', aliases: ['delta', 'reporteddelta', 'optiondelta', 'brokerdelta', 'rapporteraddelta', 'deltaper'] },
+  reportedDeltaExposure: { type: 'number', en: 'Reported delta-adjusted exposure', sv: 'Rapporterad deltajusterad exponering', aliases: ['deltaadjustedexposure', 'deltaexposure', 'deltanotional', 'deltaadjustednotional', 'deltaequivalent', 'commitment', 'deltajusteradexponering', 'deltajusteratbelopp', 'åtagande'] },
   strategy:    { type: 'text', en: 'Strategy', sv: 'Strategi', aliases: ['strategy', 'strategi', 'book', 'bok', 'portfoliogroup', 'group', 'grupp'] },
   underlyingClass: { type: 'select', en: 'Underlying', sv: 'Underliggande tillgång', options: ['equity', 'rates', 'commodity', 'fx', 'credit'], aliases: ['underlyingclass', 'underlyingtype', 'underlyingasset', 'tillgångsslag', 'underliggandetyp'] },
   duration:    { type: 'number', en: 'Duration (yrs)', sv: 'Duration (år)', aliases: ['duration', 'modifiedduration', 'modduration', 'ctdduration', 'duration(år)', 'durationår'] },
@@ -282,16 +285,21 @@ export const INSTRUMENTS = {
   future: {
     en: 'Future', sv: 'Termin (future)', group: 'derivatives', icon: 'FUT',
     hint: { en: 'Contracts × price × multiplier = notional. Daily margined, so market value is ~0 and the notional is the exposure. For bond futures enter the CTD modified duration.', sv: 'Kontrakt × kurs × multiplikator = nominellt värde. Marginalavräknas dagligen, så marknadsvärdet är ~0 och det nominella värdet är exponeringen. För obligationsterminer anges CTD:ns modifierade duration.' },
-    fields: [...COMMON, 'qty', 'price', 'multiplier', 'ccy', 'underlyingClass', 'maturity', 'duration', 'beta', 'buyCcy', 'mtm', 'country', 'strategy', 'notes'],
+    fields: [...COMMON, 'qty', 'price', 'multiplier', 'ccy', 'underlyingClass', 'maturity', 'duration', 'beta', 'buyCcy', 'mtm', 'reportedNotional', 'country', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'multiplier', 'ccy', 'underlyingClass'],
     defaults: { multiplier: 1, underlyingClass: 'equity', beta: 1 },
     labels: { qty: { en: 'Contracts (negative = short)', sv: 'Kontrakt (negativt = kort)' }, buyCcy: { en: 'Currency bought (FX futures)', sv: 'Köpt valuta (valutaterminer)' }, duration: { en: 'Duration (bond futures)', sv: 'Duration (obligationsterminer)' }, mtm: { en: 'Variation margin (unsettled)', sv: 'Ej avräknad variationsmarginal' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
-      const notional = num(p.qty) * num(p.price) * num(p.multiplier, 1) * fx;
+      const modelNotional = num(p.qty) * num(p.price) * num(p.multiplier, 1) * fx;
+      // The broker's number wins when there is one: it knows the contract spec, we only guess it.
+      const repNotional = isNum(p.reportedNotional) ? dirSign(p.qty) * Math.abs(p.reportedNotional) * fx : null;
+      const notional = repNotional != null && ctx.useReported !== false ? repNotional : modelNotional;
       const mv = num(p.mtm) * fx;
       const cls = p.underlyingClass || 'equity';
+      r.deriv = derivInfo({ notional, modelNotional, repNotional, delta: 1, modelDelta: 1, deltaExp: notional, modelDeltaExp: modelNotional, repDeltaExp: repNotional, used: repNotional != null && ctx.useReported !== false });
+      if (r.deriv.mismatch) r.warnings.push('reported_mismatch');
       Object.assign(r, { mv, exposure: Math.abs(notional), net: notional, assetClass: DERIV_CLASS[cls] || 'mixed', liqDays: 1 });
       if (cls === 'equity') { r.eqDelta = notional; r.beta = num(p.beta, 1); }
       else if (cls === 'rates') {
@@ -312,7 +320,7 @@ export const INSTRUMENTS = {
   option: {
     en: 'Listed option', sv: 'Option', group: 'derivatives', icon: 'OPT',
     hint: { en: 'Priced with Black-Scholes-Merton (Black-76 when the underlying is rates or commodity). Leave price empty to use the model value. Delta-adjusted notional counts as exposure.', sv: 'Prissätts med Black-Scholes-Merton (Black-76 för ränte- och råvaruunderliggande). Lämna kurs tom för modellvärde. Deltajusterat nominellt belopp räknas som exponering.' },
-    fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'divYield', 'beta', 'duration', 'buyCcy', 'strategy', 'notes'],
+    fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'divYield', 'beta', 'duration', 'buyCcy', 'reportedNotional', 'reportedDelta', 'reportedDeltaExposure', 'strategy', 'notes'],
     required: ['name', 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'multiplier', 'ccy'],
     defaults: { multiplier: 100, optType: 'call', underlyingClass: 'equity', rate: 2.5, vol: 20, beta: 1 },
     labels: { qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)', sv: 'Utdelningsyield % (valuta: utländsk ränta)' }, buyCcy: { en: 'Currency bought (FX options)', sv: 'Köpt valuta (valutaoptioner)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
@@ -328,7 +336,20 @@ export const INSTRUMENTS = {
       const units = num(p.qty) * num(p.multiplier, 1);
       const unitPrice = isNum(p.price) ? p.price : g.price;
       const mv = units * unitPrice * fx;
-      const deltaNotional = units * g.delta * S * fx;
+      // Model first, then let the custodian/broker file override. Magnitudes come from the file,
+      // signs from the position itself (long/short × call/put) — files disagree on sign conventions
+      // far more often than on size.
+      const modelNotional = units * S * fx;
+      const modelDeltaExp = modelNotional * g.delta;
+      const putSign = p.optType === 'put' ? -1 : 1;
+      const repNotional = isNum(p.reportedNotional) ? dirSign(p.qty) * Math.abs(p.reportedNotional) * fx : null;
+      const repDelta = isNum(p.reportedDelta) ? putSign * normDelta(p.reportedDelta) : null;
+      const repDeltaExp = isNum(p.reportedDeltaExposure) ? dirSign(p.qty) * putSign * Math.abs(p.reportedDeltaExposure) * fx
+        : repDelta != null || repNotional != null ? (repNotional ?? modelNotional) * (repDelta ?? g.delta) : null;
+      const useRep = repDeltaExp != null && ctx.useReported !== false;
+      const deltaNotional = useRep ? repDeltaExp : modelDeltaExp;
+      const notionalUsed = repNotional != null && ctx.useReported !== false ? repNotional : modelNotional;
+      r.deriv = derivInfo({ notional: notionalUsed, modelNotional, repNotional, delta: notionalUsed ? deltaNotional / notionalUsed : g.delta, modelDelta: g.delta, repDelta, deltaExp: deltaNotional, modelDeltaExp, repDeltaExp, used: useRep });
       Object.assign(r, {
         mv, exposure: Math.abs(deltaNotional), net: deltaNotional, assetClass: DERIV_CLASS[cls] || 'mixed',
         vega: units * g.vega * fx, gamma: units * g.gamma * S * S * fx, liqDays: 1,
@@ -340,6 +361,7 @@ export const INSTRUMENTS = {
       else if (cls === 'fx') { addFx(r, p.buyCcy, deltaNotional, ctx.base); addFx(r, p.ccy, -deltaNotional, ctx.base); }
       addFx(r, p.ccy, mv, ctx.base);
       if (T <= 0) r.warnings.push('expired');
+      if (r.deriv.mismatch) r.warnings.push('reported_mismatch');
       return r;
     },
     // Full revaluation under a stress scenario — delta/gamma would badly misprice a 30 % crash.
@@ -373,6 +395,7 @@ export const INSTRUMENTS = {
       const buy = num(p.buyAmount) * fb, sell = num(p.sellAmount) * fs;
       const mv = isNum(p.mtm) ? p.mtm * fxOrWarn(p, ctx, r, p.ccy || ctx.base) : buy - sell;
       Object.assign(r, { mv, exposure: Math.max(Math.abs(buy), Math.abs(sell)), net: 0, assetClass: 'currency', liqDays: 1 });
+      r.deriv = derivInfo({ notional: buy, modelNotional: buy, delta: 1, modelDelta: 1, deltaExp: 0, modelDeltaExp: 0 });
       addFx(r, p.buyCcy, buy, ctx.base);
       addFx(r, p.sellCcy, -sell, ctx.base);
       // Rate differential exposure is second order at fund level; the tenor is shown in the table.
@@ -398,6 +421,7 @@ export const INSTRUMENTS = {
       const mv = isNum(p.mtm) ? p.mtm * fx : est;
       Object.assign(r, {
         mv, exposure: Math.abs(N), net: sign * N, assetClass: 'fixed_income', liqDays: 1,
+        deriv: derivInfo({ notional: sign * N, modelNotional: sign * N, delta: 1, modelDelta: 1, deltaExp: sign * N, modelDeltaExp: sign * N }),
         fi: { ytm: num(p.marketRate) / 100, modDur: sign * annuity, spreadDur: 0, convexity: 0, years, rating: '', derivative: true }
       });
       addIr01(r, p.ccy, -sign * N * annuity * 1e-4);
@@ -425,6 +449,7 @@ export const INSTRUMENTS = {
       const mv = isNum(p.mtm) ? p.mtm * fx : est;
       Object.assign(r, {
         mv, exposure: Math.abs(N), net: -sign * N, assetClass: 'fixed_income', liqDays: 2,
+        deriv: derivInfo({ notional: -sign * N, modelNotional: -sign * N, delta: 1, modelDelta: 1, deltaExp: -sign * N, modelDeltaExp: -sign * N }),
         cs01: sign * N * annuity * 1e-4,
         fi: { ytm: null, modDur: 0, spreadDur: -sign * annuity, convexity: 0, years, rating: p.rating || '', derivative: true }
       });
@@ -470,6 +495,28 @@ export const INSTRUMENTS = {
     }
   }
 };
+
+// Short positions carry a negative quantity; a zero or missing quantity is treated as long.
+const dirSign = q => (num(q) < 0 ? -1 : 1);
+// Delta arrives as 0.45, 45 (per cent) or -0.45 depending on the system. Anything above 1 in
+// absolute terms has to be per cent — a plain option cannot have a delta above one.
+export const normDelta = d => { const a = Math.abs(num(d)); return a > 1.0001 ? Math.min(1, a / 100) : a; };
+// Reconciliation block every derivative carries: what we used, what the model says, what the
+// file said, and whether the two disagree enough to deserve a look.
+export const DELTA_TOL = 0.05, EXPOSURE_TOL = 0.10;
+function derivInfo(o) {
+  const d = { repNotional: null, repDelta: null, repDeltaExp: null, used: false, ...o };
+  d.hasReported = d.repNotional != null || d.repDelta != null || d.repDeltaExp != null;
+  d.diffExp = d.repDeltaExp != null ? d.repDeltaExp - d.modelDeltaExp : null;
+  d.diffPct = d.diffExp != null && Math.abs(d.modelDeltaExp) > 1e-9 ? d.diffExp / Math.abs(d.modelDeltaExp) : null;
+  // Compare in delta units, not exposure: a 0.02 delta gap on a far-OTM put is a 15 % exposure gap
+  // and nobody should be paged for it.
+  const base = d.repNotional ?? d.modelNotional;
+  d.impliedDelta = d.repDeltaExp != null && Math.abs(base) > 1e-9 ? d.repDeltaExp / base : null;
+  d.mismatch = (d.impliedDelta != null && Math.abs(d.impliedDelta - d.modelDelta) > DELTA_TOL) ||
+    (d.repNotional != null && Math.abs(d.modelNotional) > 1e-9 && Math.abs(d.repNotional / d.modelNotional - 1) > EXPOSURE_TOL);
+  return d;
+}
 
 const DERIV_CLASS = { equity: 'equity', rates: 'fixed_income', commodity: 'commodity', fx: 'currency', credit: 'fixed_income' };
 

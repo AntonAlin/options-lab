@@ -481,3 +481,78 @@ test('semi-annual bonds are priced semi-annually even when the frequency is stor
   const a = bondAnalytics({ valuationDate: '2026-01-15', maturity: '2031-01-15', couponPct: 4, freq: 2, yieldPct: 4 });
   close(r.fi.modDur, a.modDur, 1e-12);
 });
+
+test('reported delta and notional override the model, with signs from the position', async () => {
+  const { derivativesBook } = await import('../js/allocation.js');
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-01-15' });
+  const opt = { id: 'o', type: 'option', name: 'Put', qty: -10, optType: 'put', strike: 100, maturity: '2026-07-15', underlyingPrice: 100, vol: 20, multiplier: 100, ccy: 'SEK', underlyingClass: 'equity', rate: 2 };
+  p.positions = [
+    { ...opt, reportedDelta: 45 },                                           // per cent, unsigned: short put = long delta
+    { ...opt, id: 'o2', reportedDeltaExposure: -44000 },                     // amount only, sign from the file ignored
+    { ...opt, id: 'o3' },                                                     // model only
+    { id: 'f', type: 'future', name: 'Fut', qty: -2, price: 1000, multiplier: 10, ccy: 'SEK', underlyingClass: 'equity', reportedNotional: 21000 }
+  ];
+  const [a, b, c, f] = valuePortfolio(p).valid.map(x => x.r);
+  close(a.net, -10 * 100 * 100 * -0.45, 1e-9, 'short put with |delta| 0.45 is +45 000 of equity');
+  assert.equal(a.deriv.used, true);
+  assert.equal(a.deriv.mismatch, false, 'ATM put delta ~0.45 matches');
+  close(b.net, 44000, 1e-9);
+  assert.equal(b.deriv.mismatch, false);
+  assert.equal(c.deriv.used, false);
+  close(c.net, c.deriv.modelDeltaExp, 1e-9);
+  close(f.net, -21000, 1e-9);
+  assert.equal(f.deriv.mismatch, false, '5 % notional gap is within tolerance');
+  assert.ok(!f.warnings.includes('reported_mismatch'));
+  // A wildly different reported delta gets flagged, and switching the setting off reverts to the model.
+  p.positions[0].reportedDelta = 0.9;
+  const flagged = valuePortfolio(p).valid[0].r;
+  assert.equal(flagged.deriv.mismatch, true);
+  assert.ok(flagged.warnings.includes('reported_mismatch'));
+  p.risk.useReported = false;
+  const off = valuePortfolio(p);
+  close(off.valid[0].r.net, off.valid[0].r.deriv.modelDeltaExp, 1e-9);
+  close(off.valid[3].r.net, -20000, 1e-9);
+  const db = derivativesBook(valuePortfolio({ ...p, risk: { ...p.risk, useReported: true } }));
+  assert.equal(db.count, 4);
+  assert.equal(db.withReported, 3);
+  assert.equal(db.mismatches, 1);
+});
+
+test('asset allocation: look-through of mixed funds, derivative overlay and mandate ranges', async () => {
+  const { allocationAnalysis, allocationTree } = await import('../js/allocation.js');
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-01-15' });
+  p.positions = [
+    { id: 'e', type: 'equity', name: 'A', issuer: 'A', qty: 1000, price: 400, ccy: 'SEK', sector: 'Tech' },   // 400 000
+    { id: 'm', type: 'fund', name: 'Mix', qty: 1000, price: 400, ccy: 'SEK', subClass: 'mixed', equityShare: 25 }, // 100k eq + 300k FI
+    { id: 'c', type: 'cash', name: 'Cash', issuer: 'Bank', qty: 200000, ccy: 'SEK' },
+    { id: 'f', type: 'future', name: 'Index fut', qty: -1, price: 1000, multiplier: 100, ccy: 'SEK', underlyingClass: 'equity' } // −100 000
+  ]; // NAV 1 000 000
+  p.allocTargets = { equity: { target: 45, min: 30, max: 60 }, fixed_income: { min: 35 } };
+  const v = valuePortfolio(p);
+  const aa = allocationAnalysis(v, p);
+  const eq = aa.classes.find(c => c.key === 'equity'), fi = aa.classes.find(c => c.key === 'fixed_income');
+  close(eq.mvW, 0.5, 1e-12);
+  close(eq.overlayW, -0.1, 1e-12);
+  close(eq.econW, 0.4, 1e-12);
+  close(eq.shortW, -0.1, 1e-12);
+  close(eq.active, -0.05, 1e-12);
+  assert.equal(eq.status, 'ok');
+  close(fi.econW, 0.3, 1e-12);
+  assert.equal(fi.status, 'breach');
+  assert.equal(aa.breaches, 1);
+  close(aa.econW, 0.9, 1e-12);
+  close(aa.grossW, 1.1, 1e-12);
+  const tree = allocationTree(v, { measure: 'economic', dim: 'auto', base: 'SEK' });
+  const root = tree.filter(n => n.parent === '');
+  close(root.reduce((s, n) => s + n.signed, 0), 900000, 1e-6, 'tree adds up to economic exposure');
+  assert.ok(tree.find(n => n.kind === 'holding' && n.key === 'Index fut').short);
+  assert.equal(new Set(tree.map(n => n.id)).size, tree.length, 'ids are unique even for split funds');
+});
+
+test('import recognises reported notional and delta columns', () => {
+  const rows = parseCSV('Name;Type;Contracts;Strike;Delta;Notional value;Delta-adjusted exposure\nX;option;10;100;0,45;100000;45000', ';');
+  const m = autoMapping(rows[0]);
+  assert.equal(m[4], 'reportedDelta');
+  assert.equal(m[5], 'reportedNotional');
+  assert.equal(m[6], 'reportedDeltaExposure');
+});
