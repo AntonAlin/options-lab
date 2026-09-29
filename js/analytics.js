@@ -77,7 +77,9 @@ export function allocations(v) {
     country: groupBy(rows, x => (x.pos.country || '').toUpperCase().trim() || '—', mv, nav),
     currency: groupBy(rows.filter(x => x.pos.type !== 'fx_forward'), x => x.pos.ccy || v.ctx.base, mv, nav),
     rating: groupBy(fiRows, x => bucketRating(x.pos.rating), mv, nav),
-    issuer: groupBy(rows.filter(x => !['cash', 'fx_forward', 'irs', 'future'].includes(x.pos.type)), x => x.issuer, mv, nav).slice(0, 15)
+    issuer: groupBy(rows.filter(x => !['cash', 'fx_forward', 'irs', 'future'].includes(x.pos.type)), x => x.issuer, mv, nav).slice(0, 15),
+    // By strategy the economic (net) exposure is what matters: a futures overlay has no market value.
+    strategy: groupBy(rows.filter(x => x.pos.type !== 'cash'), x => (x.pos.strategy || '').trim() || '—', x => x.r.net, nav)
   };
 }
 export function bucketRating(r) {
@@ -538,6 +540,10 @@ export function liquidity(v, { stressed = false } = {}) {
 // ---- compliance ---------------------------------------------------------------------------------
 const GOVT_RE = /(govern|treasur|stat(en|s)|riksg|kingdom|republic|bund|federal|sovereign|kommun|municipal|supranational|\beib\b|world bank|nordic investment)/i;
 function isGovt(x) { return x.pos.type === 'govt_bond' || (x.pos.type === 'money_market' && (!x.pos.issuer || GOVT_RE.test(x.pos.issuer))); }
+// UCITS art. 51(3): derivatives on a financial index are not combined with the issuer limits, so a
+// CDS on iTraxx / CDX is not one issuer (it is 125 of them).
+const INDEX_CDS_RE = /\b(itraxx|cdx|markit|index)\b/i;
+const isIndexCds = x => x.pos.type === 'cds' && INDEX_CDS_RE.test(`${x.pos.issuer || ''} ${x.pos.name || ''}`);
 const ISSUER_TYPES = new Set(['equity', 'corp_bond', 'frn', 'money_market', 'alternative', 'commodity', 'cds']);
 
 export function compliance(v, liq = liquidity(v)) {
@@ -557,7 +563,7 @@ export function compliance(v, liq = liquidity(v)) {
 
   const issuerExp = new Map();
   for (const x of v.valid) {
-    if (!ISSUER_TYPES.has(x.pos.type) || isGovt(x)) continue;
+    if (!ISSUER_TYPES.has(x.pos.type) || isGovt(x) || isIndexCds(x)) continue;
     const e = x.pos.type === 'cds' ? (x.pos.protection === 'sell' ? x.r.exposure : 0) : x.r.mv;
     issuerExp.set(x.issuer, (issuerExp.get(x.issuer) || 0) + e);
   }

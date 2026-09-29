@@ -15,7 +15,7 @@ export default {
     const classes = [...new Set([...alloc.assetClass, ...alloc.exposureByClass].filter(x => Math.abs(x.weight) >= 0.0005).map(x => x.key))];
     const mvW = k => alloc.assetClass.find(x => x.key === k)?.weight || 0;
     const exW = k => alloc.exposureByClass.find(x => x.key === k)?.weight || 0;
-    const dimLabel = { sector: x => x, region: x => L(REGIONS[x] || { en: x }), country: x => x, type: x => typeLabel(x, lang()), issuer: x => x };
+    const dimLabel = { sector: x => x, region: x => L(REGIONS[x] || { en: x }), country: x => x, type: x => typeLabel(x, lang()), issuer: x => x, strategy: x => x };
 
     root.innerHTML = `
       ${pageHead(t('nav.exposure'), esc(t('exp.sub')))}
@@ -29,7 +29,7 @@ export default {
       </div>
       ${card(t('exp.byClass'), '<div id="chClass" class="chart"></div>', { sub: esc(t('exp.byClassSub')) })}
       <div class="grid-2">
-        ${card(t('exp.breakdown'), `${segmented('dim', [['sector', t('exp.sector')], ['region', t('exp.region')], ['country', t('exp.country')], ['type', t('col.type')], ['issuer', t('exp.issuer')]], ui.dim)}<div id="chDim" class="chart"></div>`)}
+        ${card(t('exp.breakdown'), `${segmented('dim', [['sector', t('exp.sector')], ['region', t('exp.region')], ['country', t('exp.country')], ['type', t('col.type')], ['issuer', t('exp.issuer')], ['strategy', t('exp.strategy')]], ui.dim)}<div id="chDim" class="chart"></div>${ui.dim === 'strategy' ? `<p class="muted small">${esc(t('exp.strategyNote'))}</p>` : ''}`)}
         ${card(t('exp.currency'), table([
           { key: 'ccy', label: t('col.ccy'), fmt: r => `<strong>${esc(r.ccy)}</strong>` },
           { key: 'gross', label: t('exp.ccyGross'), align: 'right', fmt: r => fmtPct(r.grossW, 1) },

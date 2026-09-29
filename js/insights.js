@@ -4,7 +4,8 @@
 // Pure functions of plain data like analytics.js, so the tests can check every number.
 import { valuePortfolio, factorModel, fixedIncome, liquidity, compliance, concentration, seriesKeyFor, perfStats } from './analytics.js';
 import { regionOf } from './instruments.js';
-import { isNum, num, sum, mean, uid } from './util.js';
+import { isNum, num, sum, mean, uid, freqOf } from './util.js';
+import { couponSchedule } from './pricing.js';
 
 // ---- positions ---------------------------------------------------------------------------------------
 // Fields that scale with the size of a position. Prices, rates and dates do not.
@@ -54,6 +55,14 @@ export function reprice(prev, next, { history = null, date = '' } = {}) {
   return { positions, unpriced };
 }
 
+// Coupon cash a bond position paid in (from, to]: quantity is nominal, coupon in % a year.
+export function couponsPaid(pos, from, to) {
+  if (!['govt_bond', 'corp_bond', 'frn'].includes(pos.type) || !pos.maturity || !num(pos.coupon)) return 0;
+  const f = freqOf(pos.freq, 1);
+  const n = couponSchedule(from, pos.maturity, f).dates.filter(d => d > from && d <= to).length;
+  return n * num(pos.qty) * num(pos.coupon) / 100 / f;
+}
+
 // ---- one period between two snapshots --------------------------------------------------------------
 // v0: holdings at A; v1: holdings at A priced at B; vB: holdings at B.
 //   return   = v1 / v0 − 1                  (holdings-based: what the A portfolio earned)
@@ -62,6 +71,8 @@ export function reprice(prev, next, { history = null, date = '' } = {}) {
 //                                           is left is subscriptions/redemptions, fees, dividends paid out)
 // Futures are margined daily: their market value stays ~0 and the gain or loss lands in cash. Their
 // price effect is therefore the change in signed notional, and it is taken out of the flows.
+// Coupons paid between A and B work the same way: the accrued interest leaves the bond's value and
+// arrives in cash, so the coupon is income of the bond, not a subscription.
 //   turnover = min(Σ buys, Σ sells) / average NAV
 export function period(p, a, b) {
   const pa = atSnapshot(p, a), pb = atSnapshot(p, b);
@@ -71,7 +82,7 @@ export function period(p, a, b) {
   const at = (x, k) => { const key = posKey(x.pos); const o = rows.get(key) || rows.set(key, { key, name: x.name, type: x.pos.type, row: x, qtyA: 0, qtyB: 0, mv0: 0, mv1: 0, mvB: 0, vm: 0, inA: false, inB: false }).get(key); return o; };
   const margined = x => x.pos.type === 'future';
   v0.valid.forEach(x => { const o = at(x); o.mv0 += x.r.mv; o.qtyA += num(sizeOf(x.pos)); o.inA = true; if (margined(x)) o.vm -= x.r.net; });
-  v1.valid.forEach(x => { const o = at(x); o.mv1 += x.r.mv; if (margined(x)) o.vm += x.r.net; });
+  v1.valid.forEach(x => { const o = at(x); o.mv1 += x.r.mv; if (margined(x)) o.vm += x.r.net; o.vm += couponsPaid(x.pos, a.date, b.date) * num(v1.ctx.fx(x.pos.ccy)); });
   vB.valid.forEach(x => { const o = at(x); o.mvB += x.r.mv; o.qtyB += num(sizeOf(x.pos)); o.inB = true; o.row = x; o.name = x.name; });
   const nav0 = v0.nav, list = [...rows.values()];
   list.forEach(o => {
@@ -310,12 +321,13 @@ export function brinson(port, bench) {
   return { rows: rows.sort((a, b) => Math.abs(b.total) - Math.abs(a.total)), Rp, Rb, active: Rp - Rb, allocation: tot('allocation'), selection: tot('selection'), interaction: tot('interaction') };
 }
 
-export const SEGMENT_DIMS = ['assetClass', 'sector', 'region', 'country', 'currency'];
+export const SEGMENT_DIMS = ['assetClass', 'strategy', 'sector', 'region', 'country', 'currency'];
 export function segmentOf(x, dim) {
   if (dim === 'assetClass') return x.r.assetClass || 'other';
   if (dim === 'sector') return x.pos.sector || '—';
   if (dim === 'region') return regionOf(x.pos.country);
   if (dim === 'country') return (x.pos.country || '—').toUpperCase();
+  if (dim === 'strategy') return (x.pos.strategy || '').trim() || '—';
   return x.pos.ccy || x.pos.buyCcy || '—';
 }
 

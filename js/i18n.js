@@ -1005,7 +1005,10 @@ const en = {
   'imp.datedHelp': "The chosen date becomes the holdings (by the import mode below). Every date is kept as a snapshot, so Changes & track record, attribution and limit history work straight away, and the prices across dates join the price history.",
   'imp.doImportDated': "Import {n} portfolio(s) · {k} date(s)",
   'imp.doneDated': "{p} portfolio(s) imported ({c} new) with {d} date(s): {added} holdings added, {updated} updated",
-  'imp.replaceConfirmMany': "Replace the current holdings in {n} portfolio(s) with the file?"
+  'imp.replaceConfirmMany': "Replace the current holdings in {n} portfolio(s) with the file?",
+  'exp.strategy': "Strategy",
+  'exp.strategyNote': "Net economic exposure per strategy (derivatives at delta-adjusted notional, cash excluded), so an overlay built from futures or swaps shows its real size.",
+  'att.dim.strategy': "Strategy"
 
 };
 
@@ -2001,7 +2004,10 @@ const sv = {
   'imp.datedHelp': "Valt datum blir innehaven (enligt importläget nedan). Varje datum sparas som ögonblicksbild, så Förändringar & historik, attribution och regelhistorik fungerar direkt, och kurserna över datumen läggs till i kurshistoriken.",
   'imp.doImportDated': "Importera {n} portfölj(er) · {k} datum",
   'imp.doneDated': "{p} portfölj(er) importerade ({c} nya) med {d} datum: {added} innehav tillagda, {updated} uppdaterade",
-  'imp.replaceConfirmMany': "Ersätta nuvarande innehav i {n} portfölj(er) med filen?"
+  'imp.replaceConfirmMany': "Ersätta nuvarande innehav i {n} portfölj(er) med filen?",
+  'exp.strategy': "Strategi",
+  'exp.strategyNote': "Ekonomisk nettoexponering per strategi (derivat till deltajusterat nominellt belopp, kassa exkluderad), så ett överlägg med terminer eller swappar syns med sin verkliga storlek.",
+  'att.dim.strategy': "Strategi"
 
 };
 

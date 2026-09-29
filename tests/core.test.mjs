@@ -916,3 +916,24 @@ test('dated files: a maturity column is never taken as the snapshot date; bulk u
   assert.equal(L.dateCol, 1); assert.equal(L.pfCol, 2);
   assert.equal(detectLayout(dated).dateCol, 1, 'a column headed Datum counts even when it is not first');
 });
+
+test('insights: a coupon paid between two dates is income of the bond, not a flow', async () => {
+  const { period } = await import('../js/insights.js');
+  const p = newPortfolio({ baseCcy: 'SEK' });
+  const bond = { id: 'b', type: 'govt_bond', name: 'SGB', issuer: 'Swedish Government', qty: 1000000, yield: 2.5, coupon: 3, freq: '1', maturity: '2030-03-15', ccy: 'SEK' };
+  const cash = q => ({ id: 'c', type: 'cash', name: 'Cash', qty: q, ccy: 'SEK' });
+  // The 3 % coupon (30 000) is paid on 15 March, between the two dates, and lands in cash.
+  const q = period(p, { date: '2026-02-27', positions: [bond, cash(100000)] }, { date: '2026-03-31', positions: [bond, cash(130000)] });
+  close(q.flows, 0, 1, 'coupon is not a subscription');
+  assert.ok(q.ret > 0 && q.ret < 0.01, 'about a month of carry: ' + q.ret);
+});
+
+test('compliance: a CDS on an index is not one issuer (UCITS art. 51(3)); a single-name CDS is', async () => {
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  const cash = { id: 'c', type: 'cash', name: 'Cash', qty: 100000000, ccy: 'SEK', issuer: 'Bank A' };
+  const cds = (issuer, n) => ({ id: issuer, type: 'cds', name: issuer + ' 5Y', issuer, qty: n, ccy: 'SEK', protection: 'sell', spread: 100, marketSpread: 80, maturity: '2030-12-20', mtm: 0 });
+  const idx = compliance(valuePortfolio({ ...p, positions: [cash, cds('iTraxx Europe Main', 20000000)] }));
+  close(idx.rules.find(r => r.id === 'issuerMax').value, 0, 1e-9);
+  const single = compliance(valuePortfolio({ ...p, positions: [cash, cds('Kering SA', 20000000)] }));
+  close(single.rules.find(r => r.id === 'issuerMax').value, 20, 1e-9);
+});
