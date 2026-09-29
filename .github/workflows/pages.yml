@@ -52,10 +52,13 @@ jobs:
             mkdir -p data
             curl -fsSL "${{ steps.pages.outputs.base_url }}/data/market.json" -o data/market.json || echo "::warning::No previously published market data either"
           fi
+      - name: Assemble the site
+        # Only what the site serves: no node_modules, tests, build tooling or workflows.
+        run: bash scripts/assemble-site.sh _site
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

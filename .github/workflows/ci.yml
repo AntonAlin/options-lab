@@ -37,7 +37,11 @@ jobs:
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
-      - run: node tests/smoke.mjs
+      - name: Test the site exactly as it will be published
+        run: |
+          npm run build
+          bash scripts/assemble-site.sh _site
+          SITE_DIR=_site node tests/smoke.mjs
 
   market-data:
     name: ECB market data (download and validate)

@@ -12,13 +12,10 @@ NO_DL="${2:-}"
 cd "$(dirname "$0")/.."
 OUT=dist
 NAME="nexus-portfolio-lab-${VERSION}"
-rm -rf "$OUT" && mkdir -p "$OUT/site"
+rm -rf "$OUT" && mkdir -p "$OUT"
 
 # ---- the site as published -------------------------------------------------------------------------
-git archive HEAD | tar -x -C "$OUT/site"
-(cd "$OUT/site" && rm -rf tests scripts .github src package.json package-lock.json tailwind.config.js .gitignore)
-cp tailwind.css "$OUT/site/tailwind.css"            # freshly built by `npm run build`
-if [ -f data/market.json ]; then mkdir -p "$OUT/site/data" && cp data/market.json "$OUT/site/data/"; fi
+bash scripts/assemble-site.sh "$OUT/site"
 (cd "$OUT/site" && zip -qrX "../${NAME}.zip" .)
 
 # ---- offline variant ---------------------------------------------------------------------------------
