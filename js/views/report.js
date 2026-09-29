@@ -13,7 +13,7 @@ export default {
     const a = app.analysis();
     const d = drafts.get(p.id) || { title: '', manager: p.manager || '', commentary: '', sections: SECTIONS.filter(s => s !== 'holdings' || p.positions.length <= 80) };
     drafts.set(p.id, d);
-    const available = s => s === 'performance' ? !!a.perf : s === 'fixedIncome' ? a.v.valid.some(x => x.r.fi) : s === 'riskClass' ? !!a.ri : s === 'cashflow' ? !!(a.cf && a.cf.events.length) : s === 'nav' ? !!(a.nav && a.nav.ok) : s === 'derivatives' ? !!(a.db && a.db.count) : s === 'pnl' ? !!(a.pnl && a.pnl.covered.length) : true;
+    const available = s => s === 'performance' ? !!a.perf : s === 'fixedIncome' ? a.v.valid.some(x => x.r.fi) : s === 'cashflow' ? !!(a.cf && a.cf.events.length) : s === 'nav' ? !!(a.nav && a.nav.ok) : s === 'derivatives' ? !!(a.db && a.db.count) : s === 'pnl' ? !!(a.pnl && a.pnl.covered.length) : true;
 
     root.innerHTML = `
       ${pageHead(t('nav.report'), esc(t('rep.sub')))}

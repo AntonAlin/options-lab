@@ -19,7 +19,7 @@ export const DEFAULT_CMA = {
   inflationVolBp: 45, corrRatesInfl: 0.45, corrCmdInfl: 0.35
 };
 
-export const DEFAULT_RISK = { confidence: 0.99, horizonDays: 1, riskFree: 2.0, participation: 20, method: 'auto', rhp: 5, crm: 1, sriSource: '', cfMonths: 12, useReported: true, allocDim: 'auto' };
+export const DEFAULT_RISK = { confidence: 0.99, horizonDays: 1, riskFree: 2.0, participation: 20, method: 'auto', cfMonths: 12, useReported: true, allocDim: 'auto' };
 
 export const DEFAULT_LIMITS = {
   issuerMax: { on: true, value: 10 },

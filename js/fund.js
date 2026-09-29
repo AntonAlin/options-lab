@@ -1,9 +1,8 @@
-// Fund-level calculations on top of the analytics: cash-flow and expiry calendar, the regulatory
-// risk indicators (UCITS SRRI and PRIIPs SRI) and an indicative NAV per unit with a
-// subscription/redemption simulator. Pure functions, covered by tests/core.test.mjs.
+// Fund-level calculations on top of the analytics: cash-flow and expiry calendar and an indicative
+// NAV per unit with a subscription/redemption simulator. Pure functions, covered by tests/core.test.mjs.
 import { couponSchedule } from './pricing.js';
 import { valuePortfolio, liquidity, compliance } from './analytics.js';
-import { isNum, num, freqOf, sum, mean, stdev, parseISODate, toISODate, addMonthsISO, DAY_MS, uid } from './util.js';
+import { isNum, num, freqOf, sum, parseISODate, toISODate, addMonthsISO, DAY_MS, uid } from './util.js';
 
 // ============================================================================================
 //  CASH-FLOW & EXPIRY CALENDAR
@@ -132,73 +131,6 @@ export function toICS(events, { fundName = 'Portfolio', labels = {} } = {}) {
 }
 
 // ============================================================================================
-//  RISK INDICATORS: UCITS SRRI and PRIIPs SRI
-// ============================================================================================
-export const SRRI_BANDS = [0.005, 0.02, 0.05, 0.10, 0.15, 0.25];          // CESR/10-673, annualised weekly vol
-export const MRM_BANDS = [0.005, 0.05, 0.12, 0.20, 0.30, 0.80];           // PRIIPs RTS Annex II, VaR-equivalent vol
-const CRM_TABLE = [ // [MRM-1][CRM-1] → SRI (PRIIPs RTS Annex III, point 52)
-  [1, 1, 3, 5, 5, 6], [2, 2, 3, 5, 5, 6], [3, 3, 3, 5, 5, 6], [4, 4, 4, 5, 5, 6], [5, 5, 5, 5, 5, 6], [6, 6, 6, 6, 6, 6], [7, 7, 7, 7, 7, 7]
-];
-export const bandOf = (x, bands) => 1 + bands.filter(b => x >= b).length;
-
-// Levels from a return series (portfolio back-cast) or straight from a price series.
-function levelsFrom(dates, { returns = null, prices = null }) {
-  const out = [];
-  if (prices) { dates.forEach((d, i) => { if (isNum(prices[i]) && prices[i] > 0) out.push([d, prices[i]]); }); return out; }
-  let lvl = 1;
-  dates.forEach((d, i) => { if (i > 0 && isNum(returns[i])) lvl *= 1 + returns[i]; if (i === 0 || isNum(returns[i])) out.push([d, lvl]); });
-  return out;
-}
-// Last level of each ISO week.
-function weekly(levels) {
-  const m = new Map();
-  for (const [d, x] of levels) {
-    const dt = parseISODate(d);
-    const th = new Date(dt.getTime() + (3 - ((dt.getUTCDay() + 6) % 7)) * DAY_MS); // Thursday of the ISO week
-    m.set(`${th.getUTCFullYear()}-${Math.floor((th - Date.UTC(th.getUTCFullYear(), 0, 1)) / (7 * DAY_MS))}`, [d, x]);
-  }
-  return [...m.values()];
-}
-
-// input: { dates, returns } or { dates, prices }. Returns both indicators plus the inputs used.
-export function riskIndicators(input, { rhpYears = 5, crm = 1 } = {}) {
-  const levels = levelsFrom(input.dates, input);
-  if (levels.length < 30) return null;
-  const yearsAvail = (parseISODate(levels[levels.length - 1][0]) - parseISODate(levels[0][0])) / DAY_MS / 365.25;
-
-  // SRRI: weekly returns over (up to) the last 5 years, annualised with √52.
-  const wk = weekly(levels).slice(-261);
-  const wr = wk.slice(1).map(([, x], i) => x / wk[i][1] - 1);
-  const srriVol = stdev(wr) * Math.sqrt(52);
-  const srri = bandOf(srriVol, SRRI_BANDS);
-
-  // PRIIPs category 2: daily log returns over (up to) 5 years, Cornish-Fisher VaR 97.5 % at the
-  // recommended holding period, converted to a VaR-equivalent volatility.
-  const lv = levels.slice(-1281);
-  const lr = lv.slice(1).map(([, x], i) => Math.log(x / lv[i][1]));
-  const m = mean(lr), sd = stdev(lr, 0);
-  const skew = sum(lr.map(r => ((r - m) / sd) ** 3)) / lr.length;
-  const kurt = sum(lr.map(r => ((r - m) / sd) ** 4)) / lr.length - 3;
-  const N = 256 * rhpYears;
-  const varRet = sd * Math.sqrt(N) * (-1.96 + 0.474 * skew / Math.sqrt(N) - 0.0687 * kurt / N + 0.146 * skew * skew / N) - 0.5 * sd * sd * N;
-  const vev = (Math.sqrt(Math.max(0, 3.842 - 2 * varRet)) - 1.96) / Math.sqrt(rhpYears);
-  const mrm = bandOf(vev, MRM_BANDS);
-  const c = Math.min(6, Math.max(1, Math.round(crm || 1)));
-  const sri = CRM_TABLE[mrm - 1][c - 1];
-
-  // Rolling 52-week volatility of weekly returns, for the chart.
-  const allWk = weekly(levels);
-  const allWr = allWk.slice(1).map(([, x], i) => x / allWk[i][1] - 1);
-  const rolling = allWk.slice(1).map(([d], i) => [d, i >= 51 ? stdev(allWr.slice(i - 51, i + 1)) * Math.sqrt(52) : null]);
-
-  return {
-    srri, srriVol, weeks: wr.length, srriFull: wr.length >= 259,
-    sri, mrm, crm: c, vev, varReturn: varRet, skew, kurt, dailyObs: lr.length, sriEnough: lr.length >= 2 * 250, rhpYears,
-    yearsAvail, rolling, from: levels[0][0], to: levels[levels.length - 1][0]
-  };
-}
-
-// ============================================================================================
 //  INDICATIVE NAV PER UNIT & FLOWS
 // ============================================================================================
 // cfg (stored on the portfolio as p.fund):
@@ -270,10 +202,5 @@ export function simulateFlow(p, nav, classId, amountBase) {
 
 // Everything the fund pages need, computed once per analysis.
 export function fundAnalysis(p, a) {
-  const src = p.risk?.sriSource || '';
-  const h = p.history || { dates: [], series: {} };
-  let ri = null;
-  if (src && h.series?.[src]) ri = riskIndicators({ dates: h.dates, prices: h.series[src] }, { rhpYears: num(p.risk?.rhp, 5), crm: num(p.risk?.crm, 1) });
-  else if (a.risk.hp) ri = riskIndicators({ dates: a.risk.hp.dates, returns: a.risk.hp.portfolioRet }, { rhpYears: num(p.risk?.rhp, 5), crm: num(p.risk?.crm, 1) });
-  return { cf: cashflows(a.v, { months: num(p.risk?.cfMonths, 12) }), ri, nav: navPerUnit(a.v, p.fund) };
+  return { cf: cashflows(a.v, { months: num(p.risk?.cfMonths, 12) }), nav: navPerUnit(a.v, p.fund) };
 }

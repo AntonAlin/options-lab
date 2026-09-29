@@ -15,7 +15,7 @@ export const JSPDF_SRI = 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/S
 export const AUTOTABLE_URL = 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';
 export const AUTOTABLE_SRI = 'sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3';
 
-export const SECTIONS = ['summary', 'holdings', 'pnl', 'allocation', 'exposure', 'derivatives', 'risk', 'riskClass', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance'];
+export const SECTIONS = ['summary', 'holdings', 'pnl', 'allocation', 'exposure', 'derivatives', 'risk', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance'];
 
 // Standard PDF fonts are WinAnsi; map the few characters Intl and our labels produce that it lacks.
 function clean(s) {
@@ -314,34 +314,6 @@ export async function generateReport(p, a, opts) {
     const lbl = h => h === 1 ? t('liq.1d') : h === 365 ? t('liq.1y') : t('liq.nd', { n: h });
     tableAt([t('liq.horizon'), t('liq.normal'), t('liq.stressed')], liq.buckets.map((b, i) => [lbl(b.h), fmtPct(b.pct, 1), fmtPct(liqStressed.buckets[i].pct, 1)]), { width: CW * 0.6 });
     tableAt([t('col.name'), t('col.weight'), t('liq.days'), t('liq.basis')], liq.rows.slice(0, 10).map(q => [q.row.name.slice(0, 44), fmtPct(q.row.weight, 2), fmtNum(q.days, 0), t('liq.basis.' + q.basis)]));
-  }
-
-  // ---- risk class (SRI / SRRI) ------------------------------------------------------------------------------------
-  if (sections.has('riskClass') && a.ri) {
-    doc.addPage(); y = M + 6;
-    const ri = a.ri;
-    heading(t('nav.riskClass'), t('ri.sub'));
-    const boxes = (cls, label) => {
-      ensure(24);
-      font(9, 'bold', INK2); txt(label, M, y + 3); y += 6;
-      const bw = 14, gap = 2.5;
-      for (let i = 1; i <= 7; i++) {
-        const x = M + (i - 1) * (bw + gap);
-        if (i === cls) { doc.setFillColor(...ACCENT); doc.roundedRect(x, y, bw, 10, 1.5, 1.5, 'F'); font(11, 'bold', [255, 255, 255]); }
-        else { doc.setFillColor(241, 241, 237); doc.roundedRect(x, y, bw, 10, 1.5, 1.5, 'F'); font(11, 'bold', MUTED); }
-        txt(String(i), x + bw / 2, y + 6.8, { align: 'center' });
-      }
-      y += 15;
-    };
-    boxes(ri.sri, `SRI (PRIIPs KID): ${ri.sri} / 7`);
-    boxes(ri.srri, `SRRI (UCITS): ${ri.srri} / 7`);
-    tableAt([t('rep.measure'), ''], [
-      [t('ri.vev'), fmtPct(ri.vev, 2)], ['MRM / CRM', `${ri.mrm} / ${ri.crm}`], [t('ri.weeklyVol'), fmtPct(ri.srriVol, 2)],
-      [t('ri.rhp'), `${ri.rhpYears} ${t('ri.years')}`], [t('ri.period'), `${fmtDate(ri.from)} - ${fmtDate(ri.to)}`],
-      [t('ri.source'), p.risk?.sriSource || t('ri.srcPortfolio')]
-    ], { width: CW * 0.7 });
-    if (!ri.srriFull || !ri.sriEnough) para(t('ri.short', { y: fmtNum(ri.yearsAvail, 1) }), 8, [170, 110, 0]);
-    para(t('ri.method'), 7.5, MUTED);
   }
 
   // ---- cash-flow calendar ------------------------------------------------------------------------------------------

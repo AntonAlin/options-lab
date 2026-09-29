@@ -380,28 +380,6 @@ test('cash-flow calendar: coupons, redemptions, FX legs, CDS premiums, option ex
   assert.ok(ics.startsWith('BEGIN:VCALENDAR') && ics.includes('DTSTART;VALUE=DATE:20261215'));
 });
 
-test('risk indicators: SRRI band from weekly vol, VEV equals vol for normal returns', async () => {
-  const { riskIndicators, bandOf, SRRI_BANDS, MRM_BANDS } = await import('../js/fund.js');
-  const { mulberry32, gaussian } = await import('../js/util.js');
-  assert.equal(bandOf(0.004, SRRI_BANDS), 1); assert.equal(bandOf(0.05, SRRI_BANDS), 4); assert.equal(bandOf(0.3, SRRI_BANDS), 7);
-  assert.equal(bandOf(0.11, MRM_BANDS), 3);
-  // 5 years of business days, lognormal with 8 % annual vol → SRRI 4 (5–10 %), MRM 3 (5–12 %)
-  const rng = mulberry32(7), dates = [], prices = [];
-  let px = 100;
-  for (let d = new Date(Date.UTC(2021, 8, 27)); dates.length < 1300; d = new Date(d.getTime() + 86400000)) {
-    if (d.getUTCDay() === 0 || d.getUTCDay() === 6) continue;
-    dates.push(d.toISOString().slice(0, 10)); prices.push(px);
-    px *= Math.exp(0.08 / Math.sqrt(256) * gaussian(rng) - 0.5 * 0.0064 / 256);
-  }
-  const r = riskIndicators({ dates, prices }, { rhpYears: 5 });
-  close(r.srriVol, 0.08, 0.01, 'weekly vol ≈ 8 %');
-  assert.equal(r.srri, 4);
-  close(r.vev, 0.08, 0.008, 'VEV ≈ vol for near-normal returns');
-  assert.equal(r.mrm, 3); assert.equal(r.sri, 3);
-  assert.ok(r.srriFull && r.sriEnough);
-  assert.equal(riskIndicators({ dates, prices }, { rhpYears: 5, crm: 4 }).sri, 5, 'credit risk class 4 lifts SRI to 5');
-});
-
 test('indicative NAV per unit, fee accrual and a redemption simulation', async () => {
   const { navPerUnit, simulateFlow } = await import('../js/fund.js');
   const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
@@ -661,7 +639,7 @@ test('connected source file: no portfolio column means one portfolio; no date co
 
 test('user guide: every block exists in English and Swedish, links go to real pages', async () => {
   const { GUIDE } = await import('../js/guide.js');
-  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'risk-class', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution'];
+  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution'];
   const both = (o, where) => assert.ok(o && String(o.en || '').trim() && String(o.sv || '').trim(), 'missing translation in ' + where);
   assert.equal(GUIDE[0].id, 'privacy', 'data privacy comes first');
   assert.equal(new Set(GUIDE.map(s => s.id)).size, GUIDE.length);
