@@ -1,6 +1,7 @@
 import * as store from '../store.js';
 import { t, L } from '../i18n.js';
 import { esc, kpi, card, pageHead, fmtMoney, fmtPct, fmtNum, table, statusChip, fmtDate } from '../ui.js';
+import { ruleName, ruleVal, ruleLimit } from '../labels.js';
 import { ASSET_CLASSES, typeLabel } from '../instruments.js';
 import * as charts from '../charts.js';
 import * as filelink from '../filelink.js';
@@ -94,7 +95,7 @@ export default {
       </div>
       ${perf ? card(t('dash.perf'), '<div id="chPerf" class="chart"></div>', { sub: esc(t('dash.perfSub', { r: fmtPct(perf.cagr, 1), v: fmtPct(perf.vol, 1), s: fmtNum(perf.sharpe, 2) })), actions: `<a href="#/performance" class="link">${esc(t('common.details'))} →</a>` })
         : card(t('dash.perf'), `<div class="empty"><p>${esc(t('dash.noHistory'))}</p><a class="btn" href="#/history">${esc(t('nav.history'))}</a></div>`)}
-      ${card(t('dash.compliance'), `<ul class="rule-list">${comp.rules.map(r => `<li>${statusChip(r.status)}<span>${esc(t('limit.' + r.id))}</span><span class="num">${fmtNum(r.value, 1)} % / ${r.dir === 'max' ? '≤' : '≥'} ${fmtNum(r.limit, 1)} %</span></li>`).join('')}</ul>`, { actions: `<a href="#/compliance" class="link">${esc(t('common.details'))} →</a>` })}
+      ${card(t('dash.compliance'), `<ul class="rule-list">${comp.rules.map(r => `<li>${statusChip(r.status)}<span>${esc(ruleName(r.id))}</span><span class="num">${ruleVal(r, 1)} / ${ruleLimit(r)}</span></li>`).join('')}</ul>`, { actions: `<a href="#/compliance" class="link">${esc(t('common.details'))} →</a>` })}
     `;
 
     // Donut for the headline allocation (long positions only — a donut cannot show negatives).

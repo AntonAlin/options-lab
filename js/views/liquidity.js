@@ -1,6 +1,7 @@
 import * as store from '../store.js';
 import { t } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtPct, fmtNum, selectHtml, segmented, numIn } from '../ui.js';
+import { ruleName } from '../labels.js';
 import { liquidityStress, LST_REDEMPTIONS } from '../insights.js';
 
 const lst = { horizon: 7, stressed: true, custom: '' };
@@ -62,7 +63,7 @@ function lstCard(p) {
   const r = liquidityStress(p, { redemptions: reds, horizon: lst.horizon, stressed: lst.stressed });
   const base = p.baseCcy;
   const newB = (after) => after.breaches.filter(id => !r.breachesBefore.includes(id));
-  const chips = ids => ids.length ? ids.map(id => `<span class="chip chip-breach">${esc(t('limit.' + id))}</span>`).join(' ') : `<span class="muted">—</span>`;
+  const chips = ids => ids.length ? ids.map(id => `<span class="chip chip-breach">${esc(ruleName(id))}</span>`).join(' ') : `<span class="muted">—</span>`;
   return card(t('lst.title'), `
     <div class="toolbar wrap">
       <label class="inline">${esc(t('lst.horizon'))} ${selectHtml('id="lstH"', [1, 3, 5, 7, 30].map(h => [h, t('liq.nd', { n: h })]), lst.horizon)}</label>

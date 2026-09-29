@@ -312,6 +312,21 @@ export function heatmapSpec(labels, matrix, { th = currentTheme(), height = null
   };
 }
 
+// VaR backtest: each day's P&L (% of NAV) as a bar, the VaR the model gave the evening before as a
+// line below zero, and the days the loss went through it marked in red.
+export function backtestSpec(rows, nav, { th = currentTheme(), height = 300, labels = { pnl: 'P&L', var: 'VaR', exc: 'Overshooting' } } = {}) {
+  const P = THEMES[th];
+  const x = rows.map(r => r.date), f = v => (nav ? v / nav : 0);
+  return {
+    data: [
+      { type: 'bar', name: labels.pnl, x, y: rows.map(r => f(r.pnl)), marker: { color: rows.map(r => (r.exception ? P.neg : rgba(P.series[0], 0.55))) }, hovertemplate: '%{x}<br>%{y:.2%}<extra></extra>' },
+      { type: 'scatter', mode: 'lines', name: labels.var, x, y: rows.map(r => -f(r.var)), line: { color: P.ink2, width: 1.5, dash: 'dot' }, hovertemplate: '%{x}<br>−VaR %{y:.2%}<extra></extra>' },
+      { type: 'scatter', mode: 'markers', name: labels.exc, x: rows.filter(r => r.exception).map(r => r.date), y: rows.filter(r => r.exception).map(r => f(r.pnl)), marker: { color: P.neg, size: 9, symbol: 'x' }, hoverinfo: 'skip' }
+    ],
+    layout: baseLayout(th, { height, bargap: 0.1, showlegend: true, yaxis: axis(P, { tickformat: '.1%' }), xaxis: axis(P, { gridcolor: 'rgba(0,0,0,0)' }) })
+  };
+}
+
 // Binned by hand so gains and losses get their own colour.
 export function histogramSpec(values, { th = currentTheme(), height = 260, markers = [], bins = 50 } = {}) {
   const P = THEMES[th];

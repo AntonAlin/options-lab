@@ -1,6 +1,7 @@
 import * as store from '../store.js';
 import { t } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtNum, fmtPct, fmtDate, selectHtml, statusChip, signCls, numIn } from '../ui.js';
+import { ruleName, ruleVal } from '../labels.js';
 import { simulateFlow } from '../fund.js';
 import { uid, todayISO } from '../util.js';
 
@@ -84,11 +85,11 @@ export default {
             ${sim.amountBase < 0 ? kpi(t('navp.coverage'), sim.coveredByCash ? esc(t('navp.coveredCash')) : sim.coveredByLiquid1d ? esc(t('navp.coveredLiquid')) : esc(t('navp.notCovered')), { tone: sim.coveredByCash ? 'ok' : sim.coveredByLiquid1d ? 'warn' : 'breach', sub: t('navp.liquid1d', { v: fmtMoney(sim.liquid1d, base, { compact: true }) }) }) : ''}
           </div>
           ${table([
-            { key: 'r', label: t('comp.rule'), fmt: r => esc(t('limit.' + r.id)) },
-            { key: 'b', label: t('navp.before'), align: 'right', fmt: r => { const o = sim.rulesBefore.rules.find(x => x.id === r.id); return `${fmtNum(o?.value, 2)} % ${o ? statusChip(o.status) : ''}`; } },
-            { key: 'a', label: t('navp.after'), align: 'right', fmt: r => `${fmtNum(r.value, 2)} % ${statusChip(r.status)}` }
+            { key: 'r', label: t('comp.rule'), fmt: r => esc(ruleName(r.id)) },
+            { key: 'b', label: t('navp.before'), align: 'right', fmt: r => { const o = sim.rulesBefore.rules.find(x => x.id === r.id); return `${ruleVal(o)} ${o ? statusChip(o.status) : ''}`; } },
+            { key: 'a', label: t('navp.after'), align: 'right', fmt: r => `${ruleVal(r)} ${statusChip(r.status)}` }
           ], sim.rulesAfter.rules, { dense: true, rowAttr: r => sim.newlyBroken.some(x => x.id === r.id) ? 'class="row-error"' : '' })}
-          ${sim.newlyBroken.length ? `<p class="neg small mt">${esc(t('navp.broken', { list: sim.newlyBroken.map(r => t('limit.' + r.id)).join(', ') }))}</p>` : `<p class="pos small mt">${esc(t('navp.noneBroken'))}</p>`}
+          ${sim.newlyBroken.length ? `<p class="neg small mt">${esc(t('navp.broken', { list: sim.newlyBroken.map(r => ruleName(r.id)).join(', ') }))}</p>` : `<p class="pos small mt">${esc(t('navp.noneBroken'))}</p>`}
         ` : `<p class="muted small">${esc(t('navp.simHelp'))}</p>`}
       `, { sub: esc(t('navp.simSub')) })}`}
       <p class="footnote">${esc(t('navp.method'))}</p>

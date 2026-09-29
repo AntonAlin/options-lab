@@ -6,6 +6,8 @@ import { isNum, num, sum, mean, stdev, quantile, covariance, todayISO } from './
 import { FALLBACK_EUR_RATES, DEFAULT_CMA, DEFAULT_RISK } from './store.js';
 import { zeroAt } from './marketdata.js';
 import { ewmaRisk, riskDrivers } from './riskstats.js';
+import { checkFundRules } from './rules.js';
+import { globalExposureRule, usesVar } from './globalexposure.js';
 
 // ---- valuation ----------------------------------------------------------------------------------
 export function makeCtx(p) {
@@ -610,7 +612,8 @@ export function compliance(v, liq = liquidity(v)) {
   add('fundMax', funds[0]?.value || 0, 'max', funds.slice(0, 5));
 
   const deriv = v.valid.filter(x => x.def.group === 'derivatives').map(x => ({ name: x.name, value: pct(x.r.exposure) })).sort((a, b) => b.value - a.value);
-  add('commitment', pct(v.derivCommit), 'max', deriv.slice(0, 8));
+  // Under the VaR approach the commitment limit does not apply; the VaR limit below replaces it.
+  if (!usesVar(v.p)) add('commitment', pct(v.derivCommit), 'max', deriv.slice(0, 8));
 
   const cpty = new Map();
   // OTC: forwards and swaps, and options with a counterparty in the issuer field (listed options clear).
@@ -639,6 +642,11 @@ export function compliance(v, liq = liquidity(v)) {
   add('liquidity7d', b7 ? b7.value / nav * 100 : 0, 'min');
   add('cashMin', pct(v.cash), 'min');
   add('illiquidMax', pct(liq.illiquid), 'max', liq.rows.filter(q => q.days > 90).map(q => ({ name: q.row.name, value: pct(q.row.r.mv) })));
+
+  // Global exposure by the VaR approach, when the fund uses it, and the fund's own rules.
+  const ge = globalExposureRule(v);
+  if (ge) out.push(ge);
+  out.push(...checkFundRules(v));
 
   return {
     rules: out,

@@ -168,6 +168,34 @@ export const METHODOLOGY = [
     ]
   },
   {
+    id: 'fundRules', module: 'rules.js',
+    title: { en: 'Fund rules' },
+    intro: { en: 'Rules the user writes from the fund\'s own fund rules and prospectus. The engine checks exactly what is written; whether that captures the fund rules is the user\'s reading of them. Regulation and fund rules change; nothing here is legal advice.' },
+    items: [
+      { en: 'Matching holdings', formula: 'holding matches ⇔ every condition holds;  condition: field ∈ {values} | ∉ | contains | rating below/at least X\nfields: asset class, instrument type, group, region, country, sector, currency, issuer, strategy, rating (IG / HY / NR), name', notes: { en: 'Rating “below X” counts unrated holdings as below, the cautious reading. Region comes from the country code.' } },
+      { en: 'Measures', formula: 'weight = Σ MV / NAV;  exposure = Σ net delta-adjusted exposure / NAV;  gross = Σ |exposure| / NAV\nlargest holding = max MV / NAV (derivatives left out);  largest group = max over groups of Σ MV / NAV\ncount = number of matches;  duration = −Σ DV01 / NAV / 1 bp', notes: { en: 'Status as for the UCITS limits: breach beyond the limit, warning within 10 % of it. The rules run through the same compliance check, so they appear on the dashboard, in pre-trade, in the breach history (active vs passive) and in the PDF.' } }
+    ]
+  },
+  {
+    id: 'globalExposure', module: 'globalexposure.js',
+    title: { en: 'Global exposure: commitment or VaR approach' },
+    intro: { en: 'The developer\'s reading of UCITS Directive art. 51(3) and the CESR/10-788 guidelines as of September 2026. The rules are updated continuously and can be read differently; this is an interpretation, not legal advice, and it may be wrong.' },
+    items: [
+      { en: 'VaR limit', formula: 'VaR = VaR(99 %, 1 day) · √20  from the back-cast P&L of today\'s holdings (historical simulation or EWMA), at least 250 days where available\nabsolute: VaR / NAV ≤ 20 %;  relative: VaR_fund / VaR_reference ≤ 2', notes: { en: 'The reference portfolio is a price series in the loaded history (an index or index fund standing for it); its VaR is taken from its returns with the same confidence, horizon and window. Without history the factor model gives an indicative figure, flagged. Under a VaR approach the commitment limit is not checked. History is cut at the valuation date, so past snapshots never use later prices.' }, params: 'globalExposure.method, absLimit, relLimit, model, window, reference' },
+      { en: 'Backtest', formula: 'for each of the last 250 days t: VaR_t from days t−W … t−1;  overshooting ⇔ P&L_t < −VaR_t\nKupiec: LR = −2 ln[(1−p)^(n−x) p^x] + 2 ln[(1−x/n)^(n−x) (x/n)^x] ~ χ²(1)\nzone (250 days, 99 %): 0–4 green, 5–9 yellow, ≥ 10 red', notes: { en: 'Hypothetical backtest on today\'s holdings, so trades do not blur it. More than four overshootings at 99 % is read here as a signal to review the model; some supervisors expect notification.' } }
+    ]
+  },
+  {
+    id: 'lmt', module: 'lmt.js',
+    title: { en: 'Liquidity management tools and swing pricing' },
+    intro: { en: 'The developer\'s reading of Directive (EU) 2024/927 (applying from 16 April 2026) and ESMA\'s guidelines and RTS on liquidity management tools, as of September 2026. The rules are updated continuously and can be read differently; this is an interpretation, not legal advice, and it may be wrong.' },
+    items: [
+      { en: 'Selection', formula: 'selected tools among: gates, notice periods, redemption fees, swing pricing, dual pricing, anti-dilution levy, redemption in kind\nrequired: ≥ 2 (money market fund: ≥ 1);  suspension and side pockets are not counted', notes: { en: 'A flag is raised when more than one anti-dilution tool is selected, since as read here they should not be applied to the same dealing at the same time.' } },
+      { en: 'Swing factor and dilution', formula: 'w_i = MV_i / Σ MV (non-derivative assets, cash at zero cost)\ncost_i = one-way cost (spread + commission + tax, bp) · stress multiplier + impact_i\nimpact_i = σ_daily,i · √(flow · |qty_i| / ADV_i)   (square-root law; stressed: σ × 1.5, ADV × 0.5)\nswing factor(flow) = Σ w_i cost_i;  dilution without swing = flow · factor / (1 − flow)\nthreshold = smallest flow where dilution ≥ materiality', notes: { en: 'Vertical slice: the flow is met pro rata. Default costs are rough placeholders per instrument type and should be replaced by the fund\'s own. The same number is the natural starting point for an anti-dilution levy or a redemption fee.' }, params: 'lmt.costs, stressMult, materialityBp, capPct, impact' },
+      { en: 'Redemption gate', formula: 'paid on the first dealing day = min(request, gate);  deferred = request − gate;  dealing days = ⌈request / gate⌉\ncovered ⇔ assets sellable within 1 day ≥ first-day payment (normal and stressed liquidity profile)', notes: { en: 'A gate spreads a large outflow over several dealing days; it does not change what can be sold. Read it together with the liquidity stress test.' } }
+    ]
+  },
+  {
     id: 'importModel', module: 'suggest.js · datachecks.js',
     title: { en: 'Import suggestions and data checks' },
     intro: { en: 'Two helpers around the import. Neither changes data by itself.' },

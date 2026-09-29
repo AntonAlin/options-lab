@@ -630,7 +630,7 @@ test('connected source file: no portfolio column means one portfolio; no date co
 
 test('user guide: every block has text, links go to real pages', async () => {
   const { GUIDE } = await import('../js/guide.js');
-  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution'];
+  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution', 'global-exposure', 'liquidity-tools'];
   const both = (o, where) => assert.ok(o && String(o.en || '').trim(), 'missing text in ' + where);
   assert.equal(GUIDE[0].id, 'privacy', 'data privacy comes first');
   assert.equal(new Set(GUIDE.map(s => s.id)).size, GUIDE.length);
@@ -1237,4 +1237,94 @@ test('data checks: unit errors, scaled quantities, jumps, stale and missing pric
   const big = checkHoldings(prev, next.filter(x => x.name !== eq[5].name), { p, prevDate: '2026-09-25', nextDate: '2026-09-28', complete: true });
   const w = valuePortfolio(p).valid.find(x => x.pos.name === eq[5].name).weight;
   assert.equal(big.flags.some(f => f.kind === 'dropped' && f.name === eq[5].name), w >= 0.05);
+});
+
+test('fund rules: conditions, measures and statuses; they flow into compliance and its breach history', async () => {
+  const R = await import('../js/rules.js');
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  const eq = (name, country, sector, mv) => ({ id: name, type: 'equity', name, issuer: name, qty: mv / 100, price: 100, ccy: 'SEK', country, sector });
+  const bond = (name, rating, mv) => ({ id: name, type: 'corp_bond', name, issuer: name, qty: mv, price: 100, ccy: 'SEK', coupon: 3, freq: '1', maturity: '2030-09-28', rating });
+  p.positions = [eq('A', 'SE', 'Industrials', 400), eq('B', 'US', 'Tech', 200), eq('C', 'SE', 'Industrials', 100), bond('D', 'BBB', 200), bond('E', 'BB+', 100)];
+  const v = valuePortfolio(p);
+  const val = rule => R.measureRule(v, R.newRule(rule)).value;
+  close(val({ measure: 'weight', conds: [{ dim: 'region', op: 'in', values: ['nordics'] }] }), 50, 1e-9);
+  close(val({ measure: 'weight', conds: [{ dim: 'region', op: 'notin', values: ['nordics'] }, { dim: 'assetClass', op: 'in', values: ['equity'] }] }), 20, 1e-9);
+  close(val({ measure: 'maxGroup', groupBy: 'sector', conds: [{ dim: 'assetClass', op: 'in', values: ['equity'] }] }), 50, 1e-9);
+  close(val({ measure: 'maxPosition' }), 40, 1e-9);
+  assert.equal(val({ measure: 'count', conds: [{ dim: 'rating', op: 'below', values: ['BBB-'] }, { dim: 'assetClass', op: 'in', values: ['fixed_income'] }] }), 1);
+  assert.equal(val({ measure: 'count', conds: [{ dim: 'rating', op: 'in', values: ['HY'] }] }), 1);
+  assert.equal(val({ measure: 'count', conds: [{ dim: 'name', op: 'contains', values: ['b'] }] }), 1);
+  assert.ok(val({ measure: 'duration' }) > 1, 'bond duration shows');
+  assert.equal(R.ruleStatus(10.5, 10, 'max'), 'breach'); assert.equal(R.ruleStatus(9.5, 10, 'max'), 'warn'); assert.equal(R.ruleStatus(5, 10, 'max'), 'ok');
+  assert.equal(R.ruleStatus(89, 90, 'min'), 'breach'); assert.equal(R.ruleStatus(0, 0, 'max'), 'ok'); assert.equal(R.ruleStatus(1, 0, 'max'), 'breach');
+  // In compliance, with the user's name and unit; switched-off rules are skipped.
+  p.rules = [R.newRule({ name: 'Nordic at least 60 %', measure: 'weight', dir: 'min', limit: 60, conds: [{ dim: 'region', op: 'in', values: ['nordics'] }] }), R.newRule({ name: 'Off', on: false, measure: 'count', limit: 0 })];
+  const comp = compliance(valuePortfolio(p));
+  const fr = comp.rules.filter(r => r.custom);
+  assert.equal(fr.length, 1); assert.equal(fr[0].label, 'Nordic at least 60 %'); assert.equal(fr[0].status, 'breach'); assert.equal(fr[0].unit, '%');
+  const { breachHistory } = await import('../js/insights.js');
+  const snaps = [{ date: '2026-09-25', positions: p.positions }, { date: '2026-09-28', positions: p.positions }];
+  const h = breachHistory(p, snaps);
+  assert.ok(h.episodes.some(e => e.id === fr[0].id), 'a fund rule has a breach history');
+});
+
+test('global exposure: VaR approach replaces commitment, relative VaR against a reference series, backtest and Kupiec', async () => {
+  const G = await import('../js/globalexposure.js');
+  // Kupiec against known values: 2 of 250 at 1 % fits, 10 of 250 does not.
+  close(G.kupiec(10, 250, 0.01).lr, 12.955, 1e-3);
+  assert.ok(G.kupiec(2, 250, 0.01).pValue > 0.5 && G.kupiec(10, 250, 0.01).pValue < 0.001);
+  assert.deepEqual([0, 4, 5, 9, 10].map(G.zoneOf), ['green', 'green', 'yellow', 'yellow', 'red']);
+  const p = buildDemo('2026-09-28');
+  const base = compliance(valuePortfolio(p));
+  assert.ok(base.rules.some(r => r.id === 'commitment') && !base.rules.some(r => r.id.startsWith('var')));
+  p.globalExposure = { method: 'absoluteVar' };
+  const v = valuePortfolio(p);
+  const comp = compliance(v);
+  assert.ok(!comp.rules.some(r => r.id === 'commitment'), 'commitment limit does not apply under the VaR approach');
+  const abs = comp.rules.find(r => r.id === 'varAbs');
+  const fv = G.fundVar(v);
+  assert.equal(fv.model, 'historical'); assert.ok(fv.obs >= 250);
+  close(abs.value, fv.pct, 1e-12); close(fv.pct, fv.pct1d * Math.sqrt(20), 1e-9, '√20 scaling');
+  // Relative: the reference series is a price series in the history.
+  const key = p.benchmark || Object.keys(p.history.series)[0];
+  p.globalExposure = { method: 'relativeVar', reference: key };
+  const rel = compliance(valuePortfolio(p)).rules.find(r => r.id === 'varRel');
+  const ref = G.referenceVar(valuePortfolio(p));
+  close(rel.value, fv.pct / ref.pct, 1e-9); assert.equal(rel.unit, '×');
+  // Backtest on the demo history: 250 test days, exceptions counted against the rolling VaR.
+  const bt = G.backtest(v);
+  assert.equal(bt.n, 250);
+  assert.equal(bt.exceptions, bt.rows.filter(r => r.pnl < -r.var).length);
+  assert.ok(bt.rows.every(r => r.var > 0));
+  // A past valuation date never sees later prices.
+  const past = valuePortfolio({ ...p, valDate: p.history.dates[p.history.dates.length - 60] });
+  assert.equal(G.backcast(past).dates.at(-1), p.history.dates[p.history.dates.length - 60]);
+});
+
+test('liquidity tools: selection rule, swing factor and dilution, gates', async () => {
+  const L = await import('../js/lmt.js');
+  assert.equal(L.lmtCheck({ ...L.LMT_DEFAULTS, selected: ['swing'] }).ok, false);
+  assert.equal(L.lmtCheck({ ...L.LMT_DEFAULTS, selected: ['swing', 'suspension'] }).ok, false, 'suspension does not count');
+  assert.equal(L.lmtCheck({ ...L.LMT_DEFAULTS, selected: ['swing', 'gates'] }).ok, true);
+  assert.equal(L.lmtCheck({ ...L.LMT_DEFAULTS, selected: ['swing'], mmf: true }).ok, true, 'one is enough for a money market fund');
+  assert.equal(L.lmtCheck({ ...L.LMT_DEFAULTS, selected: ['swing', 'adl'] }).antiDilutionOverlap, true);
+  // Two equal holdings at 10 bp and 30 bp and 50 % cash → 10 bp average cost per unit traded.
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  p.positions = [
+    { id: 'a', type: 'equity', name: 'A', qty: 250, price: 100, ccy: 'SEK' },
+    { id: 'b', type: 'corp_bond', name: 'B', issuer: 'B', qty: 25000, price: 100, ccy: 'SEK', coupon: 3, freq: '1', maturity: '2030-09-28' },
+    { id: 'c', type: 'cash', name: 'Cash', qty: 50000, ccy: 'SEK' }
+  ];
+  const v = valuePortfolio(p);
+  const cfg = { ...L.lmtSettings(p), costs: { equity: 10, corp_bond: 30 }, impact: false, flows: [10], materialityBp: 5 };
+  const s = L.swingAnalysis(v, cfg);
+  const aw = v.valid.find(x => x.pos.id === 'a').r.mv, bw = v.valid.find(x => x.pos.id === 'b').r.mv, tot = aw + bw + 50000;
+  const f = (aw * 10 + bw * 30) / tot;
+  close(s.table[0].factor, f, 1e-9); close(s.table[0].factorStressed, 3 * f, 1e-9);
+  close(s.table[0].dilution, 0.1 * f / 0.9, 1e-9);
+  close(s.threshold, Math.ceil(1000 * 5 / (5 + f)) / 10, 0.1 + 1e-9, 'threshold where f·x/(1−x) = 5 bp');
+  const g = L.gateAnalysis(v, { ...cfg, gatePct: 10 });
+  const r30 = g.normal.find(r => r.request === 30);
+  assert.equal(r30.days, 3); close(r30.firstDay, 10, 1e-9); close(r30.deferred, 20, 1e-9);
+  assert.equal(g.normal.find(r => r.request === 5).gated, false);
 });

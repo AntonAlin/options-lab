@@ -38,14 +38,16 @@ import whatifView from './views/whatif.js';
 import attributionView from './views/attribution.js';
 import * as marketsync from './marketsync.js';
 import pnlView from './views/pnl.js';
+import globalExposureView from './views/global-exposure.js';
+import lmtView from './views/liquidity-tools.js';
 import { pnlAnalysis } from './pnl.js';
 
-const VIEWS = { dashboard, holdings, import: importView, history, exposure, risk, 'fixed-income': fixedIncome, performance, stress, liquidity, compliance, report, settings, cashflow, nav: navView, allocation: allocationView, derivatives: derivativesView, methodology: methodologyView, pnl: pnlView, guide: guideView, changes: changesView, whatif: whatifView, attribution: attributionView };
+const VIEWS = { dashboard, holdings, import: importView, history, exposure, risk, 'fixed-income': fixedIncome, performance, stress, liquidity, compliance, report, settings, cashflow, nav: navView, allocation: allocationView, derivatives: derivativesView, methodology: methodologyView, pnl: pnlView, guide: guideView, changes: changesView, whatif: whatifView, attribution: attributionView, 'global-exposure': globalExposureView, 'liquidity-tools': lmtView};
 
 const NAV = [
   { group: 'nav.g.overview', items: [['dashboard', 'nav.dashboard', 'M3 12l9-9 9 9M5 10v10h14V10'], ['guide', 'nav.guide', 'M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 21V5M8 7h7M8 11h7']] },
   { group: 'nav.g.portfolio', items: [['holdings', 'nav.holdings', 'M4 6h16M4 12h16M4 18h10'], ['pnl', 'nav.pnl', 'M4 19h16M6 15l4-6 4 3 4-7M17 5h3v3'], ['changes', 'nav.changes', 'M4 7h13l-3-3M20 17H7l3 3'], ['whatif', 'nav.whatif', 'M9 7h6M12 4v6M5 14h14v6H5zM9 17h6'], ['import', 'nav.import', 'M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3'], ['history', 'nav.history', 'M3 17l6-6 4 4 8-8'], ['nav', 'nav.nav', 'M4 19h16M6 16V9m4 7V5m4 11v-5m4 5V8']] },
-  { group: 'nav.g.analytics', items: [['allocation', 'nav.allocation', 'M12 3a9 9 0 109 9h-9zM15 3.5A9 9 0 0120.5 9H15z'], ['exposure', 'nav.exposure', 'M12 3v9l7 4M21 12a9 9 0 11-18 0 9 9 0 0118 0z'], ['derivatives', 'nav.derivatives', 'M3 12c3-8 6-8 9 0s6 8 9 0'], ['risk', 'nav.risk', 'M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z'], ['fixed-income', 'nav.fi', 'M4 19h16M6 15l4-4 3 3 5-6'], ['performance', 'nav.performance', 'M3 3v18h18M7 14l4-4 4 4 5-6'], ['attribution', 'nav.attribution', 'M4 20V10M10 20V4M16 20v-7M22 20H2'], ['stress', 'nav.stress', 'M13 2L3 14h7l-1 8 10-12h-7l1-8z'], ['liquidity', 'nav.liquidity', 'M12 2.7C12 2.7 5 10 5 14.5a7 7 0 0014 0C19 10 12 2.7 12 2.7z'], ['cashflow', 'nav.cashflow', 'M8 3v3m8-3v3M4 8h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zM8 12h3v3H8z'], ['compliance', 'nav.compliance', 'M9 12l2 2 4-4M12 3l7 3v6c0 4.5-3 8.3-7 9-4-.7-7-4.5-7-9V6l7-3z']] },
+  { group: 'nav.g.analytics', items: [['allocation', 'nav.allocation', 'M12 3a9 9 0 109 9h-9zM15 3.5A9 9 0 0120.5 9H15z'], ['exposure', 'nav.exposure', 'M12 3v9l7 4M21 12a9 9 0 11-18 0 9 9 0 0118 0z'], ['derivatives', 'nav.derivatives', 'M3 12c3-8 6-8 9 0s6 8 9 0'], ['risk', 'nav.risk', 'M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z'], ['global-exposure', 'nav.globalExposure', 'M4 12h4l2-6 4 12 2-6h4'], ['fixed-income', 'nav.fi', 'M4 19h16M6 15l4-4 3 3 5-6'], ['performance', 'nav.performance', 'M3 3v18h18M7 14l4-4 4 4 5-6'], ['attribution', 'nav.attribution', 'M4 20V10M10 20V4M16 20v-7M22 20H2'], ['stress', 'nav.stress', 'M13 2L3 14h7l-1 8 10-12h-7l1-8z'], ['liquidity', 'nav.liquidity', 'M12 2.7C12 2.7 5 10 5 14.5a7 7 0 0014 0C19 10 12 2.7 12 2.7z'], ['liquidity-tools', 'nav.lmt', 'M6 3h12M6 21h12M8 3v4l4 5-4 5v4M16 3v4l-4 5 4 5v4'], ['cashflow', 'nav.cashflow', 'M8 3v3m8-3v3M4 8h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zM8 12h3v3H8z'], ['compliance', 'nav.compliance', 'M9 12l2 2 4-4M12 3l7 3v6c0 4.5-3 8.3-7 9-4-.7-7-4.5-7-9V6l7-3z']] },
   { group: 'nav.g.output', items: [['report', 'nav.report', 'M7 3h7l5 5v13H7zM14 3v5h5M9 13h6M9 17h6'], ['methodology', 'nav.methodology', 'M4 5h16v14H4zM8 9h8M8 13h5M4 5l3-2h10l3 2']] },
   { group: 'nav.g.tools', items: [['settings', 'nav.settings', 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-2.9 1.2V21a2 2 0 11-4 0v-.1A1.7 1.7 0 009 19.4a1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.7 1.7 0 004.6 15 1.7 1.7 0 003 14H3a2 2 0 110-4h.1A1.7 1.7 0 004.6 9a1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1A1.7 1.7 0 009 4.6 1.7 1.7 0 0010 3V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z']] }
 ];
@@ -278,7 +280,7 @@ let cleanup = null;
 function renderRoute() {
   const main = document.getElementById('main');
   const route = currentRoute();
-  document.title = `${t('nav.' + ({ 'fixed-income': 'fi' }[route] || route))} · Nexus Portfolio Lab`;
+  document.title = `${t('nav.' + ({ 'fixed-income': 'fi', 'global-exposure': 'globalExposure', 'liquidity-tools': 'lmt' }[route] || route))} · Nexus Portfolio Lab`;
   renderSidebar();
   renderTopbar();
   renderBanner();

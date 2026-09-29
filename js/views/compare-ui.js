@@ -2,6 +2,7 @@
 import { t } from '../i18n.js';
 import { esc, table, fmtPct, fmtNum, fmtMoney, statusChip } from '../ui.js';
 import { isNum } from '../util.js';
+import { ruleName, ruleVal, ruleLimit } from '../labels.js';
 
 // [key, label key, formatter, which way is worse ('up' | 'down' | '')]
 const pct = d => x => fmtPct(x, d);
@@ -49,9 +50,9 @@ export function rulesTable(changes) {
   const still = changes.filter(r => r.from === r.to && r.to === 'breach');
   if (!moved.length && !still.length) return `<p class="muted small">${esc(t('cmp.rulesSame'))}</p>`;
   return table([
-    { key: 'id', label: t('cmp.rule'), fmt: r => esc(t('limit.' + r.id)) },
-    { key: 'a', label: t('cmp.before'), fmt: r => `${statusChip(r.from)} <span class="num small">${r.before ? fmtNum(r.before.value, 2) + ' %' : ''}</span>` },
-    { key: 'b', label: t('cmp.after'), fmt: r => `${statusChip(r.to)} <span class="num small">${r.after ? fmtNum(r.after.value, 2) + ' %' : ''}</span>` },
-    { key: 'l', label: t('cmp.limit'), align: 'right', fmt: r => { const x = r.after || r.before; return x ? (x.dir === 'min' ? '≥ ' : '≤ ') + fmtNum(x.limit, 1) + ' %' : ''; } }
+    { key: 'id', label: t('cmp.rule'), fmt: r => esc(ruleName(r.id)) },
+    { key: 'a', label: t('cmp.before'), fmt: r => `${statusChip(r.from)} <span class="num small">${r.before ? ruleVal(r.before) : ''}</span>` },
+    { key: 'b', label: t('cmp.after'), fmt: r => `${statusChip(r.to)} <span class="num small">${r.after ? ruleVal(r.after) : ''}</span>` },
+    { key: 'l', label: t('cmp.limit'), align: 'right', fmt: r => { const x = r.after || r.before; return x ? ruleLimit(x) : ''; } }
   ], [...moved, ...still], { dense: true });
 }

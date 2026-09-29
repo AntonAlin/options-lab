@@ -181,6 +181,27 @@ export const GUIDE = [
     ]
   },
   {
+    id: 'regulatory',
+    title: { en: 'Fund rules, global exposure and liquidity tools' },
+    blocks: [
+      { note: { en: 'Regulation is updated continuously by lawmakers, ESMA and national supervisors. These three pages are built on the developer\'s own reading of the rules as of September 2026. That reading is an opinion, not legal advice, and it may be incomplete, out of date or wrong. Check it against the current rules, your fund\'s prospectus and fund rules, and with your compliance function.' } },
+      { h: { en: 'Fund rules (Compliance page)' } },
+      { steps: [
+        { en: 'On Compliance, under Fund rules, choose “Add rule” or start from an example.' },
+        { en: 'Pick what is measured (market value, economic exposure, largest holding or group, number of holdings, duration), at most or at least, and the limit.' },
+        { en: 'Add conditions for which holdings count, e.g. region is not nordics, or rating below BBB−. Several values in one condition mean any of them; all conditions must hold.' },
+        { en: 'The rule is then checked everywhere the UCITS limits are: dashboard, pre-trade, breach history and PDF.' }
+      ] },
+      { link: 'compliance', label: { en: 'Go to Compliance' } },
+      { h: { en: 'Global exposure' } },
+      { p: { en: 'Choose the approach the prospectus states: commitment, absolute VaR or relative VaR. Under a VaR approach the VaR limit replaces the commitment limit. Relative VaR needs the reference portfolio as a price series in Price history. The backtest compares each day\'s 99 % VaR with the next day\'s P&L over 250 days, with a Kupiec test and a traffic light.' } },
+      { link: 'global-exposure', label: { en: 'Go to Global exposure' } },
+      { h: { en: 'Liquidity tools' } },
+      { p: { en: 'Record which liquidity management tools the fund has selected, calibrate swing pricing or an anti-dilution levy from your trading costs, and see what a redemption gate does to large outflows. Replace the default trading costs with your own.' } },
+      { link: 'liquidity-tools', label: { en: 'Go to Liquidity tools' } }
+    ]
+  },
+  {
     id: 'analytics',
     title: { en: 'Analytics, page by page' },
     blocks: [

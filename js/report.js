@@ -5,7 +5,8 @@ import { fmtMoney, fmtPct, fmtNum, fmtDate } from './ui.js';
 import { ASSET_CLASSES, REGIONS, typeLabel } from './instruments.js';
 import { monthlyReturns, RATING_BUCKETS } from './analytics.js';
 import * as charts from './charts.js';
-import { treeNodes, overlayRows, classLabel } from './labels.js';
+import { treeNodes, overlayRows, classLabel, ruleName, ruleVal, ruleLimit } from './labels.js';
+import { REG_AS_OF } from './views/regnote.js';
 import { loadScript, isNum, slug } from './util.js';
 
 // Pinned versions from the npm mirror on jsDelivr, verified with Subresource Integrity hashes taken
@@ -351,13 +352,14 @@ export async function generateReport(p, a, opts) {
     heading(t('nav.compliance'), t('comp.sub', { type: p.fundType || 'UCITS' }));
     const stColor = { ok: POS, warn: [170, 110, 0], breach: NEG };
     tableAt([t('comp.rule'), t('comp.actual'), t('comp.limit'), t('comp.status')],
-      comp.rules.map(r => [t('limit.' + r.id), fmtNum(r.value, 2) + ' %', (r.dir === 'max' ? '<= ' : '>= ') + fmtNum(r.limit, 1) + ' %', { content: t('status.' + r.status), _s: r.status }]),
+      comp.rules.map(r => [ruleName(r.id, p), ruleVal(r), ruleLimit(r, { ascii: true }), { content: t('status.' + r.status), _s: r.status }]),
       { didParseCell: d => { if (d.section === 'body' && d.column.index === 3) { d.cell.styles.textColor = stColor[d.row.raw[3]._s]; d.cell.styles.fontStyle = 'bold'; } }, columnStyles: { 0: { halign: 'left', cellWidth: 90 }, 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'left' } } });
     const breached = comp.rules.filter(r => r.status !== 'ok' && r.details.length);
     for (const r of breached) {
-      font(9, 'bold'); ensure(8); txt(t('limit.' + r.id), M, y); y += 2;
+      font(9, 'bold'); ensure(8); txt(ruleName(r.id, p), M, y); y += 2;
       tableAt([t('col.name'), '% NAV'], r.details.slice(0, 8).map(d => [d.name, fmtNum(d.value, 2) + ' %']), { width: CW * 0.6, fontSize: 7.5 });
     }
+    para(t('reg.title') + ' ' + t('reg.note', { d: REG_AS_OF, refs: t('reg.refs.ucits') }), 7.5, MUTED);
     para(t('comp.disclaimer'), 7.5, MUTED);
   }
 
