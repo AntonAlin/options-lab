@@ -9,7 +9,7 @@
 //  To add a new instrument type: add a field to FIELDS if you need one that is not there yet,
 //  then add an entry to INSTRUMENTS. Nothing else has to change. See the README for an example.
 // ============================================================================================
-import { bsm, bondAnalytics, swapAnnuity, americanOption, amortisingAnalytics, swaption, capFloor, zcInflationSwap, varianceSwap, barrierOption, digitalOption, autocall } from './pricing.js';
+import { bsm, bondAnalytics, swapAnnuity, americanOption, amortisingAnalytics, swaption, capFloor, zcInflationSwap, barrierOption, digitalOption } from './pricing.js';
 import { isNum, num, freqOf, yearsBetween } from './util.js';
 
 // ---- asset classes, used for allocation and the risk model ----------------------------------
@@ -114,16 +114,12 @@ export const FIELDS = {
   payerReceiver: { type: 'select', en: 'Payer / receiver', sv: 'Betalare / mottagare', options: ['payer', 'receiver'], aliases: ['payerreceiver', 'swaptiontype', 'payrec', 'betalaremottagare'] },
   capFloor:    { type: 'select', en: 'Cap / floor', sv: 'Tak / golv', options: ['cap', 'floor'], aliases: ['capfloor', 'captype', 'takgolv'] },
   breakeven:   { type: 'number', en: 'Market breakeven inflation %', sv: 'Marknadens break-even-inflation %', aliases: ['breakeven', 'breakevenrate', 'marketbreakeven', 'inflationrate', 'breakeveninflation'] },
-  realisedVol: { type: 'number', en: 'Realised vol so far %', sv: 'Realiserad vol hittills %', aliases: ['realisedvol', 'realizedvol', 'realisedvolatility', 'realizedvolatility', 'realiseradvol'] },
   startDate:   { type: 'date', en: 'Start / issue date', sv: 'Start- / emissionsdag', aliases: ['startdate', 'effectivedate', 'issuedate', 'tradedate', 'startdatum', 'emissionsdag', 'likviddag'] },
-  swapKind:    { type: 'select', en: 'Variance or volatility', sv: 'Varians eller volatilitet', options: ['variance', 'volatility_swap'], aliases: ['swapkind', 'varvol', 'variancevolatility'] },
   exoticKind:  { type: 'select', en: 'Exotic kind', sv: 'Exotisk typ', options: ['barrier', 'digital'], aliases: ['exotickind', 'exotictype', 'optionkind', 'exotisktyp'] },
   barrierType: { type: 'select', en: 'Barrier type', sv: 'Barriärtyp', options: ['down-and-out', 'down-and-in', 'up-and-out', 'up-and-in'], aliases: ['barriertype', 'knocktype', 'barriärtyp'] },
   barrier:     { type: 'number', en: 'Barrier / stop-loss level', sv: 'Barriär / stop loss-nivå', aliases: ['barrier', 'barrierlevel', 'knockout', 'knockoutlevel', 'stoploss', 'stoplosslevel', 'barriär', 'stoplossnivå'] },
   payout:      { type: 'number', en: 'Digital payout per unit', sv: 'Digital utbetalning per enhet', aliases: ['payout', 'digitalpayout', 'cashpayout', 'utbetalning'] },
-  certType:    { type: 'select', en: 'Certificate kind', sv: 'Certifikatstyp', options: ['leverage', 'knock_out', 'autocall', 'protected', 'tracker'], aliases: ['certtype', 'certificatetype', 'producttype', 'certifikatstyp', 'produkttyp'] },
-  autocallLevel: { type: 'number', en: 'Autocall level % of initial', sv: 'Autocall-nivå % av startkurs', aliases: ['autocalllevel', 'autocallbarrier', 'callbarrier', 'autocallnivå'] },
-  protectionLevel: { type: 'number', en: 'Protection barrier % of initial', sv: 'Skyddsbarriär % av startkurs', aliases: ['protectionlevel', 'protectionbarrier', 'capitalbarrier', 'kibarrier', 'skyddsbarriär', 'riskbarriär'] },
+  certType:    { type: 'select', en: 'Certificate kind', sv: 'Certifikatstyp', options: ['leverage', 'knock_out', 'protected', 'tracker'], aliases: ['certtype', 'certificatetype', 'producttype', 'certifikatstyp', 'produkttyp'] },
   cpr:         { type: 'number', en: 'Prepayment speed (CPR %)', sv: 'Förtidsinlösen (CPR %)', aliases: ['cpr', 'prepaymentspeed', 'prepayment', 'förtidsinlösen'] },
   poolFactor:  { type: 'number', en: 'Pool factor', sv: 'Poolfaktor', aliases: ['poolfactor', 'factor', 'currentfactor', 'amortisationfactor', 'poolfaktor'] },
   collateralValue: { type: 'number', en: 'Collateral value', sv: 'Säkerhetens värde', aliases: ['collateralvalue', 'collateral', 'collateralmv', 'collateralmarketvalue', 'säkerhet', 'säkerhetsvärde'] },
@@ -140,11 +136,10 @@ export const OPTION_LABELS = {
   european: { en: 'European', sv: 'Europeisk' }, american: { en: 'American', sv: 'Amerikansk' },
   normal: { en: 'Normal (bp, Bachelier)', sv: 'Normal (bp, Bachelier)' }, lognormal: { en: 'Lognormal (%, Black)', sv: 'Lognormal (%, Black)' },
   payer: { en: 'Payer (right to pay fixed)', sv: 'Betalare (rätt att betala fast)' }, receiver: { en: 'Receiver (right to receive fixed)', sv: 'Mottagare (rätt att erhålla fast)' },
-  cap: { en: 'Cap', sv: 'Räntetak' }, floor: { en: 'Floor', sv: 'Räntegolv' }, variance: { en: 'Variance swap', sv: 'Variansswap' }, volatility_swap: { en: 'Volatility swap', sv: 'Volatilitetsswap' },
-  barrier: { en: 'Barrier', sv: 'Barriär' }, digital: { en: 'Digital (cash-or-nothing)', sv: 'Digital (kontant eller inget)' },
+  cap: { en: 'Cap', sv: 'Räntetak' }, floor: { en: 'Floor', sv: 'Räntegolv' }, barrier: { en: 'Barrier', sv: 'Barriär' }, digital: { en: 'Digital (cash-or-nothing)', sv: 'Digital (kontant eller inget)' },
   'down-and-out': { en: 'Down-and-out', sv: 'Ned-och-ut' }, 'down-and-in': { en: 'Down-and-in', sv: 'Ned-och-in' }, 'up-and-out': { en: 'Up-and-out', sv: 'Upp-och-ut' }, 'up-and-in': { en: 'Up-and-in', sv: 'Upp-och-in' },
   leverage: { en: 'Daily leverage (bull/bear)', sv: 'Daglig hävstång (bull/bear)' }, knock_out: { en: 'Knock-out (mini future, turbo)', sv: 'Knock-out (mini future, turbo)' },
-  autocall: { en: 'Autocall', sv: 'Autocall' }, protected: { en: 'Capital protected', sv: 'Kapitalskyddad' }, tracker: { en: 'Tracker', sv: 'Tracker' },
+  protected: { en: 'Capital protected', sv: 'Kapitalskyddad' }, tracker: { en: 'Tracker', sv: 'Tracker' },
   government: { en: 'Government bonds', sv: 'Statsobligationer' }, other: { en: 'Other', sv: 'Övrigt' },
   premium: { en: 'Premium paid up front', sv: 'Premie betalas direkt' }, futures: { en: 'Futures-style (margined)', sv: 'Terminsstil (marginalavräknas)' },
   receive: { en: 'Receive fixed', sv: 'Erhåll fast' }, pay: { en: 'Pay fixed', sv: 'Betala fast' },
@@ -668,8 +663,8 @@ export const INSTRUMENTS = {
 
   certificate: {
     en: 'Certificate / structured product', sv: 'Certifikat / strukturerad produkt', group: 'securities', icon: 'CRT',
-    hint: { en: 'Exchange-traded certificates and structured products: bull/bear, mini futures, turbos, trackers, bonus certificates, autocalls, capital-protected notes. Value = quantity × price; exposure = value × leverage (negative for bear). “BULL OMX X5” style names give the leverage if the column is empty. The issuer carries the credit risk.', sv: 'Börshandlade certifikat och strukturerade produkter: bull/bear, minilong/minishort, turbos, trackers, bonuscertifikat, autocalls, kapitalskyddade placeringar. Värde = antal × kurs; exponering = värde × hävstång (negativ för bear). Namn som ”BULL OMX X5” ger hävstången om kolumnen saknas. Emittenten bär kreditrisken.' },
-    fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', 'certType', 'leverage', 'underlyingClass', 'underlyingPrice', 'strike', 'barrier', 'multiplier', 'optType', 'autocallLevel', 'protectionLevel', 'coupon', 'freq', 'startDate', 'vol', 'rate', 'divYield', 'duration', 'maturity', 'beta', ...CLASSIFY, 'adv', 'strategy', 'notes'],
+    hint: { en: 'Exchange-traded certificates and structured products: bull/bear, mini futures, turbos, trackers, bonus certificates, autocalls, capital-protected notes. Value = quantity × price; exposure = value × leverage (negative for bear). For autocalls and other payoffs without a model here, put the issuer’s delta in Leverage. “BULL OMX X5” style names give the leverage if the column is empty. The issuer carries the credit risk.', sv: 'Börshandlade certifikat och strukturerade produkter: bull/bear, minilong/minishort, turbos, trackers, bonuscertifikat, autocalls, kapitalskyddade placeringar. Värde = antal × kurs; exponering = värde × hävstång (negativ för bear). Namn som ”BULL OMX X5” ger hävstången om kolumnen saknas. Emittenten bär kreditrisken.' },
+    fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', 'certType', 'leverage', 'underlyingClass', 'underlyingPrice', 'strike', 'barrier', 'multiplier', 'optType', 'vol', 'rate', 'divYield', 'duration', 'maturity', 'beta', ...CLASSIFY, 'adv', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'ccy'],
     defaults: { underlyingClass: 'equity' },
     labels: { issuer: { en: 'Issuer (credit risk)', sv: 'Emittent (kreditrisk)' } },
@@ -685,7 +680,7 @@ export const INSTRUMENTS = {
       }
       const cls = p.underlyingClass || 'equity';
       let net = mv * lev;
-      const kind = p.certType || (isNum(p.barrier) && isNum(p.strike) ? 'knock_out' : isNum(p.autocallLevel) ? 'autocall' : 'leverage');
+      const kind = p.certType || (isNum(p.barrier) && isNum(p.strike) ? 'knock_out' : 'leverage');
       const S = num(p.underlyingPrice);
       if (kind === 'knock_out' && S > 0 && isNum(p.strike)) {
         // Mini future / turbo: value ≈ (spot − financing level) × ratio; exposure is the whole
@@ -696,13 +691,6 @@ export const INSTRUMENTS = {
         net = out ? 0 : phi * num(p.qty) * ratio * S * fx;
         r.model = { price: out ? 0 : Math.max(0, phi * (S - p.strike)) * ratio, leverage: out ? 0 : S / Math.max(1e-9, phi * (S - p.strike)) };
         if (out) r.warnings.push('knocked_out');
-        r.warnings = r.warnings.filter(w => w !== 'leverage_missing');
-      } else if (kind === 'autocall' && S > 0 && isNum(p.strike) && isNum(p.vol) && p.maturity) {
-        // Autocall: Monte Carlo per 100 nominal; equity delta by revaluation at spot ± 1 %.
-        const price = s1 => autocallPrice(p, ctx, s1);
-        const pv = price(S), dPdS = (price(S * 1.01) - price(S * 0.99)) / (0.02 * S);
-        net = num(p.qty) / 100 * dPdS * S * fx;
-        r.model = { price: pv };
         r.warnings = r.warnings.filter(w => w !== 'leverage_missing');
       } else if (kind === 'protected' && S > 0 && isNum(p.strike) && isNum(p.vol) && p.maturity) {
         // Capital protected: a zero-coupon floor plus participation × at-the-money call per 100.
@@ -804,7 +792,7 @@ export const INSTRUMENTS = {
 
   otc: {
     en: 'Other OTC derivative (MTM)', sv: 'Övrigt OTC-derivat (marknadsvärde)', group: 'derivatives', icon: 'OTC',
-    hint: { en: 'Only for what the platform has no model for: Asian, lookback, cliquet, basket, rainbow and quanto options, correlation and commodity swaps. The market value must come from the counterparty, and the risk is only as good as the delta, duration or vega you give. Swaptions, caps/floors, inflation swaps, variance swaps, barriers and digitals have their own types with models. Exposure (commitment) is the notional.', sv: 'Bara för det plattformen saknar modell för: asiatiska, lookback-, cliquet-, korg-, regnbågs- och quantooptioner, korrelations- och råvaruswappar. Marknadsvärdet måste komma från motparten, och risken blir aldrig bättre än det delta, den duration eller vega du anger. Swaptioner, räntetak/-golv, inflationsswappar, variansswappar, barriär- och digitaloptioner har egna typer med modeller. Exponeringen (åtagandet) är det nominella beloppet.' },
+    hint: { en: 'Only for what the platform has no model for: Asian, lookback, cliquet, basket, rainbow and quanto options, variance, volatility, correlation and commodity swaps. The market value must come from the counterparty, and the risk is only as good as the delta, duration or vega you give. Swaptions, caps/floors, inflation swaps, variance swaps, barriers and digitals have their own types with models. Exposure (commitment) is the notional.', sv: 'Bara för det plattformen saknar modell för: asiatiska, lookback-, cliquet-, korg-, regnbågs- och quantooptioner, korrelations- och råvaruswappar. Marknadsvärdet måste komma från motparten, och risken blir aldrig bättre än det delta, den duration eller vega du anger. Swaptioner, räntetak/-golv, inflationsswappar, variansswappar, barriär- och digitaloptioner har egna typer med modeller. Exponeringen (åtagandet) är det nominella beloppet.' },
     fields: ['name', 'issuer', 'qty', 'ccy', 'mtm', 'underlyingClass', 'reportedDelta', 'duration', 'vega', 'maturity', 'beta', 'strategy', 'notes'],
     required: ['name', 'qty', 'ccy', 'mtm', 'underlyingClass'],
     defaults: { underlyingClass: 'rates' },
@@ -878,29 +866,6 @@ export const INSTRUMENTS = {
     displayName: p => p.name || `ZC inflation swap ${p.direction === 'pay' ? 'pay' : 'rec'} ${num(p.fixedRate).toFixed(2)}% ${p.maturity || ''}`
   },
 
-  variance_swap: {
-    en: 'Variance / volatility swap', sv: 'Varians- / volatilitetsswap', group: 'derivatives', icon: 'VAR',
-    hint: { en: 'Pays realised variance (or volatility) against a strike. Quantity = vega notional (value change per vol point at the strike). Valued from realised vol so far and implied vol for the rest; the risk is implied volatility (vega).', sv: 'Betalar realiserad varians (eller volatilitet) mot ett lösenpris. Antal = veganominellt belopp (värdeförändring per volpunkt vid lösenpriset). Värderas från realiserad vol hittills och implicit vol för resten; risken är implicit volatilitet (vega).' },
-    fields: ['name', 'issuer', 'qty', 'ccy', 'direction', 'swapKind', 'strike', 'vol', 'realisedVol', 'startDate', 'maturity', 'rate', 'underlyingClass', 'mtm', 'strategy', 'notes'],
-    required: ['qty', 'ccy', 'strike', 'vol', 'maturity'],
-    defaults: { direction: 'receive', swapKind: 'variance', underlyingClass: 'equity' },
-    labels: { qty: { en: 'Vega notional', sv: 'Veganominellt belopp' }, issuer: { en: 'Counterparty', sv: 'Motpart' }, direction: { en: 'Receive (long) or pay (short) realised', sv: 'Erhålla (lång) eller betala (kort) realiserad' }, strike: { en: 'Strike (vol points)', sv: 'Lösenpris (volpunkter)' }, vol: { en: 'Implied vol now (points)', sv: 'Implicit vol nu (punkter)' } },
-    risk(p, ctx) {
-      const r = blank(ctx.base);
-      const fx = fxOrWarn(p, ctx, r);
-      const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
-      const total = p.startDate ? Math.max(T, yearsBetween(p.startDate, p.maturity)) : T;
-      const elapsed = total ? 1 - T / total : 0;
-      if (elapsed > 0 && !isNum(p.realisedVol)) r.warnings.push('realised_missing');
-      const o = varianceSwap({ long: p.direction !== 'pay', vegaNotional: num(p.qty), strike: num(p.strike), implied: num(p.vol), realised: num(p.realisedVol, num(p.vol)), elapsed, T, rate: rfRate(p, ctx, T), kind: p.swapKind === 'volatility_swap' ? 'volatility' : 'variance' });
-      const mv = isNum(p.mtm) ? p.mtm * fx : o.pv * fx;
-      Object.assign(r, { mv, exposure: Math.abs(num(p.qty) * fx), net: 0, assetClass: 'alternative', vega: o.vega * fx, liqDays: 5 });
-      r.deriv = derivInfo({ notional: num(p.qty) * fx, modelNotional: num(p.qty) * fx, delta: 0, modelDelta: 0, deltaExp: 0, modelDeltaExp: 0 });
-      addFx(r, p.ccy, mv, ctx.base);
-      return r;
-    }
-  },
-
   exotic_option: {
     en: 'Barrier / digital option', sv: 'Barriär- / digitaloption', group: 'derivatives', icon: 'EXO',
     hint: { en: 'Barrier options (knock-in, knock-out, up or down) with the Reiner-Rubinstein formulas, and cash-or-nothing digitals. Delta and vega by revaluation. Knocked-out options are flagged. Negative quantity = sold.', sv: 'Barriäroptioner (knock-in, knock-out, upp eller ned) med Reiner-Rubinsteins formler, och digitaloptioner (kontant eller inget). Delta och vega genom omvärdering. Utslagna optioner flaggas. Negativt antal = utfärdad.' },
@@ -970,7 +935,6 @@ const MTM_FALLBACK = {
   swaption: { model: ['strike', 'maturity', 'tenor', 'marketRate', 'vol'], cls: () => 'rates' },
   cap_floor: { model: ['strike', 'maturity', 'marketRate', 'vol'], cls: () => 'rates' },
   inflation_swap: { model: ['fixedRate', 'breakeven', 'maturity'], cls: () => 'inflation' },
-  variance_swap: { model: ['strike', 'vol', 'maturity'], cls: () => 'volatility' },
   exotic_option: { model: ['optType', 'strike', 'maturity', 'underlyingPrice', 'vol'], cls: p => p.underlyingClass || 'equity' }
 };
 const hasVal = v => v !== undefined && v !== null && v !== '';
@@ -1002,17 +966,6 @@ for (const [type, fb] of Object.entries(MTM_FALLBACK)) {
   };
   def.stressPnl = own.stressPnl ? (p, ctx, sc) => (modelInputsMissing(type, p) ? null : own.stressPnl(p, ctx, sc)) : undefined;
   if (!def.stressPnl) delete def.stressPnl;
-}
-
-const autocallMemo = new Map();
-function autocallPrice(p, ctx, S) {
-  const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
-  const f = freqOf(p.freq, 1);
-  const elapsed = p.startDate ? Math.max(0, Math.floor(yearsBetween(p.startDate, ctx.valDate) * f + 1e-9)) : 0;
-  const args = { S, initial: num(p.strike), T, obsPerYear: f, periodsElapsed: elapsed, autocallLevel: num(p.autocallLevel, 100) / 100, couponPct: num(p.coupon), protection: num(p.protectionLevel, 60) / 100, r: rfRate(p, ctx, T), q: num(p.divYield, 0) / 100, sigma: num(p.vol) / 100 };
-  const key = JSON.stringify(args);
-  if (!autocallMemo.has(key)) { if (autocallMemo.size > 5000) autocallMemo.clear(); autocallMemo.set(key, autocall(args)); }
-  return autocallMemo.get(key);
 }
 
 // ---- shared by the rate options -----------------------------------------------------------------
@@ -1161,11 +1114,10 @@ const TYPE_ALIASES = {
   equity_swap: ['equityswap', 'aktieswap', 'cfd', 'contractfordifference', 'contractsfordifference', 'trs', 'totalreturnswap', 'portfolioswap', 'swapequity', 'dividendswap', 'basketswap', 'indexswap'],
   ccs: ['ccs', 'crosscurrencyswap', 'ccirs', 'crosscurrencyinterestrateswap', 'currencyswap', 'basisswap', 'xccy', 'valutaränteswap'],
   repo: ['repo', 'reverserepo', 'repurchaseagreement', 'reverserepurchaseagreement', 'repa', 'omvändrepa', 'tripartyrepo', 'buysellback', 'sellbuyback'],
-  otc: ['otc', 'otcderivative', 'correlationswap', 'commodityswap', 'råvaruswap', 'asianoption', 'asian', 'cliquet', 'lookback', 'basketoption', 'rainbow', 'quanto', 'exotic', 'exoticoption', 'structuredswap'],
+  otc: ['otc', 'otcderivative', 'correlationswap', 'varianceswap', 'volatilityswap', 'varswap', 'volswap', 'variansswap', 'volatilitetsswap', 'commodityswap', 'råvaruswap', 'asianoption', 'asian', 'cliquet', 'lookback', 'basketoption', 'rainbow', 'quanto', 'exotic', 'exoticoption', 'structuredswap'],
   swaption: ['swaption', 'swaptions', 'payerswaption', 'receiverswaption', 'bermudanswaption'],
   cap_floor: ['cap', 'floor', 'collar', 'capfloor', 'interestratecap', 'interestratefloor', 'räntetak', 'räntegolv'],
   inflation_swap: ['inflationswap', 'zerocouponinflationswap', 'zciis', 'zcis', 'yoyinflationswap', 'inflationsswap', 'hicpswap', 'cpiswap', 'kpiswap'],
-  variance_swap: ['varianceswap', 'volatilityswap', 'varswap', 'volswap', 'variansswap', 'volatilitetsswap'],
   exotic_option: ['barrier', 'barrieroption', 'knockinoption', 'knockoutoption', 'digital', 'digitaloption', 'binary', 'binaryoption', 'barriäroption', 'digitaloptioner'],
   sec_lending: ['securitieslending', 'seclending', 'securitiesloan', 'stocklending', 'värdepapperslån', 'aktielån', 'lending', 'slb']
 };
@@ -1191,9 +1143,10 @@ const TYPE_PRESETS = {
   infrastructure: { altType: 'infrastructure' }, privatecredit: { altType: 'private_credit' }, directlending: { altType: 'private_credit' }, direktlån: { altType: 'private_credit' },
   commodityswap: { underlyingClass: 'commodity' }, råvaruswap: { underlyingClass: 'commodity' },
   payerswaption: { payerReceiver: 'payer' }, receiverswaption: { payerReceiver: 'receiver' }, floor: { capFloor: 'floor' }, cap: { capFloor: 'cap' },
-  volatilityswap: { swapKind: 'volatility_swap' }, volswap: { swapKind: 'volatility_swap' }, digital: { exoticKind: 'digital' }, digitaloption: { exoticKind: 'digital' }, binary: { exoticKind: 'digital' }, binaryoption: { exoticKind: 'digital' },
+  varianceswap: { underlyingClass: 'volatility' }, volatilityswap: { underlyingClass: 'volatility' }, varswap: { underlyingClass: 'volatility' }, volswap: { underlyingClass: 'volatility' }, variansswap: { underlyingClass: 'volatility' }, volatilitetsswap: { underlyingClass: 'volatility' },
+  digital: { exoticKind: 'digital' }, digitaloption: { exoticKind: 'digital' }, binary: { exoticKind: 'digital' }, binaryoption: { exoticKind: 'digital' },
   minifuture: { certType: 'knock_out' }, minilong: { certType: 'knock_out', optType: 'call' }, minishort: { certType: 'knock_out', optType: 'put' }, turbo: { certType: 'knock_out' }, turbowarrant: { certType: 'knock_out' }, knockout: { certType: 'knock_out' }, knockoutwarrant: { certType: 'knock_out' },
-  autocall: { certType: 'autocall' }, autocallable: { certType: 'autocall' }, express: { certType: 'autocall' }, capitalprotected: { certType: 'protected' }, kapitalskyddad: { certType: 'protected' }, indexobligation: { certType: 'protected' }, trackercertificate: { certType: 'tracker', leverage: 1 }, tracker: { certType: 'tracker', leverage: 1 }
+  capitalprotected: { certType: 'protected' }, kapitalskyddad: { certType: 'protected' }, indexobligation: { certType: 'protected' }, trackercertificate: { certType: 'tracker', leverage: 1 }, tracker: { certType: 'tracker', leverage: 1 }
 };
 export const typePreset = raw => TYPE_PRESETS[normKey(raw)] || null;
 const TYPE_LOOKUP = (() => {

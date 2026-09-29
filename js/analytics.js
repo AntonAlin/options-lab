@@ -607,7 +607,7 @@ export function compliance(v, liq = liquidity(v)) {
   // OTC: forwards and swaps, and options with a counterparty in the issuer field (listed options clear).
   // OTC derivatives at positive market value, plus securities lending and repos at their exposure
   // after collateral (UCITS art. 52 applies the counterparty limit to efficient portfolio management too).
-  const OTC = ['fx_forward', 'irs', 'cds', 'equity_swap', 'ccs', 'otc', 'swaption', 'cap_floor', 'inflation_swap', 'variance_swap', 'exotic_option'];
+  const OTC = ['fx_forward', 'irs', 'cds', 'equity_swap', 'ccs', 'otc', 'swaption', 'cap_floor', 'inflation_swap', 'exotic_option'];
   v.valid.forEach(x => {
     const exp = isNum(x.r.cptyExposure) ? x.r.cptyExposure : (OTC.includes(x.pos.type) || (x.pos.type === 'option' && x.pos.issuer)) ? Math.max(0, x.r.mv) : 0;
     if (exp > 0) { const k = x.pos.issuer || '—'; cpty.set(k, (cpty.get(k) || 0) + exp); }

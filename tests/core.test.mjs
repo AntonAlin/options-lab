@@ -917,18 +917,18 @@ test('instrument coverage: European institutional instruments import and value c
   // American put is worth at least its intrinsic value.
   const am = run(['Name', 'Type', 'Quantity', 'Currency', 'Strike', 'Maturity', 'Underlying price', 'Volatility', 'Option type', 'Multiplier'], ['ABB put', 'Stock option', 10, 'SEK', 700, '2027-09-17', 500, 25, 'put', 100]);
   assert.ok(am.r.mv >= 200000, 'American put ≥ intrinsic: ' + am.r.mv);
-  // Swaptions and variance swaps are modelled now; a counterparty MTM still wins for the value.
+  // Swaptions are modelled; a counterparty MTM still wins for the value. Variance swaps have no model and go in at counterparty value.
   const swpt = run(['Name', 'Type', 'Quantity', 'Currency', 'Market value', 'Strike', 'Maturity', 'Tenor', 'Market rate', 'Volatility'], ['EUR 5y10y payer', 'Swaption', 20000000, 'EUR', 310000, 2.75, '2031-09-28', 10, 2.6, 85]);
   assert.equal(swpt.type, 'swaption'); close(swpt.r.mv, 310000 * 11.2, 1e-6); assert.ok(swpt.r.ir01.EUR > 0, 'payer gains when rates rise');
-  const vsw = run(['Name', 'Type', 'Quantity', 'Currency', 'Strike', 'Volatility', 'Maturity'], ['Var swap', 'Variance swap', 100000, 'EUR', 20, 20, '2027-09-28']);
-  assert.equal(vsw.type, 'variance_swap'); close(vsw.r.mv, 0, 1); assert.ok(vsw.r.vega > 0);
+  const vsw = run(['Name', 'Type', 'Quantity', 'Currency', 'Market value'], ['Var swap', 'Variance swap', 100000, 'EUR', 5000]);
+  assert.equal(vsw.type, 'otc'); close(vsw.r.mv, 5000 * 11.2, 1e-6); assert.ok(vsw.r.vega > 0);
   assert.equal(run(['Name', 'Type', 'Quantity', 'Currency', 'Market value'], ['Asian', 'Asian option', 1000000, 'EUR', 5000]).type, 'otc');
   // An unknown type is not valued at all.
   const unk = run(H, ['Mystery', 'Snowflake swap', 1000, 100, 'SEK']);
   assert.equal(unk.type, 'unknown'); assert.equal(unk.r, null);
 });
 
-test('pricing: rate options, inflation and variance swaps obey parity and limits', async () => {
+test('pricing: rate options and inflation swaps obey parity and limits', async () => {
   const m = await import('../js/pricing.js');
   // Put-call parity for Bachelier and Black-76.
   const bc = m.bachelier('call', 0.025, 0.02, 2, 0.009), bp = m.bachelier('put', 0.025, 0.02, 2, 0.009);
@@ -943,16 +943,11 @@ test('pricing: rate options, inflation and variance swaps obey parity and limits
   const cap = m.capFloor({ cap: true, F: 0.03, K: 0.03, tenor: 5, freq: 4, vol: 0.009 });
   const flr = m.capFloor({ cap: false, F: 0.03, K: 0.03, tenor: 5, freq: 4, vol: 0.009 });
   close(cap.pv, flr.pv, 1e-12, 'at-the-money cap = floor');
-  // Inflation swap at the market breakeven is worth nothing; variance swap at inception too.
+  // Inflation swap at the market breakeven is worth nothing.
   close(m.zcInflationSwap({ T: 10, fixed: 0.022, breakeven: 0.022, rate: 0.025 }).pv, 0, 1e-15);
-  const vs = m.varianceSwap({ vegaNotional: 100000, strike: 20, implied: 20, T: 1 });
-  close(vs.pv, 0, 1e-9);
-  const up = m.varianceSwap({ vegaNotional: 100000, strike: 20, implied: 20.01, T: 1 });
-  close((up.pv - vs.pv) / 0.01, vs.vega, 100, 'vega = dPV/dσ');
-  close(m.varianceSwap({ vegaNotional: 100000, strike: 20, implied: 21, T: 1 }).pv, 100000 / 40 * (441 - 400), 1e-6);
 });
 
-test('pricing: barrier in + out = vanilla; digitals; autocall limits; amortising bonds', async () => {
+test('pricing: barrier in + out = vanilla; digitals; amortising bonds', async () => {
   const m = await import('../js/pricing.js');
   const [S, T, r, q, v] = [100, 0.75, 0.03, 0.01, 0.25];
   for (const type of ['call', 'put']) for (const [K, H, dir] of [[100, 90, 'down'], [80, 90, 'down'], [100, 115, 'up'], [120, 115, 'up']]) {
@@ -963,13 +958,6 @@ test('pricing: barrier in + out = vanilla; digitals; autocall limits; amortising
   close(m.barrierOption('call', 'down-and-out', S, 100, 1, T, r, q, v), m.bsm('call', S, 100, T, r, q, v).price, 1e-6, 'far barrier = vanilla');
   assert.equal(m.barrierOption('call', 'down-and-out', 85, 100, 90, T, r, q, v), 0, 'knocked out');
   close(m.digitalOption('call', S, 105, T, r, q, v) + m.digitalOption('put', S, 105, T, r, q, v), Math.exp(-r * T), 1e-12);
-  // Autocall: never called, no protection, no coupon → a forward on the underlying.
-  const fwdLike = m.autocall({ S: 100, initial: 100, T: 2, autocallLevel: 99, couponPct: 0, protection: 99, r: 0.03, q: 0.01, sigma: 0.2, paths: 20000 });
-  close(fwdLike, 100 * Math.exp(-0.01 * 2), 1.5);
-  // Full protection (protection 0) always repays 100.
-  close(m.autocall({ S: 100, initial: 100, T: 2, autocallLevel: 99, couponPct: 0, protection: 0, r: 0.03, sigma: 0.2 }), 100 * Math.exp(-0.06), 1e-9);
-  // Always called at the first observation.
-  close(m.autocall({ S: 100, initial: 100, T: 3, autocallLevel: 0, couponPct: 8, r: 0.03, sigma: 0.2 }), 108 * Math.exp(-0.03), 1e-9);
   // Amortising: prepayments shorten the life and the duration; price ↔ yield round-trips.
   const slow = m.amortisingAnalytics({ valuationDate: '2026-09-28', maturity: '2046-09-28', couponPct: 4, freq: 12, cpr: 0, yieldPct: 4 });
   const fast = m.amortisingAnalytics({ valuationDate: '2026-09-28', maturity: '2046-09-28', couponPct: 4, freq: 12, cpr: 15, yieldPct: 4 });
@@ -992,7 +980,7 @@ test('collateral: repo and securities lending count after haircut toward the cou
   close(bare.cptyExposure, 10000000, 1e-6); assert.ok(bare.warnings.includes('collateral_missing'));
 });
 
-test('certificates: knock-out exposure and stop-loss, autocall and capital protected deltas', () => {
+test('certificates: knock-out exposure and stop-loss, capital protected delta, autocall at market price', () => {
   const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
   const val = pos => valuePortfolio({ ...p, positions: [{ id: 'x', ccy: 'SEK', qty: 1000, price: 50, name: 'Cert', type: 'certificate', ...pos }] }).rows[0];
   const mini = val({ certType: 'knock_out', optType: 'call', underlyingPrice: 300, strike: 250, barrier: 260, multiplier: 1 });
@@ -1001,9 +989,9 @@ test('certificates: knock-out exposure and stop-loss, autocall and capital prote
   close(hit.r.eqDelta, 0, 1e-9); assert.ok(hit.r.warnings.includes('knocked_out'));
   const short = val({ certType: 'knock_out', optType: 'put', underlyingPrice: 300, strike: 350, barrier: 340 });
   close(short.r.eqDelta, -300000, 1e-6);
-  const ac = val({ certType: 'autocall', price: 98, underlyingPrice: 100, strike: 100, vol: 25, maturity: '2029-09-28', autocallLevel: 100, protectionLevel: 60, coupon: 7, freq: '1' });
-  assert.ok(ac.r.eqDelta > 0 && ac.r.eqDelta < 1000 * 98, 'autocall delta between 0 and notional: ' + ac.r.eqDelta);
-  assert.ok(ac.r.model.price > 70 && ac.r.model.price < 110);
+  // An autocall has no model: market value, and the issuer's delta typed as leverage.
+  const ac = val({ price: 98, leverage: 0.45 });
+  close(ac.r.mv, 1000 * 98, 1e-9); close(ac.r.eqDelta, 1000 * 98 * 0.45, 1e-6); assert.ok(!ac.r.model);
   const cp = val({ certType: 'protected', price: 100, underlyingPrice: 100, strike: 100, vol: 20, maturity: '2031-09-28', leverage: 0.8 });
   assert.ok(cp.r.eqDelta > 0 && cp.r.eqDelta < 1000 * 100 * 0.8);
   assert.ok(cp.r.model.price > 100 * Math.exp(-0.025 * 5));
@@ -1141,4 +1129,19 @@ test('market data: a past snapshot is valued with that date\'s ECB rates when th
     close(atSnapshot(p, snap).fxEur.USD, m.fx.rates.USD[3], 1e-12);
     assert.equal(atSnapshot({ ...p, fxSource: 'manual' }, snap).fxEur, p.fxEur, 'manual rates stay');
   } finally { setDateRates(null); }
+});
+
+test('stored positions of removed types are migrated, not lost', async () => {
+  const { upgradePortfolio } = await import('../js/store.js');
+  const p = upgradePortfolio({ positions: [
+    { type: 'variance_swap', name: 'Var', qty: 100000, ccy: 'EUR', direction: 'pay', strike: 21, vol: 19, mtm: 1200 },
+    { type: 'certificate', name: 'Express', qty: 10, price: 98, ccy: 'SEK', certType: 'autocall', autocallLevel: 100, protectionLevel: 60 }
+  ], snapshots: [{ date: '2026-09-01', positions: [{ type: 'variance_swap', name: 'Var', qty: 5, ccy: 'EUR' }] }] });
+  const [vs, ac] = p.positions;
+  assert.equal(vs.type, 'otc'); assert.equal(vs.underlyingClass, 'volatility'); assert.equal(vs.vega, -100000); assert.equal(vs.mtm, 1200);
+  assert.ok(!('strike' in vs));
+  assert.deepEqual(validatePosition(vs), []);
+  assert.ok(!('certType' in ac) && !('autocallLevel' in ac));
+  assert.deepEqual(validatePosition(ac), []);
+  assert.equal(p.snapshots[0].positions[0].type, 'otc');
 });

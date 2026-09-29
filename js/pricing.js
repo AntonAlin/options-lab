@@ -1,6 +1,6 @@
 // Pricing maths: normal distribution, Black-Scholes-Merton / Black-76, plain-vanilla bond
 // analytics and swap annuities. Pure functions, no DOM, covered by tests/pricing.test.mjs.
-import { addMonthsISO, parseISODate, DAY_MS, isNum, mulberry32, gaussian } from './util.js';
+import { addMonthsISO, parseISODate, DAY_MS, isNum } from './util.js';
 
 const SQRT2PI = Math.sqrt(2 * Math.PI);
 
@@ -195,7 +195,7 @@ export function swapAnnuity(valuationDate, maturity, freq, ratePct, df = null) {
 }
 
 // ============================================================================================
-//  Rates options, inflation and variance swaps, barrier/digital options, autocalls, amortising
+//  Rates options, inflation swaps, barrier/digital options, amortising
 //  bonds. Flat curves throughout: the inputs are the forward rate, the market breakeven, the
 //  implied vol you have, not a full term structure. Every function is covered by a parity or
 //  known-value test in tests/core.test.mjs.
@@ -249,19 +249,6 @@ export function zcInflationSwap({ receiveInflation = true, T, fixed, breakeven, 
   return { pv, dPVdB, dPVdR: -T * pv };
 }
 
-// Variance swap (vols in points, 20 = 20 %): long receives realised variance. Vega notional Nv gives a
-// variance notional of Nv / (2K). `elapsed` = share of the observation period already realised.
-export function varianceSwap({ long = true, vegaNotional, strike, implied, realised = 0, elapsed = 0, T, rate = 0, kind = 'variance' }) {
-  const df = Math.exp(-rate * T), sign = long ? 1 : -1, a = Math.min(1, Math.max(0, elapsed));
-  const expVar = a * realised ** 2 + (1 - a) * implied ** 2;
-  if (kind === 'volatility') {
-    const expVol = Math.sqrt(expVar);
-    return { pv: sign * vegaNotional * (expVol - strike) * df, vega: sign * vegaNotional * (1 - a) * (implied / (expVol || 1)) * df };
-  }
-  const varNotional = vegaNotional / (2 * strike);
-  return { pv: sign * varNotional * (expVar - strike ** 2) * df, vega: sign * varNotional * 2 * implied * (1 - a) * df };
-}
-
 // Barrier options, Reiner-Rubinstein (Haug, The Complete Guide to Option Pricing Formulas, §4.17),
 // no rebate. kind: 'down-and-in' | 'down-and-out' | 'up-and-in' | 'up-and-out'. b = r − q.
 export function barrierOption(type, kind, S, K, H, T, r, q, sigma) {
@@ -294,34 +281,6 @@ export function digitalOption(type, S, K, T, r, q, sigma, payout = 1) {
   if (!(T > 0)) return (type === 'call' ? S > K : S < K) ? payout : 0;
   const d2 = (Math.log(S / K) + (r - q - sigma * sigma / 2) * T) / (sigma * Math.sqrt(T));
   return payout * Math.exp(-r * T) * normCDF(type === 'call' ? d2 : -d2);
-}
-
-// Autocallable note per 100 nominal, Monte Carlo (seeded, antithetic). On each remaining observation
-// date, if the underlying is at or above autocall × initial, it repays 100 plus the coupon for every
-// period since issue and ends. If never called: 100 at maturity if above protection × initial (plus
-// the coupons if above the autocall level), otherwise 100 × final / initial.
-export function autocall({ S, initial, T, obsPerYear = 1, periodsElapsed = 0, autocallLevel = 1, couponPct, protection = 0.6, r, q = 0, sigma, paths = 4000, seed = 7 }) {
-  const n = Math.max(1, Math.round(T * obsPerYear));
-  const dt = T / n, drift = (r - q - sigma * sigma / 2) * dt, sd = sigma * Math.sqrt(dt);
-  const rng = mulberry32(seed);
-  let total = 0;
-  for (let k = 0; k < paths / 2; k++) {
-    const z = Array.from({ length: n }, () => gaussian(rng));
-    for (const sign of [1, -1]) {
-      let s = S, pv = null;
-      for (let i = 1; i <= n; i++) {
-        s *= Math.exp(drift + sd * sign * z[i - 1]);
-        const t = i * dt, periods = periodsElapsed + i;
-        if (i < n && s >= autocallLevel * initial) { pv = (100 + couponPct * periods) * Math.exp(-r * t); break; }
-        if (i === n) {
-          const pay = s >= autocallLevel * initial ? 100 + couponPct * periods : s >= protection * initial ? 100 : 100 * s / initial;
-          pv = pay * Math.exp(-r * T);
-        }
-      }
-      total += pv;
-    }
-  }
-  return total / (2 * Math.floor(paths / 2));
 }
 
 // Amortising bond (ABS, RMBS, CLO): level-pay (annuity) or linear amortisation over the remaining

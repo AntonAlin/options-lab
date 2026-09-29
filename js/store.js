@@ -78,6 +78,18 @@ export function load() {
   return state;
 }
 
+// Types and models that were removed. A variance swap becomes an OTC position at counterparty
+// value (it is held back until that value is filled in); an autocall keeps its market price.
+function retire(x) {
+  if (x.type === 'variance_swap') {
+    const sign = x.direction === 'pay' ? -1 : 1;
+    Object.assign(x, { type: 'otc', underlyingClass: 'volatility', vega: sign * Math.abs(Number(x.qty) || 0) });
+    for (const k of ['direction', 'swapKind', 'strike', 'vol', 'realisedVol', 'startDate', 'rate']) delete x[k];
+  }
+  if (x.type === 'certificate' && x.certType === 'autocall') delete x.certType;
+  for (const k of ['autocallLevel', 'protectionLevel']) delete x[k];
+}
+
 export function upgradePortfolio(p) {
   p.cma = { ...DEFAULT_CMA, ...(p.cma || {}) };
   p.risk = { ...DEFAULT_RISK, ...(p.risk || {}) };
@@ -91,7 +103,8 @@ export function upgradePortfolio(p) {
   p.fxEur = { ...FALLBACK_EUR_RATES, ...(p.fxEur || {}) };
   p.history = p.history && p.history.dates ? p.history : { dates: [], series: {} };
   p.positions = Array.isArray(p.positions) ? p.positions : [];
-  p.positions.forEach(x => { if (!x.id) x.id = uid(); });
+  p.positions.forEach(x => { if (!x.id) x.id = uid(); retire(x); });
+  (Array.isArray(p.snapshots) ? p.snapshots : []).forEach(s => (s.positions || []).forEach(retire));
   return p;
 }
 

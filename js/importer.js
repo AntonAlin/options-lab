@@ -448,7 +448,7 @@ export const TEMPLATE_EXAMPLES = [
   { type: 'swaption', name: 'EUR 1y10y payer 2.75%', issuer: 'BNP Paribas', qty: 20000000, ccy: 'EUR', payerReceiver: 'payer', strike: 2.75, maturity: '2027-09-28', tenor: 10, marketRate: 2.6, vol: 82, volType: 'normal', freq: 1 },
   { type: 'cap_floor', name: 'EUR 3m cap 3% 2030', issuer: 'Société Générale', qty: 50000000, ccy: 'EUR', capFloor: 'cap', strike: 3, maturity: '2030-09-28', marketRate: 2.3, vol: 90, volType: 'normal', freq: 4 },
   { type: 'inflation_swap', name: 'EUR HICP ZC 10y', issuer: 'Deutsche Bank', qty: 25000000, ccy: 'EUR', direction: 'receive', fixedRate: 2.05, breakeven: 2.15, marketRate: 2.5, maturity: '2036-09-28' },
-  { type: 'variance_swap', name: 'SX5E var swap Dec27', issuer: 'JPMorgan', qty: 100000, ccy: 'EUR', direction: 'pay', swapKind: 'variance', strike: 21, vol: 19.5, realisedVol: 17, startDate: '2026-03-20', maturity: '2027-12-17' },
+  { type: 'otc', name: 'SX5E var swap Dec27 (counterparty MTM)', issuer: 'JPMorgan', qty: 100000, ccy: 'EUR', mtm: 42000, underlyingClass: 'volatility', vega: -100000, maturity: '2027-12-17' },
   { type: 'exotic_option', name: 'OMXS30 down-and-in put 2200', issuer: 'Nordea', qty: 100, exoticKind: 'barrier', optType: 'put', barrierType: 'down-and-in', barrier: 2200, strike: 2500, maturity: '2027-06-18', underlyingPrice: 2650, vol: 20, multiplier: 100, ccy: 'SEK', underlyingClass: 'equity' },
   { type: 'sec_lending', name: 'Loan of Volvo B', isin: 'SE0000115446', issuer: 'Morgan Stanley', qty: 15000000, ccy: 'SEK', collateralValue: 16000000, haircut: 3, collateralType: 'government', rate: 0.35 }
 ];
