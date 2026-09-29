@@ -4,6 +4,14 @@ Free portfolio analytics for fund managers, in English and Swedish. It runs enti
 
 *Svenska nedan.*
 
+## Your data stays inside your organisation
+
+There is no server, no database and no user accounts. Holdings are read from files on the user's own computer or network share, calculated in the browser and stored in the browser and in files the organisation controls. Nothing about a portfolio is sent anywhere. The **connected file** is the recommended way to work for exactly this reason: the browser reads the file where it lies, so the source of truth never leaves the organisation's storage, access control and backup.
+
+The only network requests are downloads of code (the page, Plotly, SheetJS, jsPDF, the Inter font) and, when the user clicks the button, public ECB FX rates from api.frankfurter.app. None carries portfolio data. For zero external requests, copy the folder to an internal web server and point the library URLs in `index.html`, `js/importer.js` and `js/report.js` to internal copies.
+
+The in-app **User guide** (`#/guide`, content in [`js/guide.js`](js/guide.js)) explains this in full and walks through every page of the platform in English and Swedish.
+
 ## What it does
 
 | Area | Contents |
@@ -25,6 +33,7 @@ Free portfolio analytics for fund managers, in English and Swedish. It runs enti
 | **Fund calculations** | Cash-flow and expiry calendar (coupons, redemptions, FX settlements, swap and CDS payments, option and future expiries; CSV and .ics export), UCITS SRRI and PRIIPs SRI (category 2, Cornish-Fisher VEV) from the price history, and an indicative NAV per unit per share class with fee accrual and a subscription/redemption simulator. |
 | **PDF report** | Multi-page A4 PDF generated locally with jsPDF: summary tiles, commentary, charts and tables for each section, and a disclaimer. |
 | **How we calculate** | A page listing every formula on the site, the simplifications made and the inputs each calculation reads, with the source module named. |
+| **User guide** | Complete instructions in the app: data privacy, getting started, the connected file, bulk upload and templates, every analytics page, the PDF report, settings and backups, and troubleshooting. |
 | **Options Lab** | The original strategy visualiser (payoff, Greeks, vol surface, Monte Carlo and more) is at `options-lab.html`. It is Swedish only for now. |
 
 ### Where the data lives
@@ -95,6 +104,8 @@ Nexus Portfolio Lab är en gratis portföljanalysplattform för förvaltare, på
 - **Så räknar vi:** en sida som redovisar varje formel, förenkling och indata bakom siffrorna.
 - **Kopplad källfil (live):** peka ut en CSV- eller Excelfil på datorn så läser appen den löpande. Första kolumnen är datum, så en fil kan rymma många dagar; en kolumn *Portfölj / Fond / Konto / Depå* delar upp den i flera portföljer. Senaste datum visas om du inte väljer ett annat i toppraden.
 - **Kopplad fil:** i Chrome/Edge kan arbetsytan kopplas till en fil på datorn (JSON, CSV eller Excel) som skrivs automatiskt vid varje ändring. Sidofältet visar hur gammal senaste säkerhetskopian är, och en automatisk säkerhetskopia laddas ner dagligen, veckovis eller månadsvis.
+- **Din data stannar inom organisationen:** ingen server, ingen databas, inga konton. Filer läses där de ligger och allt beräknas i webbläsaren; ingen portföljdata skickas någonstans.
+- **Användarguide** i appen med fullständiga instruktioner på svenska och engelska.
 - **Options Lab**, den tidigare strategivisualiseraren, finns kvar på `options-lab.html`.
 
 Under Inställningar kan du hämta ECB:s referenskurser med ett klick eller ange valutakurser manuellt, justera riskmodellens antaganden och ta en säkerhetskopia (JSON) av alla portföljer.

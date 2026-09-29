@@ -2,7 +2,7 @@
 // written; see js/sourcefile.js.
 import * as store from '../store.js';
 import { t, lang } from '../i18n.js';
-import { esc, card, toast, confirmDialog, fmtDate } from '../ui.js';
+import { esc, card, toast, confirmDialog, fmtDate, privacyCallout } from '../ui.js';
 import * as source from '../sourcefile.js';
 import * as filelink from '../filelink.js';
 
@@ -10,11 +10,12 @@ export const errorText = code => t('src.err.' + (['no_date', 'no_header', 'no_fi
 
 function bodyHtml() {
   const s = source.getStatus();
-  if (s.state === 'unsupported') return `<div class="alert alert-warn"><span>${esc(t('src.unsupported'))}</span></div>`;
+  if (s.state === 'unsupported') return `${privacyCallout(t('src.privacy'))}<div class="alert alert-warn"><span>${esc(t('src.unsupported'))}</span></div>`;
   const on = s.state !== 'none';
   const time = iso => new Date(iso).toLocaleTimeString(lang() === 'sv' ? 'sv-SE' : 'en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const pfs = source.sourced();
   return `
+    ${privacyCallout(t('src.privacy'))}
     ${on ? `<div class="file-status ${s.state === 'linked' && !s.error ? 'linked' : s.state === 'linked' ? 'error' : s.state}">
         <div><strong>${esc(s.name)}</strong> <span class="type-pill">${esc(t('src.readOnly'))}</span>
           <div class="cell-sub">${esc(s.state === 'needs-permission' ? t('src.needsPermission') : s.state === 'error' || s.error ? errorText(s.error) : t('src.status', { t: s.lastRead ? time(s.lastRead) : '—', p: s.portfolios, d: s.dates }))}</div>

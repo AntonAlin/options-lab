@@ -702,3 +702,19 @@ test('connected source file: no portfolio column means one portfolio; no date co
   const none = parseText('Name,Quantity,Price\nVolvo,1,2\n', 'z.csv');
   assert.equal(analyseRows(none.sheets[0].rows, { decimal: '.' }).error, 'no_date');
 });
+
+test('user guide: every block exists in English and Swedish, links go to real pages', async () => {
+  const { GUIDE } = await import('../js/guide.js');
+  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'risk-class', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide'];
+  const both = (o, where) => assert.ok(o && String(o.en || '').trim() && String(o.sv || '').trim(), 'missing translation in ' + where);
+  assert.equal(GUIDE[0].id, 'privacy', 'data privacy comes first');
+  assert.equal(new Set(GUIDE.map(s => s.id)).size, GUIDE.length);
+  for (const s of GUIDE) {
+    both(s.title, s.id);
+    for (const b of s.blocks) {
+      for (const k of ['h', 'p', 'note']) if (b[k]) both(b[k], s.id);
+      for (const k of ['steps', 'list']) if (b[k]) b[k].forEach(x => both(x, s.id));
+      if (b.link) { assert.ok(routes.includes(b.link), b.link); both(b.label, s.id); }
+    }
+  }
+});

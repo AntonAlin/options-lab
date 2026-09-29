@@ -22,7 +22,7 @@ function welcome(root) {
           <button class="btn btn-lg" data-act="import">${esc(t('welcome.import'))}</button>
           ${source.supported() ? `<button class="btn btn-lg" data-act="connect">${esc(t('welcome.connect'))}</button>` : ''}
         </div>
-        <p class="hero-note">${esc(t('welcome.note'))}</p>
+        <p class="hero-note">${esc(t('welcome.note'))} <a href="#/guide?s=privacy">${esc(t('privacy.more'))}</a> · <a href="#/guide">${esc(t('welcome.guide'))}</a></p>
       </div>
       <ul class="feature-grid">
         ${['instruments', 'upload', 'risk', 'compliance', 'pdf', 'private'].map(k => `

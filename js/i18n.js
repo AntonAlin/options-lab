@@ -308,7 +308,7 @@ const en = {
   'imp.mandatory': "Mandatory datapoints",
   'imp.constantPh': "same for all rows",
   'app.tagline': 'Portfolio analytics for fund managers',
-  'app.privacy': 'Your data never leaves this browser.',
+  'app.privacy': "Your portfolio data never leaves your computer or your organisation.",
 
   'nav.main': 'Main navigation', 'nav.menu': 'Menu', 'nav.breaches': 'Limit breaches',
   'nav.g.overview': 'Overview', 'nav.g.portfolio': 'Portfolio', 'nav.g.analytics': 'Analytics', 'nav.g.output': 'Output', 'nav.g.tools': 'Tools',
@@ -337,13 +337,13 @@ const en = {
   'welcome.title': 'Institutional portfolio analytics, without the institutional platform.',
   'welcome.lead': 'Upload your holdings from Excel or your custodian, and get exposure, VaR, stress tests, duration, liquidity and UCITS limit checks in seconds. Export a board-ready PDF.',
   'welcome.demo': 'Explore the demo fund', 'welcome.new': 'Start an empty portfolio', 'welcome.import': 'Upload holdings',
-  'welcome.note': 'No account, no installation. Everything is calculated and stored in your browser — nothing is sent to a server.',
+  'welcome.note': "No account, no installation, no server. Your portfolio data never leaves your computer — it is read, calculated and stored in your browser and in files your organisation controls.",
   'feature.instruments': '15 instrument types', 'feature.instruments.body': 'Equities, ETFs, funds, government and corporate bonds, FRNs, T-bills, cash, futures, options, FX forwards, swaps, CDS, commodities and alternatives.',
   'feature.upload': 'Bulk upload', 'feature.upload.body': 'CSV or Excel in English or Swedish formats. Columns are mapped automatically, every row is validated, and daily price updates match on ISIN.',
   'feature.risk': 'Risk you can explain', 'feature.risk.body': 'Parametric factor VaR and historical VaR side by side, risk contribution by factor and position, and full-revaluation stress scenarios.',
   'feature.compliance': 'UCITS limit checks', 'feature.compliance.body': '5/10/40, issuer, deposit, fund, counterparty, commitment and liquidity limits — all editable.',
   'feature.pdf': 'PDF in one click', 'feature.pdf.body': 'A clean, multi-page report with charts and your commentary, generated locally.',
-  'feature.private': 'Stays on your machine', 'feature.private.body': 'Holdings are stored in this browser only. Back up or move them with a JSON file whenever you like.',
+  'feature.private': "Stays inside your organisation", 'feature.private.body': "No server and no database. Holdings are read from files on your own computer or network and calculated in the browser — nothing is sent to us or anyone else.",
 
   'dash.sub': 'Valued {date} · {n} positions', 'dash.exportPdf': 'Export PDF',
   'dash.alert.demo': 'This is a demo portfolio with fictional positions and synthetic prices. Replace it with your own holdings via Bulk upload.',
@@ -554,7 +554,7 @@ const en = {
   'set.backup': 'Download backup (all portfolios)', 'set.restore': 'Restore from backup', 'set.reset': 'Delete everything',
   'set.resetConfirm': 'Delete all portfolios and settings stored in this browser?', 'set.resetDone': 'Workspace cleared',
   'set.restored': 'Restored {n} portfolio(s)', 'set.restoreError': 'That file is not a Nexus Portfolio Lab backup.',
-  'set.about': 'About', 'set.aboutBody': 'Nexus Portfolio Lab is free, runs entirely in your browser and has no user accounts. Bond, option and swap values are model estimates. © 2026 Anton Ålin.',
+  'set.about': 'About', 'set.aboutBody': "Nexus Portfolio Lab has no server and no user accounts: it runs entirely in your browser, so portfolio data never leaves your organisation. Bond, option and swap values are model estimates. © 2026 Anton Ålin.",
   'risk.byClass': "Where the risk comes from, by asset class",
   'risk.byClassSub': "{m}. Each class holds its market factor, stock-specific risk, implied volatility and the derivatives on that class; currency is its own bucket because that is where the hedges net against the foreign holdings. Contributions add up to the portfolio volatility.",
   'risk.securities': "Securities",
@@ -759,7 +759,15 @@ const en = {
   'src.err.permission': "Read permission was not granted.",
   'src.err.not_found': "The file can no longer be found (moved, renamed or deleted).",
   'src.err.unsupported': "This browser cannot connect a file.",
-  'src.err.other': "Could not read the file: {err}"
+  'src.err.other': "Could not read the file: {err}",
+  'nav.guide': "User guide",
+  'guide.sub': "How to work the platform, from getting your holdings in to the PDF report — and how your data stays inside your organisation.",
+  'guide.toc': "Contents",
+  'privacy.more': "How this works",
+  'welcome.guide': "Read the user guide",
+  'src.privacy': "Why a connected file: your holdings never leave your organisation. The browser reads the file straight from your computer or network share — nothing is uploaded, nothing is sent to us or anyone else, and the original stays under your organisation's own access control and backup.",
+  'imp.privacy': "“Upload” here only means reading the file into this browser — it is not sent to any server. For data that changes regularly, a connected file (above) keeps it where your organisation stores it.",
+  'file.privacy': "Save the file on storage your organisation controls — a network share or the company OneDrive/SharePoint — so the data stays inside the organisation."
 
 };
 
@@ -1058,7 +1066,7 @@ const sv = {
   'imp.mandatory': "Obligatoriska datapunkter",
   'imp.constantPh': "samma för alla rader",
   'app.tagline': 'Portföljanalys för förvaltare',
-  'app.privacy': 'Din data lämnar aldrig webbläsaren.',
+  'app.privacy': "Din portföljdata lämnar aldrig din dator eller organisationen.",
 
   'nav.main': 'Huvudmeny', 'nav.menu': 'Meny', 'nav.breaches': 'Limitbrott',
   'nav.g.overview': 'Översikt', 'nav.g.portfolio': 'Portfölj', 'nav.g.analytics': 'Analys', 'nav.g.output': 'Rapporter', 'nav.g.tools': 'Verktyg',
@@ -1087,13 +1095,13 @@ const sv = {
   'welcome.title': 'Portföljanalys i institutionell klass — utan den institutionella plattformen.',
   'welcome.lead': 'Ladda upp innehaven från Excel eller depåbanken och få exponering, VaR, stresstester, duration, likviditet och UCITS-kontroller på några sekunder. Exportera en PDF redo för styrelsen.',
   'welcome.demo': 'Utforska demofonden', 'welcome.new': 'Starta en tom portfölj', 'welcome.import': 'Ladda upp innehav',
-  'welcome.note': 'Inget konto, ingen installation. Allt beräknas och sparas i din webbläsare — ingenting skickas till någon server.',
+  'welcome.note': "Inget konto, ingen installation, ingen server. Din portföljdata lämnar aldrig datorn — den läses, beräknas och sparas i webbläsaren och i filer som organisationen själv kontrollerar.",
   'feature.instruments': '15 instrumenttyper', 'feature.instruments.body': 'Aktier, ETF:er, fonder, stats- och företagsobligationer, FRN, statsskuldväxlar, kassa, terminer, optioner, valutaterminer, swappar, CDS, råvaror och alternativa tillgångar.',
   'feature.upload': 'Massuppladdning', 'feature.upload.body': 'CSV eller Excel i svenskt eller engelskt format. Kolumnerna mappas automatiskt, varje rad valideras och dagliga kursuppdateringar matchas på ISIN.',
   'feature.risk': 'Risk som går att förklara', 'feature.risk.body': 'Parametrisk faktor-VaR och historisk VaR sida vid sida, riskbidrag per faktor och innehav, samt stresscenarier med fullständig omvärdering.',
   'feature.compliance': 'UCITS-kontroller', 'feature.compliance.body': '5/10/40, emittent-, insättnings-, fond-, motparts-, åtagande- och likviditetsgränser — alla justerbara.',
   'feature.pdf': 'PDF med ett klick', 'feature.pdf.body': 'En stilren rapport på flera sidor med diagram och din kommentar, skapad lokalt.',
-  'feature.private': 'Stannar på din dator', 'feature.private.body': 'Innehaven sparas bara i den här webbläsaren. Säkerhetskopiera eller flytta dem med en JSON-fil när du vill.',
+  'feature.private': "Stannar inom organisationen", 'feature.private.body': "Ingen server och ingen databas. Innehaven läses från filer på din egen dator eller ert nätverk och beräknas i webbläsaren — ingenting skickas till oss eller någon annan.",
 
   'dash.sub': 'Värderad {date} · {n} innehav', 'dash.exportPdf': 'Exportera PDF',
   'dash.alert.demo': 'Det här är en demoportfölj med påhittade innehav och syntetiska kurser. Byt ut den mot dina egna innehav via Massuppladdning.',
@@ -1304,7 +1312,7 @@ const sv = {
   'set.backup': 'Ladda ner säkerhetskopia (alla portföljer)', 'set.restore': 'Återställ från säkerhetskopia', 'set.reset': 'Radera allt',
   'set.resetConfirm': 'Radera alla portföljer och inställningar som sparats i den här webbläsaren?', 'set.resetDone': 'Arbetsytan är tömd',
   'set.restored': '{n} portfölj(er) återställda', 'set.restoreError': 'Filen är inte en säkerhetskopia från Nexus Portfolio Lab.',
-  'set.about': 'Om', 'set.aboutBody': 'Nexus Portfolio Lab är gratis, körs helt i din webbläsare och har inga användarkonton. Värden för obligationer, optioner och swappar är modellberäkningar. © 2026 Anton Ålin.',
+  'set.about': 'Om', 'set.aboutBody': "Nexus Portfolio Lab har ingen server och inga användarkonton: allt körs i din webbläsare, så portföljdata lämnar aldrig organisationen. Värden för obligationer, optioner och swappar är modellberäkningar. © 2026 Anton Ålin.",
   'risk.byClass': "Var risken kommer ifrån, per tillgångsslag",
   'risk.byClassSub': "{m}. Varje tillgångsslag rymmer sin marknadsfaktor, bolagsspecifik risk, implicit volatilitet och derivaten på slaget; valuta är en egen post eftersom det är där säkringarna nettas mot utländska innehav. Bidragen summerar till portföljens volatilitet.",
   'risk.securities': "Värdepapper",
@@ -1509,7 +1517,15 @@ const sv = {
   'src.err.permission': "Tillstånd att läsa gavs inte.",
   'src.err.not_found': "Filen går inte längre att hitta (flyttad, omdöpt eller borttagen).",
   'src.err.unsupported': "Den här webbläsaren kan inte koppla en fil.",
-  'src.err.other': "Kunde inte läsa filen: {err}"
+  'src.err.other': "Kunde inte läsa filen: {err}",
+  'nav.guide': "Användarguide",
+  'guide.sub': "Så arbetar du i plattformen, från att få in innehaven till PDF-rapporten — och hur din data stannar inom organisationen.",
+  'guide.toc': "Innehåll",
+  'privacy.more': "Så fungerar det",
+  'welcome.guide': "Läs användarguiden",
+  'src.privacy': "Därför en kopplad fil: innehaven lämnar aldrig organisationen. Webbläsaren läser filen direkt från din dator eller nätverksdisk — ingenting laddas upp, ingenting skickas till oss eller någon annan, och originalet ligger kvar under organisationens egen behörighetsstyrning och säkerhetskopiering.",
+  'imp.privacy': "”Ladda upp” betyder här bara att filen läses in i den här webbläsaren — den skickas inte till någon server. För data som ändras regelbundet håller en kopplad fil (ovan) den kvar där organisationen lagrar den.",
+  'file.privacy': "Spara filen på lagring som organisationen kontrollerar — en nätverksdisk eller företagets OneDrive/SharePoint — så att datan stannar inom organisationen."
 
 };
 

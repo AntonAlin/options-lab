@@ -1,6 +1,6 @@
 import * as store from '../store.js';
 import { t } from '../i18n.js';
-import { esc, card, pageHead, toast, selectHtml, confirmDialog, fmtDate, segmented, numIn } from '../ui.js';
+import { esc, card, pageHead, toast, selectHtml, confirmDialog, fmtDate, segmented, numIn, privacyCallout } from '../ui.js';
 import { todayISO } from '../util.js';
 import { loadDemo } from '../app.js';
 import { downloadBackup, backupAge } from '../backup.js';
@@ -125,6 +125,7 @@ function fileCardHtml() {
           <button class="btn btn-sm" data-act="file:unlink">${esc(t('file.unlink'))}</button>
         </div>
       </div>` : ''}
+    ${privacyCallout(t('file.privacy'))}
     <p class="muted small">${esc(t('file.body'))}</p>
     <ol class="steps">
       <li><strong>${esc(t('file.step1'))}</strong><span>${esc(t('file.step1b'))}</span></li>

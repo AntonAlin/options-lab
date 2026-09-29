@@ -139,3 +139,8 @@ export function toast(msg, { action = null, actionLabel = '', ms = 3500, tone = 
 }
 
 export { t, L };
+
+// Green "your data stays here" box. `text` is already translated; links to the guide's privacy section.
+export function privacyCallout(text) {
+  return `<div class="privacy-callout"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 8.3-7 9-4-.7-7-4.5-7-9V6l7-3zM9 12l2 2 4-4"/></svg><span>${escapeHtml(text)} <a href="#/guide?s=privacy">${escapeHtml(t('privacy.more'))}</a></span></div>`;
+}

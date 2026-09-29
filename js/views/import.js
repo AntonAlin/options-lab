@@ -1,6 +1,6 @@
 import * as store from '../store.js';
 import { t, L, lang } from '../i18n.js';
-import { esc, card, pageHead, table, toast, selectHtml, segmented, fmtNum, openModal, closeModal, confirmDialog } from '../ui.js';
+import { esc, card, pageHead, table, toast, selectHtml, segmented, fmtNum, openModal, closeModal, confirmDialog, privacyCallout } from '../ui.js';
 import { INSTRUMENTS, FIELDS, OPTION_LABELS, allFieldKeys, fieldLabel, typeLabel } from '../instruments.js';
 import {
   readFile, parseText, findHeaderRow, autoMapping, rowsToPositions, mergePositions, templateCSV, templateColumns, TEMPLATE_EXAMPLES, XLSX_URL,
@@ -193,6 +193,7 @@ export default {
       ${sourceCardHtml()}
       <div class="grid-2 import-top">
         ${card(t('imp.step1'), `
+          ${privacyCallout(t('imp.privacy'))}
           <div class="drop" id="drop" tabindex="0" role="button" aria-label="${esc(t('imp.drop'))}">
             <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v4h16v-4"/></svg>
             <p><strong>${esc(t('imp.drop'))}</strong></p><p class="muted small">${esc(t('imp.formats'))}</p>
