@@ -8,9 +8,9 @@ Free portfolio analytics for fund managers, in English and Swedish. It runs enti
 
 There is no server, no database and no user accounts. Holdings are read from files on the user's own computer or network share, calculated in the browser and stored in the browser and in files the organisation controls. Nothing about a portfolio is sent anywhere. The **connected file** is the recommended way to work for exactly this reason: the browser reads the file where it lies, so the source of truth never leaves the organisation's storage, access control and backup.
 
-The only network requests are downloads of code (the page, Plotly, SheetJS, jsPDF, the Inter font) and, when the user clicks the button, public ECB FX rates from api.frankfurter.app. None carries portfolio data. For zero external requests, and with the author's written permission, host a copy on an internal web server and point the library URLs in `index.html`, `js/importer.js` and `js/report.js` to internal copies.
+The only network requests are downloads of code (the page, Plotly, SheetJS, jsPDF, the Inter font) and, when the user clicks the button, public ECB FX rates from api.frankfurter.app. None carries portfolio data. For zero external requests, host an unmodified copy on an internal web server (the licence allows this) and point the library URLs in `index.html`, `js/importer.js` and `js/report.js` to internal copies.
 
-**Check it yourself.** The source code is public in this repository, so anyone — IT, risk, compliance — can confirm what the platform does and check each formula: every section of *How we calculate* links to the module it describes. Public to read is not open source, though: see [LICENSE](LICENSE); copying, redistributing or hosting a copy needs the author's written permission.
+**Check it yourself.** The source code is public in this repository, so anyone — IT, risk, compliance — can confirm what the platform does and check each formula: every section of *How we calculate* links to the module it describes. Public to read is not open source, though. The [licence](LICENSE) lets anyone use the platform freely, also professionally, host an unmodified copy inside their own organisation and use its output however they like; it may never be sold, modified, built upon or republished.
 
 The in-app **User guide** (`#/guide`, content in [`js/guide.js`](js/guide.js)) explains this in full and walks through every page of the platform in English and Swedish.
 
@@ -114,4 +114,4 @@ Under Inställningar kan du hämta ECB:s referenskurser med ett klick eller ange
 
 > **Ansvarsfriskrivning / Disclaimer:** Resultaten är modellberäkningar i informationssyfte och utgör inte investeringsrådgivning. Upphovspersonen tar inget ansvar för fel eller för beslut som fattas utifrån verktyget. *Model estimates for information only, not investment advice. No liability is accepted for errors or for decisions based on this tool.*
 
-© 2026 Anton Ålin. See [LICENSE](LICENSE).
+© 2026 Anton Ålin. Free to use, also professionally; not for sale, modification or republication. See [LICENSE](LICENSE).

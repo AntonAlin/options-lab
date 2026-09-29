@@ -1,20 +1,123 @@
-Copyright (c) 2026 Anton Ålin
+Nexus Portfolio Lab Licence — Free to Use, Not for Sale or Modification
+Version 1.0
 
-All rights reserved.
+Copyright (c) 2026 Anton Ålin. All rights reserved except as granted below.
 
-This repository and its contents (including but not limited to source code,
-design, and text) may not be copied, reproduced, redistributed, republished,
-or represented as the work of anyone other than the copyright holder, in
-whole or in part, without the prior written permission of the copyright
-holder.
+In short: use it as much as you like, privately or at work, and do what you
+want with the results. Do not sell it, change it, build on it or republish it.
+The full terms below are what apply.
 
-Viewing and using the published application at
-https://antonalin.github.io/options-lab/ for personal, educational purposes
-is permitted. This does not grant any right to copy, fork for redistribution,
-rebrand, or claim authorship of this work.
+
+1. DEFINITIONS
+
+"Software" means the contents of this repository (source code, design, text,
+documentation and other material) and the application published at
+https://antonalin.github.io/options-lab/.
+
+"You" means the person or legal entity using the Software, including a
+company, fund manager or other organisation and the people working for it.
+
+"Output" means the reports, analyses, figures, exports and other results You
+produce with the Software from Your own data.
+
+
+2. WHAT YOU MAY DO
+
+The copyright holder grants You a free, worldwide, non-exclusive,
+non-transferable licence to:
+
+  a) use the Software for any purpose, private or professional, including in
+     commercial activities, for any number of users within Your organisation;
+
+  b) read, study, test and run the source code, for example to verify how the
+     Software works and how its figures are calculated;
+
+  c) host an unmodified copy of the Software on infrastructure You control,
+     for use within Your own organisation only. The only change allowed is to
+     point the addresses of third-party libraries and fonts to copies You host
+     Yourself; nothing else may be changed;
+
+  d) use, share, publish and charge for Your Output without restriction.
+
+
+3. WHAT YOU MAY NOT DO
+
+You may not, in whole or in part:
+
+  a) sell, license, sublicense, rent, lease or otherwise charge for the
+     Software or for access to it, including by including it in a paid product
+     or offering it as a hosted service to others;
+
+  b) modify, adapt, translate or create derivative works of the Software,
+     including building another product or service on its code, design or
+     text, except as allowed in section 2(c);
+
+  c) redistribute or republish the Software, modified or not, outside Your own
+     organisation;
+
+  d) remove or alter copyright notices, rebrand the Software, or present it or
+     any part of it as the work of anyone other than the copyright holder.
+
+Any use not expressly granted in section 2 is reserved by the copyright
+holder. For other uses, ask for written permission through the repository's
+GitHub page.
+
+
+4. FORKS ON GITHUB
+
+GitHub's terms of service allow users to view and fork public repositories on
+GitHub. A fork gives no rights beyond those in this licence; section 3 applies
+to forks as well.
+
+
+5. SUGGESTIONS
+
+Bug reports, ideas and suggestions are welcome. By submitting one You allow
+the copyright holder to use it freely and without compensation.
+
+
+6. TERMINATION
+
+If You breach this licence, Your rights under it end automatically and You
+must stop using the Software and delete any copies You host.
+
+
+7. THIRD-PARTY COMPONENTS
+
+The Software loads third-party libraries that are governed by their own
+licences, not by this one: Plotly.js (MIT), SheetJS Community Edition
+(Apache 2.0), jsPDF (MIT), jspdf-autotable (MIT) and the Inter font (SIL Open
+Font License 1.1).
+
+
+8. NO WARRANTY, NO ADVICE, NO LIABILITY
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED. IT IS FOR EDUCATIONAL PURPOSES ONLY AND DOES NOT CONSTITUTE
-FINANCIAL OR INVESTMENT ADVICE. THE AUTHOR ASSUMES NO LIABILITY FOR THE
-ACCURACY OF ITS CALCULATIONS OR FOR ANY DECISIONS OR LOSSES ARISING FROM
-ITS USE.
+IMPLIED. ITS RESULTS ARE MODEL ESTIMATES FOR INFORMATION ONLY AND DO NOT
+CONSTITUTE FINANCIAL OR INVESTMENT ADVICE. TO THE FULLEST EXTENT PERMITTED BY
+LAW, THE COPYRIGHT HOLDER ACCEPTS NO LIABILITY FOR THE ACCURACY OF ITS
+CALCULATIONS OR FOR ANY DECISIONS, LOSSES OR DAMAGE ARISING FROM ITS USE.
+
+
+9. GOVERNING LAW
+
+This licence is governed by Swedish law. Disputes are settled by Swedish
+courts.
+
+
+---------------------------------------------------------------------------
+SAMMANFATTNING PÅ SVENSKA
+
+Du får använda Nexus Portfolio Lab fritt, privat eller i yrkesmässig
+verksamhet, med hur många användare som helst i din organisation. Du får läsa
+och granska källkoden, driftsätta en oförändrad kopia internt i din egen
+organisation (endast adresser till tredjepartsbibliotek och typsnitt får pekas
+om) och använda, publicera och ta betalt för de rapporter och analyser du tar
+fram.
+
+Du får inte sälja programmet eller ta betalt för tillgång till det, inte ändra
+det eller bygga egna produkter på koden, designen eller texterna, inte sprida
+eller återpublicera det utanför din organisation och inte ta bort
+upphovsrättsmärkningar eller utge det för att vara någon annans verk.
+
+Villkoren på engelska ovan gäller. Svensk lag tillämpas.
