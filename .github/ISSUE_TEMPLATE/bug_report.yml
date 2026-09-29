@@ -1,40 +1,39 @@
-name: Bug report / Felrapport
-description: Something is calculated or shown wrong, or does not work. / Något räknas eller visas fel, eller fungerar inte.
+name: Bug report
+description: Something is calculated or shown wrong, or does not work.
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
         **Never paste real holdings, client names or fund data here — this repository is public.** Describe the problem with made-up numbers, or use the demo portfolio.
-        **Klistra aldrig in riktiga innehav, kundnamn eller fonddata här — repot är publikt.** Beskriv problemet med påhittade siffror, eller använd demoportföljen.
   - type: input
     id: page
     attributes:
-      label: Page / Sida
-      placeholder: e.g. Risk, NAV control, Bulk upload
+      label: Page
+      placeholder: e.g. Risk, Compliance, Bulk upload
     validations:
       required: true
   - type: textarea
     id: what
     attributes:
-      label: What happened, and what did you expect? / Vad hände, och vad väntade du dig?
-      description: For a number that looks wrong, give the instrument type and the made-up inputs that reproduce it. / För en siffra som ser fel ut, ange instrumenttyp och påhittade indata som återskapar den.
+      label: What happened, and what did you expect?
+      description: For a number that looks wrong, give the instrument type and the made-up inputs that reproduce it.
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Steps to reproduce / Steg för att återskapa
+      label: Steps to reproduce
       placeholder: "1. …\n2. …"
   - type: input
     id: browser
     attributes:
-      label: Browser and version / Webbläsare och version
+      label: Browser and version
       placeholder: e.g. Edge 129 on Windows 11
   - type: checkboxes
     id: privacy
     attributes:
-      label: Data / Data
+      label: Data
       options:
-        - label: This report contains no real portfolio or client data. / Rapporten innehåller ingen riktig portfölj- eller kunddata.
+        - label: This report contains no real portfolio or client data.
           required: true

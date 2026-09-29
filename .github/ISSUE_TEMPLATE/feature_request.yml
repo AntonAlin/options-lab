@@ -1,23 +1,23 @@
-name: Suggestion / Förslag
-description: An instrument, check, report or improvement you would use. / Ett instrument, en kontroll, rapport eller förbättring du skulle använda.
+name: Suggestion
+description: An instrument, check, report or improvement you would use.
 labels: [enhancement]
 body:
   - type: markdown
     attributes:
       value: |
-        No real holdings or client data, please — the repository is public. / Ingen riktig innehavs- eller kunddata, tack — repot är publikt.
+        No real holdings or client data, please — the repository is public.
   - type: textarea
     id: need
     attributes:
-      label: What do you need to do, and how do you do it today? / Vad behöver du göra, och hur gör du det i dag?
+      label: What do you need to do, and how do you do it today?
     validations:
       required: true
   - type: textarea
     id: idea
     attributes:
-      label: What would help? / Vad skulle hjälpa?
+      label: What would help?
   - type: dropdown
     id: role
     attributes:
-      label: Your role / Din roll
-      options: [Portfolio manager / Förvaltare, Risk, Compliance, Operations / NAV, IT, Other / Annat]
+      label: Your role
+      options: [Portfolio manager, Risk, Compliance, Operations / NAV, IT, Other]
