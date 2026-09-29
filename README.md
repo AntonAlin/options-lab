@@ -77,6 +77,10 @@ If you need a new column, add it to `FIELDS` with English/Swedish labels and the
 
 `risk()` returns base-currency numbers: `mv`, `exposure`, `net`, `assetClass`, `eqDelta`/`beta`, `ir01` per currency, `cs01`, `cmDelta`, `fx` per currency, `vega`, `gamma`, optional `fi` (yield, duration and so on) and `liqDays`. A type that needs full revaluation in stress tests can also define `stressPnl(p, ctx, scenario)`, which the option type does.
 
+## Authorship
+
+Developed by Anton Ålin with the help of AI. The product idea, requirements, structure, design choices and texts are his; much of the code was written with an AI coding assistant under his direction and review. The commit history shows how it was built.
+
 ## Development
 
 No build step for the app itself. It uses ES modules, so serve the folder over HTTP rather than opening the file directly:
@@ -113,5 +117,7 @@ Nexus Portfolio Lab är en gratis portföljanalysplattform för förvaltare, på
 Under Inställningar kan du hämta ECB:s referenskurser med ett klick eller ange valutakurser manuellt, justera riskmodellens antaganden och ta en säkerhetskopia (JSON) av alla portföljer.
 
 > **Ansvarsfriskrivning / Disclaimer:** Resultaten är modellberäkningar i informationssyfte och utgör inte investeringsrådgivning. Upphovspersonen tar inget ansvar för fel eller för beslut som fattas utifrån verktyget. *Model estimates for information only, not investment advice. No liability is accepted for errors or for decisions based on this tool.*
+
+Utvecklad av Anton Ålin med hjälp av AI.
 
 © 2026 Anton Ålin. Free to use, also professionally; not for sale, modification or republication. See [LICENSE](LICENSE).
