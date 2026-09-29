@@ -20,10 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci
       - run: npm test
-      - run: npm run build
       - name: Snapshot of the ECB market data
         run: node scripts/market-data.mjs data/market.json || echo "::warning::ECB data not included in this release"
       - run: bash scripts/build-release.sh "${GITHUB_REF_NAME}"

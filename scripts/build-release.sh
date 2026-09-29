@@ -42,9 +42,7 @@ fetch "$AUTOTABLE" jspdf.plugin.autotable.min.js "$AUTOTABLE_SRI"
 fetch "$XLSX" xlsx.full.min.js ""
 
 # Point the code at the bundled copies and drop the Google Fonts links (the system font is used).
-for h in index.html options-lab.html; do
-  sed -i -E "s#${PLOTLY}#vendor/plotly.min.js#; /fonts\.(googleapis|gstatic)\.com/d" "$OUT/offline/$h"
-done
+sed -i -E "s#${PLOTLY}#vendor/plotly.min.js#; /fonts\.(googleapis|gstatic)\.com/d" "$OUT/offline/index.html"
 sed -i -E "s#${JSPDF}#vendor/jspdf.umd.min.js#; s#${AUTOTABLE}#vendor/jspdf.plugin.autotable.min.js#" "$OUT/offline/js/report.js"
 sed -i -E "s#${XLSX}#vendor/xlsx.full.min.js#" "$OUT/offline/js/importer.js"
 # Nothing may still point outside (links to the repository and the ECB page are plain <a> links).

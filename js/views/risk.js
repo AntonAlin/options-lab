@@ -76,7 +76,7 @@ export default {
             ${kpi(t('risk.gamma1'), fmtMoney(greeks.gamma, base, { compact: true }), { help: t('help.gamma') })}
             ${kpi(t('risk.vega1'), fmtMoney(greeks.vega, base, { compact: true }))}
             ${kpi(t('risk.theta'), fmtMoney(greeks.theta, base, { compact: true }))}
-          </div>` : `<p class="muted">${esc(t('risk.noOptions'))}</p>`, { sub: `<a class="link" href="options-lab.html">${esc(t('risk.openLab'))} ↗</a>` })}
+          </div>` : `<p class="muted">${esc(t('risk.noOptions'))}</p>`)}
       </div>
       ${corr && corr.labels.length > 1 ? card(t('risk.corr'), '<div id="chCorr" class="chart"></div>', { sub: esc(t('risk.corrSub')) }) : ''}
       ${card(t('risk.assumptions'), `<p class="muted small">${esc(t('risk.assumptionsBody'))}</p><a class="btn btn-sm" href="#/settings">${esc(t('risk.editAssumptions'))}</a>`)}

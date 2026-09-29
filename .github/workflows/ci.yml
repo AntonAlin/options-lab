@@ -17,10 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci
       - run: npm test
-      - run: npm run build
 
   smoke:
     name: Browser smoke test
@@ -31,15 +28,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci
       - name: Install Playwright and Chromium
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
       - name: Test the site exactly as it will be published
         run: |
-          npm run build
           bash scripts/assemble-site.sh _site
           SITE_DIR=_site node tests/smoke.mjs
 
@@ -64,8 +58,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci && npm run build
       # Downloads the bundled libraries and checks their integrity hashes, as a real release does.
       - run: bash scripts/build-release.sh "ci-${GITHUB_SHA::7}"
       - run: cd dist && sha256sum -c SHA256SUMS.txt

@@ -31,12 +31,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - name: Build Tailwind stylesheet and run tests
-        run: |
-          npm ci
-          npm test
-          npm run build
+      - name: Run tests
+        run: npm test
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5
