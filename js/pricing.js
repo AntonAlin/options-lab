@@ -181,7 +181,8 @@ export function bondAnalytics({ valuationDate, maturity, couponPct = 0, freq = 1
 }
 
 // Annuity factor of a fixed leg priced flat at `ratePct` (single-curve approximation).
-export function swapAnnuity(valuationDate, maturity, freq, ratePct) {
+// df(t), when given, is a discount curve (t in years); otherwise the flat rate discounts.
+export function swapAnnuity(valuationDate, maturity, freq, ratePct, df = null) {
   const { dates } = couponSchedule(valuationDate, maturity, freq);
   if (!dates.length) return { annuity: 0, years: 0 };
   const f = Math.max(1, Math.round(freq || 1));
@@ -189,7 +190,7 @@ export function swapAnnuity(valuationDate, maturity, freq, ratePct) {
   const w = Math.min(1, ((next - val) / DAY_MS) / (365.25 / f));
   const g = 1 + (ratePct || 0) / 100 / f;
   let a = 0;
-  dates.forEach((_, i) => { a += (1 / f) * Math.pow(g, -(i + w)); });
+  dates.forEach((_, i) => { a += (1 / f) * (df ? df((i + w) / f) : Math.pow(g, -(i + w))); });
   return { annuity: a, years: (dates.length - 1 + w) / f };
 }
 
@@ -218,10 +219,10 @@ const rateOption = (volType, type, F, K, T, vol) => (volType === 'lognormal' ? b
 // European swaption on a swap starting at expiry T and running `tenor` years, paying `freq` a year.
 // Rates as decimals; normal vol in decimals (0.0080 = 80 bp), lognormal vol as a decimal (0.25).
 // Returns per 1 of notional: { pv, annuity, dPVdF (value change per unit move of the forward), vega }.
-export function swaption({ payer = true, F, K, T, tenor, freq = 1, vol, volType = 'normal' }) {
+export function swaption({ payer = true, F, K, T, tenor, freq = 1, vol, volType = 'normal', df = null }) {
   const n = Math.max(1, Math.round(tenor * freq)), tau = 1 / freq;
   let annuity = 0;
-  for (let i = 1; i <= n; i++) annuity += tau * Math.exp(-F * (T + i * tau));
+  for (let i = 1; i <= n; i++) annuity += tau * (df ? df(T + i * tau) : Math.exp(-F * (T + i * tau)));
   const o = rateOption(volType, payer ? 'call' : 'put', F, K, T, vol);
   const vegaUnit = volType === 'lognormal' ? o.vega : o.vega; // per 1.00 of vol
   return { pv: annuity * o.price, annuity, dPVdF: annuity * o.delta, vega: annuity * vegaUnit };
@@ -229,13 +230,13 @@ export function swaption({ payer = true, F, K, T, tenor, freq = 1, vol, volType 
 
 // Cap (call on the rate) or floor, from `start` to `start + tenor` years, one caplet per period.
 // The first period's rate is already fixed, so it is left out (market convention).
-export function capFloor({ cap = true, F, K, start = 0, tenor, freq = 4, vol, volType = 'normal' }) {
+export function capFloor({ cap = true, F, K, start = 0, tenor, freq = 4, vol, volType = 'normal', df = null }) {
   const n = Math.max(1, Math.round(tenor * freq)), tau = 1 / freq;
   let pv = 0, dPVdF = 0, vega = 0;
   for (let i = 1; i < n; i++) {
-    const tFix = start + i * tau, df = Math.exp(-F * (tFix + tau));
+    const tFix = start + i * tau, d = df ? df(tFix + tau) : Math.exp(-F * (tFix + tau));
     const o = rateOption(volType, cap ? 'call' : 'put', F, K, tFix, vol);
-    pv += tau * df * o.price; dPVdF += tau * df * o.delta; vega += tau * df * o.vega;
+    pv += tau * d * o.price; dPVdF += tau * d * o.delta; vega += tau * d * o.vega;
   }
   return { pv, dPVdF, vega };
 }

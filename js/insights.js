@@ -21,8 +21,11 @@ export function scalePosition(pos, k) {
 // Same key the bulk upload uses to recognise a holding: ISIN, then ticker, then name.
 export const posKey = x => (x.isin && 'i:' + String(x.isin).toUpperCase()) || (x.ticker && 't:' + String(x.ticker).toUpperCase() + '|' + x.type) || (x.name && 'n:' + String(x.name).toLowerCase() + '|' + x.type) || 'x:' + (x.id || '');
 
-// A portfolio as it stood on a snapshot date: same settings, that day's holdings.
-export const atSnapshot = (p, snap) => ({ ...p, positions: snap.positions, valDate: snap.date });
+// A portfolio as it stood on a snapshot date: same settings, that day's holdings — and, when a rates
+// provider knows them (the published ECB data, see marketsync.js), that day's FX rates and curve.
+let dateRates = null;
+export function setDateRates(fn) { dateRates = fn; }
+export const atSnapshot = (p, snap) => ({ ...p, positions: snap.positions, valDate: snap.date, ...(dateRates ? dateRates(p, snap.date) || {} : {}) });
 
 // Last price on or before `date` in the price history, or null.
 export function priceAt(history, key, date) {

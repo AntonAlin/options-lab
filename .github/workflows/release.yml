@@ -1,0 +1,36 @@
+name: Release
+
+# Push a tag such as v1.0.0 to publish a release. Both zips get a signed build provenance
+# attestation, so anyone can verify they were built here from that tag:
+#   gh attestation verify nexus-portfolio-lab-v1.0.0-offline.zip --repo AntonAlin/options-lab
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Snapshot of the ECB market data
+        run: node scripts/market-data.mjs data/market.json || echo "::warning::ECB data not included in this release"
+      - run: bash scripts/build-release.sh "${GITHUB_REF_NAME}"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/*.zip'
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt --title "Nexus Portfolio Lab $GITHUB_REF_NAME" --notes-file dist/RELEASE_NOTES.md --verify-tag

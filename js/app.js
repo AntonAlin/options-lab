@@ -38,6 +38,7 @@ import changesView from './views/changes.js';
 import whatifView from './views/whatif.js';
 import attributionView from './views/attribution.js';
 import navcontrolView from './views/navcontrol.js';
+import * as marketsync from './marketsync.js';
 import pnlView from './views/pnl.js';
 import { pnlAnalysis } from './pnl.js';
 
@@ -107,7 +108,7 @@ function renderSidebar() {
       <a class="privacy-note" href="#/guide?s=privacy" title="${esc(t('privacy.more'))}">${icon('M12 11c1.7 0 3-1.3 3-3V6a3 3 0 10-6 0v2c0 1.7 1.3 3 3 3zM5 11h14v10H5z')}<span>${esc(t('app.privacy'))}</span></a>
       ${sourceStatusHtml()}
       ${dataStatusHtml()}
-      <div class="copyright">© 2026 Anton Ålin · <a href="#/settings">${esc(t('nav.settings'))}</a> · <a href="${REPO_URL}" target="_blank" rel="noopener noreferrer">${esc(t('app.source'))}</a></div>
+      <div class="copyright">© 2026 Anton Ålin · <a href="#/settings">${esc(t('nav.settings'))}</a> · <a href="${REPO_URL}" target="_blank" rel="noopener noreferrer">${esc(t('app.source'))}</a> · <a href="${REPO_URL}/issues/new/choose" target="_blank" rel="noopener noreferrer">${esc(t('app.report'))}</a></div>
     </div>`;
 }
 
@@ -340,6 +341,8 @@ function init() {
   // Only the sidebar and banner depend on the file status, so no second full render (Plotly
   // dislikes being re-run while its first draw is still settling).
   filelink.init().then(() => { renderSidebar(); renderBanner(); maybeAutoBackup(); }).catch(err => console.error(err));
+  // ECB rates and curve published with the site; a local copy without the file just skips this.
+  marketsync.init();
   window.addEventListener('hashchange', () => {
     if (/^#s=/.test(location.hash)) { location.replace('options-lab.html' + location.hash); return; }
     renderRoute(); document.getElementById('main').focus({ preventScroll: true }); window.scrollTo(0, 0); });

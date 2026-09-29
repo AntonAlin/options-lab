@@ -182,6 +182,13 @@ function addFx(r, ccy, amtBase, base) {
 }
 function addIr01(r, ccy, v) { if (v) r.ir01[ccy] = (r.ir01[ccy] || 0) + v; }
 // Value change for +1 bp of breakeven inflation, by currency.
+// Risk-free rate for discounting over T years: the position's own rate, else the portfolio's curve
+// for that currency (ECB AAA + €STR for EUR), else 2.5 %.
+function rfRate(p, ctx, T, field = 'rate') {
+  if (isNum(p[field])) return p[field] / 100;
+  const z = ctx.zero ? ctx.zero(p.ccy, T) : null;
+  return isNum(z) ? z : 0.025;
+}
 function addInf01(r, ccy, v) { if (v) r.inf01[ccy] = (r.inf01[ccy] || 0) + v; }
 
 // Prices quoted in minor units: pence (GBX, written GBp), South African cents (ZAC), Israeli agorot (ILA).
@@ -247,7 +254,9 @@ function bondRisk(p, ctx, { floating = false, government = false, indexLinked = 
     fi: {
       ytm: floating && isNum(p.yield) ? p.yield / 100 : a.ytm, modDur: rateDur, spreadDur: government ? 0 : spreadDur,
       convexity: floating ? 0 : a.convexity, years: a.yearsToMaturity, rating: p.rating || '', accrued: a.accrued, dirty: a.dirty,
-      workout, real: indexLinked, wal: a.wal ?? null
+      workout, real: indexLinked, wal: a.wal ?? null,
+      // Spread over the AAA government curve at the bond's own maturity (nominal fixed-coupon bonds).
+      curveSpreadBp: (() => { const z = !indexLinked && !floating && ctx.zero ? ctx.zero(p.ccy, a.yearsToMaturity) : null; return isNum(z) && isNum(a.ytm) ? (a.ytm - (Math.exp(z) - 1)) * 1e4 : null; })()
     }
   });
   // Real yield = nominal yield − breakeven inflation, so a linker is short nominal rates and long
@@ -419,14 +428,14 @@ export const INSTRUMENTS = {
     // Strike, expiry, spot and vol are needed for the model price and the delta; with a market price
     // (a warrant from a custody file) the position is still valid, and flagged.
     validate: p => (isNum(p.price) || isNum(p.mtm) ? [] : ['strike', 'maturity', 'underlyingPrice', 'vol'].filter(f => !isNum(p[f]) && !p[f]).map(f => ({ field: f, code: 'required' }))),
-    defaults: { multiplier: 100, optType: 'call', underlyingClass: 'equity', rate: 2.5, vol: 20, beta: 1, exercise: 'european', margining: 'premium' },
+    defaults: { multiplier: 100, optType: 'call', underlyingClass: 'equity', vol: 20, beta: 1, exercise: 'european', margining: 'premium' },
     labels: { issuer: { en: 'Counterparty (OTC only)', sv: 'Motpart (endast OTC)' }, mtm: { en: 'Market value (overrides premium)', sv: 'Marknadsvärde (går före premien)' }, qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)', sv: 'Utdelningsyield % (valuta: utländsk ränta)' }, buyCcy: { en: 'Underlying currency (FX options; put = short it)', sv: 'Underliggande valuta (valutaoptioner; put = kort)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
       const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
       const cls = p.underlyingClass || 'equity';
-      const rr = num(p.rate, 2.5) / 100;
+      const rr = rfRate(p, ctx, T);
       const q = cls === 'rates' || cls === 'commodity' ? rr : num(p.divYield, 0) / 100; // Black-76 on a forward; else BSM/Garman-Kohlhagen
       const S = num(p.underlyingPrice), sig = num(p.vol) / 100;
       const noModel = !(S > 0 && num(p.strike) > 0 && p.maturity && sig > 0);
@@ -485,7 +494,7 @@ export const INSTRUMENTS = {
       const fx0 = ctx.fx(p.ccy);
       if (!isNum(fx0)) return 0;
       const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
-      const rr = num(p.rate, 2.5) / 100, q = cls === 'rates' || cls === 'commodity' ? rr : num(p.divYield, 0) / 100;
+      const rr = rfRate(p, ctx, T), q = cls === 'rates' || cls === 'commodity' ? rr : num(p.divYield, 0) / 100;
       const S = num(p.underlyingPrice), sig = num(p.vol) / 100, K = num(p.strike);
       // Underlying move per asset class. A rate or credit option is on a bond/futures price, so the
       // rates/spread shock reaches it through the underlying's duration, not only the discount rate.
@@ -538,7 +547,7 @@ export const INSTRUMENTS = {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
       const N = num(p.qty) * fx;
-      const { annuity, years } = swapAnnuity(ctx.valDate, p.maturity, freqOf(p.freq, 1), num(p.marketRate));
+      const { annuity, years } = swapAnnuity(ctx.valDate, p.maturity, freqOf(p.freq, 1), num(p.marketRate), ctx.df ? ctx.df(p.ccy) : null);
       const sign = p.direction === 'pay' ? -1 : 1;
       const est = sign * N * (num(p.fixedRate) - num(p.marketRate)) / 100 * annuity;
       const mv = isNum(p.mtm) ? p.mtm * fx : est;
@@ -697,7 +706,7 @@ export const INSTRUMENTS = {
         r.warnings = r.warnings.filter(w => w !== 'leverage_missing');
       } else if (kind === 'protected' && S > 0 && isNum(p.strike) && isNum(p.vol) && p.maturity) {
         // Capital protected: a zero-coupon floor plus participation × at-the-money call per 100.
-        const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity)), rr = num(p.rate, 2.5) / 100;
+        const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity)), rr = rfRate(p, ctx, T);
         const part = isNum(p.leverage) ? p.leverage : 1, c = bsm('call', S, num(p.strike), T, rr, num(p.divYield, 0) / 100, num(p.vol) / 100);
         net = num(p.qty) * part * c.delta * S / num(p.strike) * fx;
         r.model = { price: 100 * Math.exp(-rr * T) + part * 100 / num(p.strike) * c.price };
@@ -855,7 +864,7 @@ export const INSTRUMENTS = {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
       const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
-      const o = zcInflationSwap({ receiveInflation: p.direction !== 'pay', T, fixed: num(p.fixedRate) / 100, breakeven: num(p.breakeven) / 100, rate: num(p.marketRate, 2.5) / 100 });
+      const o = zcInflationSwap({ receiveInflation: p.direction !== 'pay', T, fixed: num(p.fixedRate) / 100, breakeven: num(p.breakeven) / 100, rate: rfRate(p, ctx, T, 'marketRate') });
       const N = num(p.qty) * fx;
       const mv = isNum(p.mtm) ? p.mtm * fx : N * o.pv;
       Object.assign(r, { mv, exposure: Math.abs(N), net: (p.direction === 'pay' ? -1 : 1) * N, assetClass: 'fixed_income', liqDays: 5 });
@@ -883,7 +892,7 @@ export const INSTRUMENTS = {
       const total = p.startDate ? Math.max(T, yearsBetween(p.startDate, p.maturity)) : T;
       const elapsed = total ? 1 - T / total : 0;
       if (elapsed > 0 && !isNum(p.realisedVol)) r.warnings.push('realised_missing');
-      const o = varianceSwap({ long: p.direction !== 'pay', vegaNotional: num(p.qty), strike: num(p.strike), implied: num(p.vol), realised: num(p.realisedVol, num(p.vol)), elapsed, T, rate: num(p.rate, 2.5) / 100, kind: p.swapKind === 'volatility_swap' ? 'volatility' : 'variance' });
+      const o = varianceSwap({ long: p.direction !== 'pay', vegaNotional: num(p.qty), strike: num(p.strike), implied: num(p.vol), realised: num(p.realisedVol, num(p.vol)), elapsed, T, rate: rfRate(p, ctx, T), kind: p.swapKind === 'volatility_swap' ? 'volatility' : 'variance' });
       const mv = isNum(p.mtm) ? p.mtm * fx : o.pv * fx;
       Object.assign(r, { mv, exposure: Math.abs(num(p.qty) * fx), net: 0, assetClass: 'alternative', vega: o.vega * fx, liqDays: 5 });
       r.deriv = derivInfo({ notional: num(p.qty) * fx, modelNotional: num(p.qty) * fx, delta: 0, modelDelta: 0, deltaExp: 0, modelDeltaExp: 0 });
@@ -897,7 +906,7 @@ export const INSTRUMENTS = {
     hint: { en: 'Barrier options (knock-in, knock-out, up or down) with the Reiner-Rubinstein formulas, and cash-or-nothing digitals. Delta and vega by revaluation. Knocked-out options are flagged. Negative quantity = sold.', sv: 'Barriäroptioner (knock-in, knock-out, upp eller ned) med Reiner-Rubinsteins formler, och digitaloptioner (kontant eller inget). Delta och vega genom omvärdering. Utslagna optioner flaggas. Negativt antal = utfärdad.' },
     fields: [...COMMON, 'qty', 'exoticKind', 'optType', 'barrierType', 'barrier', 'payout', 'strike', 'maturity', 'underlyingPrice', 'vol', 'rate', 'divYield', 'multiplier', 'price', 'mtm', 'ccy', 'underlyingClass', 'beta', 'strategy', 'notes'],
     required: ['name', 'qty', 'exoticKind', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'ccy'],
-    defaults: { exoticKind: 'barrier', barrierType: 'down-and-out', optType: 'call', multiplier: 1, rate: 2.5, underlyingClass: 'equity', beta: 1, payout: 1 },
+    defaults: { exoticKind: 'barrier', barrierType: 'down-and-out', optType: 'call', multiplier: 1, underlyingClass: 'equity', beta: 1, payout: 1 },
     labels: { issuer: { en: 'Counterparty', sv: 'Motpart' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
@@ -1000,7 +1009,7 @@ function autocallPrice(p, ctx, S) {
   const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
   const f = freqOf(p.freq, 1);
   const elapsed = p.startDate ? Math.max(0, Math.floor(yearsBetween(p.startDate, ctx.valDate) * f + 1e-9)) : 0;
-  const args = { S, initial: num(p.strike), T, obsPerYear: f, periodsElapsed: elapsed, autocallLevel: num(p.autocallLevel, 100) / 100, couponPct: num(p.coupon), protection: num(p.protectionLevel, 60) / 100, r: num(p.rate, 2.5) / 100, q: num(p.divYield, 0) / 100, sigma: num(p.vol) / 100 };
+  const args = { S, initial: num(p.strike), T, obsPerYear: f, periodsElapsed: elapsed, autocallLevel: num(p.autocallLevel, 100) / 100, couponPct: num(p.coupon), protection: num(p.protectionLevel, 60) / 100, r: rfRate(p, ctx, T), q: num(p.divYield, 0) / 100, sigma: num(p.vol) / 100 };
   const key = JSON.stringify(args);
   if (!autocallMemo.has(key)) { if (autocallMemo.size > 5000) autocallMemo.clear(); autocallMemo.set(key, autocall(args)); }
   return autocallMemo.get(key);
@@ -1013,9 +1022,10 @@ function rateOptionValue(p, ctx, kind, fwdShiftBp = 0) {
   const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
   const volType = p.volType === 'lognormal' ? 'lognormal' : 'normal';
   const vol = volType === 'lognormal' ? num(p.vol) / 100 : num(p.vol) / 1e4;
-  if (kind === 'swaption') return swaption({ payer: p.payerReceiver !== 'receiver', F, K, T, tenor: num(p.tenor, 1), freq: freqOf(p.freq, 1), vol, volType });
+  const df = ctx.df ? ctx.df(p.ccy) : null;
+  if (kind === 'swaption') return swaption({ payer: p.payerReceiver !== 'receiver', F, K, T, tenor: num(p.tenor, 1), freq: freqOf(p.freq, 1), vol, volType, df });
   const start = p.startDate ? Math.max(0, yearsBetween(ctx.valDate, p.startDate)) : 0;
-  return { ...capFloor({ cap: p.capFloor !== 'floor', F, K, start, tenor: Math.max(0, T - start), freq: freqOf(p.freq, 4), vol, volType }), T };
+  return { ...capFloor({ cap: p.capFloor !== 'floor', F, K, start, tenor: Math.max(0, T - start), freq: freqOf(p.freq, 4), vol, volType, df }), T };
 }
 function rateOptionRisk(p, ctx, kind) {
   const r = blank(ctx.base);
@@ -1046,7 +1056,7 @@ function rateOptionStress(p, ctx, s, kind) {
 }
 function exoticPrice(p, ctx, S, vol) {
   const T = Math.max(0, yearsBetween(ctx.valDate, p.maturity));
-  const rr = num(p.rate, 2.5) / 100, q = num(p.divYield, 0) / 100;
+  const rr = rfRate(p, ctx, T), q = num(p.divYield, 0) / 100;
   if (p.exoticKind === 'digital') return digitalOption(p.optType, S, num(p.strike), T, rr, q, vol, num(p.payout, 1));
   return barrierOption(p.optType, p.barrierType || 'down-and-out', S, num(p.strike), num(p.barrier), T, rr, q, vol);
 }

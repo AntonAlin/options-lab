@@ -3,6 +3,10 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
+  # Every business day after the ECB publishes its reference rates (about 16:00 CET), so the site
+  # carries fresh market data. GitHub pauses schedules after 60 days without repository activity.
+  schedule:
+    - cron: '35 15 * * 1-5'
   workflow_dispatch:
 
 permissions:
@@ -34,9 +38,20 @@ jobs:
           npm test
           npm run build
       - name: Configure Pages
+        id: pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Fetch ECB market data
+        # A failed or implausible download never replaces good data: keep the file already published.
+        run: |
+          if node scripts/market-data.mjs data/market.json; then
+            echo "Fresh ECB data"
+          else
+            echo "::warning::ECB download failed or did not validate; keeping the published file"
+            mkdir -p data
+            curl -fsSL "${{ steps.pages.outputs.base_url }}/data/market.json" -o data/market.json || echo "::warning::No previously published market data either"
+          fi
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

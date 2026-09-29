@@ -1207,3 +1207,77 @@ test('NAV control: stale prices, outsized moves, performance fee over the high-w
   const withHurdle = navPerUnit(valuePortfolio(p), { classes: [{ id: 'a', name: 'A', ccy: 'SEK', units: 100000, lastNav: 100, feePct: 0, perfFeePct: 20, hurdlePct: 5, hwm: 100 }], feeFrom: '2026-09-28', perfFrom: '2025-09-28' });
   close(withHurdle.classes[0].navPerUnit, 110 - 0.2 * (110 - 105), 1e-9);
 });
+
+test('market data: ECB files parse and validate; curve discounts EUR positions; fx by valuation date', async () => {
+  const fs = await import('node:fs');
+  const md = await import('../js/marketdata.js');
+  const read = f => fs.readFileSync(new URL('./fixtures/' + f, import.meta.url), 'utf8');
+  const m = md.buildMarket({ fxXml: read('ecb-hist-90d.xml'), curveCsv: read('ecb-yc.csv'), estrCsv: read('ecb-estr.csv'), now: '2026-09-28T16:30:00Z' });
+  assert.deepEqual(md.validateMarket(m), []);
+  assert.equal(m.fx.dates.length, 25); assert.equal(m.fx.dates.at(-1), '2026-09-28'); assert.equal(Object.keys(m.fx.rates).length, 30);
+  assert.equal(m.curves.EUR.dates.length, 5); assert.equal(m.curves.EUR.zero[0].length, 11);
+  // Titles with commas inside quotes do not shift the columns.
+  close(m.curves.EUR.zero.at(-1)[0], 1.9 + 0.35 * Math.log1p(0.25), 1e-6);
+  // Rates for a valuation date: the latest on or before it; none for a date before the data.
+  assert.equal(md.fxOn(m, '2026-09-27').date, '2026-09-25');
+  assert.equal(md.fxOn(m, '2025-01-01'), null);
+  assert.equal(md.fxOn(m, '2027-01-01'), null, 'a stale file is not used for a date far after it');
+  // Curve: €STR as the overnight point, linear inside, flat outside.
+  const c = md.curveOn(m, '2026-09-28');
+  close(c.z[0], 0.01915, 1e-12); close(md.zeroAt(c, 50), c.z.at(-1), 1e-12);
+  close(md.zeroAt(c, 4), (c.z[c.t.indexOf(3)] + c.z[c.t.indexOf(5)]) / 2, 1e-12);
+  // Broken data is caught before publishing.
+  assert.ok(md.validateMarket({ ...m, fx: { ...m.fx, rates: { ...m.fx.rates, USD: m.fx.rates.USD.map(() => 45) } } }).length);
+  assert.ok(md.validateMarket({ ...m, curves: { EUR: { ...m.curves.EUR, dates: [], zero: [] } } }).length);
+  // Pricing: an option without its own rate uses the curve; an IRS annuity discounts on it.
+  const p = newPortfolio({ baseCcy: 'EUR', valDate: '2026-09-28' });
+  const opt = { id: 'o', type: 'option', name: 'SX5E call', qty: 10, ccy: 'EUR', optType: 'call', strike: 5000, maturity: '2027-09-28', underlyingPrice: 5000, vol: 20, multiplier: 10 };
+  const flat = valuePortfolio({ ...p, positions: [opt] }).rows[0].r.mv;
+  const withCurve = valuePortfolio({ ...p, curves: { EUR: c }, positions: [opt] }).rows[0].r.mv;
+  assert.notEqual(flat, withCurve);
+  const own = valuePortfolio({ ...p, curves: { EUR: c }, positions: [{ ...opt, rate: 2.5 }] }).rows[0].r.mv;
+  close(own, flat, 1e-9, 'a rate on the position still wins');
+  const irs = { id: 's', type: 'irs', name: 'IRS', qty: 1e7, ccy: 'EUR', direction: 'receive', fixedRate: 3, marketRate: 2.5, maturity: '2036-09-28' };
+  const a0 = valuePortfolio({ ...p, positions: [irs] }).rows[0].r.mv, a1 = valuePortfolio({ ...p, curves: { EUR: c }, positions: [irs] }).rows[0].r.mv;
+  assert.ok(Math.abs(a1 / a0 - 1) < 0.05 && a1 !== a0, 'curve annuity close to, not equal to, the flat one');
+  // Bonds: spread over the AAA curve.
+  const bond = { id: 'b', type: 'corp_bond', name: 'Corp', qty: 1e6, price: 100, ccy: 'EUR', coupon: 4, freq: '1', maturity: '2031-09-28', issuer: 'X' };
+  const fiRow = valuePortfolio({ ...p, curves: { EUR: c }, positions: [bond] }).rows[0].r.fi;
+  close(fiRow.curveSpreadBp, (0.04 - (Math.exp(md.zeroAt(c, 5)) - 1)) * 1e4, 1);
+  assert.equal(valuePortfolio({ ...p, positions: [bond] }).rows[0].r.fi.curveSpreadBp, null);
+});
+
+test('market data sync: only portfolios on placeholder or published ECB rates are updated', async () => {
+  const fs = await import('node:fs');
+  const md = await import('../js/marketdata.js');
+  const { planFor, applyPlan } = await import('../js/marketsync.js');
+  const read = f => fs.readFileSync(new URL('./fixtures/' + f, import.meta.url), 'utf8');
+  const m = md.buildMarket({ fxXml: read('ecb-hist-90d.xml'), curveCsv: read('ecb-yc.csv'), estrCsv: read('ecb-estr.csv'), now: '2026-09-28T16:30:00Z' });
+  const fresh = newPortfolio({ valDate: '2026-09-28' });
+  const plan = planFor(fresh, m);
+  assert.equal(plan.fx.date, '2026-09-28'); assert.equal(plan.curve.date, '2026-09-28');
+  applyPlan(fresh, plan);
+  assert.equal(fresh.fxSource, 'ecb-auto'); assert.equal(planFor(fresh, m), null, 'nothing more to do');
+  assert.equal(planFor({ ...newPortfolio({ valDate: '2026-09-28' }), fxSource: 'manual', curves: fresh.curves }, m), null, 'hand-entered rates are left alone');
+  assert.equal(planFor({ ...newPortfolio({ valDate: '2026-09-28' }), fxSource: 'ecb', curves: fresh.curves }, m), null, 'rates from your own ECB file too');
+  assert.ok(planFor({ ...fresh, curveMode: 'off' }, m).dropCurve);
+  assert.equal(planFor({ ...newPortfolio({ valDate: '2024-01-31' }) }, m), null, 'outside the published window: untouched');
+  assert.equal(planFor({ ...newPortfolio({ valDate: '2026-09-28' }), demo: true }, m), null);
+});
+
+test('market data: a past snapshot is valued with that date\'s ECB rates when the portfolio follows them', async () => {
+  const fs = await import('node:fs');
+  const md = await import('../js/marketdata.js');
+  const { atSnapshot, setDateRates } = await import('../js/insights.js');
+  const { ratesOn } = await import('../js/marketsync.js');
+  const read = f => fs.readFileSync(new URL('./fixtures/' + f, import.meta.url), 'utf8');
+  const m = md.buildMarket({ fxXml: read('ecb-hist-90d.xml'), curveCsv: read('ecb-yc.csv'), estrCsv: read('ecb-estr.csv'), now: '2026-09-28T16:30:00Z' });
+  const p = { ...newPortfolio({ valDate: '2026-09-28' }), fxSource: 'ecb-auto' };
+  const snap = { date: m.fx.dates[3], positions: [] };
+  setDateRates((pp, d) => ratesOn(pp, d, m));
+  try {
+    assert.equal(atSnapshot(p, snap).fxDate, snap.date);
+    close(atSnapshot(p, snap).fxEur.USD, m.fx.rates.USD[3], 1e-12);
+    assert.equal(atSnapshot({ ...p, fxSource: 'manual' }, snap).fxEur, p.fxEur, 'manual rates stay');
+  } finally { setDateRates(null); }
+});

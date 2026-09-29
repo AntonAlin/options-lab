@@ -28,6 +28,7 @@ export default {
         ${kpi(t('fi.spreadDur'), fmtNum(fi.portfolioSpreadDuration, 2), { sub: t('fi.spreadDurSub'), help: t('help.spreadDur') })}
         ${kpi('DV01', fmtMoney(fi.ir01, base, { compact: true }), { sub: t('fi.dv01Sub'), help: t('help.dv01') })}
         ${kpi('CS01', fmtMoney(fi.cs01, base, { compact: true }), { sub: t('fi.cs01Sub') })}
+        ${Number.isFinite(fi.curveSpreadBp) ? kpi(t('fi.curveSpread'), `${fmtNum(fi.curveSpreadBp, 0)} bp`, { sub: t('fi.curveSpreadSub', { p: fmtPct(fi.curveSpreadCover, 0) }), help: t('help.curveSpread') }) : ''}
         ${kpi(t('fi.avgRating'), esc(fi.avgRating || '—'), { sub: t('fi.hySub', { p: fmtPct(fi.highYieldWeight, 1) }) })}
       </div>
       <div class="grid-2">

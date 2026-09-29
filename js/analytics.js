@@ -4,6 +4,7 @@ import { INSTRUMENTS, validatePosition, regionOf, ratingScore, ratingFromScore, 
 import { normInv, normPDF } from './pricing.js';
 import { isNum, num, sum, mean, stdev, quantile, covariance, todayISO } from './util.js';
 import { FALLBACK_EUR_RATES, DEFAULT_CMA, DEFAULT_RISK } from './store.js';
+import { zeroAt } from './marketdata.js';
 
 // ---- valuation ----------------------------------------------------------------------------------
 export function makeCtx(p) {
@@ -18,7 +19,10 @@ export function makeCtx(p) {
       if (!ccy || ccy === p.baseCcy) return 1; const c = eur[ccy]; return isNum(c) && isNum(b) && c > 0 ? b / c : undefined;
     },
     cma: { ...cma, equitySpecificVol: cma.equitySpecificVol / 100 },
-    useReported: p.risk?.useReported !== false
+    useReported: p.risk?.useReported !== false,
+    // Zero rate (continuous, decimal) from the portfolio's curve for that currency, or null.
+    zero: (ccy, T) => { const c = p.curves?.[ccy]; return c && c.t?.length ? zeroAt(c, Math.max(0, T)) : null; },
+    df: ccy => { const c = p.curves?.[ccy]; return c && c.t?.length ? (t => Math.exp(-zeroAt(c, Math.max(0, t)) * Math.max(0, t))) : null; }
   };
 }
 
@@ -139,6 +143,7 @@ export function fixedIncome(v) {
     rows, fiMv, fiWeight: v.nav ? fiMv / v.nav : 0,
     ytm: wavg(x => x.r.fi.ytm), modDur: wavg(x => x.r.fi.modDur), spreadDur: wavg(x => x.r.fi.spreadDur),
     convexity: wavg(x => x.r.fi.convexity), years: wavg(x => x.r.fi.years),
+    curveSpreadBp: wavg(x => x.r.fi.curveSpreadBp), curveSpreadCover: sum(rows.filter(x => isNum(x.r.fi.curveSpreadBp)).map(x => x.r.mv)) / (fiMv || 1),
     portfolioDuration: v.nav ? -ir01 / v.nav / 1e-4 : 0,
     portfolioSpreadDuration: v.nav ? -cs01 / v.nav / 1e-4 : 0,
     ir01, cs01, ir01ByCcy, avgRating: ratingFromScore(avgScore), avgScore,

@@ -8,6 +8,7 @@ import * as filelink from '../filelink.js';
 import { lang } from '../i18n.js';
 import { sourceCardHtml, bindSourceCard } from './source-card.js';
 import { parseEcbRates, ECB_PAGE } from '../fxfile.js';
+import * as marketsync from '../marketsync.js';
 
 const CMA_FIELDS = [
   ['equityVol', '%'], ['equitySpecificVol', '%'], ['ratesVolBp', 'bp'], ['creditVolBp', 'bp'], ['fxVol', '%'], ['commodityVol', '%'], ['volOfVolPts', 'pts'],
@@ -39,11 +40,16 @@ export default {
           <label><span>${esc(t('set.riskFree'))}</span><input name="riskFree" inputmode="decimal" value="${p.risk.riskFree}"></label>
         </form>`) : ''}
       ${p ? card(t('set.fx'), `
-        <p class="muted small">${esc(t('set.fxBody', { base: p.baseCcy }))} ${p.fxSource === 'ecb' ? esc(t('set.fxEcb', { d: fmtDate(p.fxDate) })) : p.fxSource === 'fallback' ? `<strong class="warn-text">${esc(t('set.fxFallback'))}</strong>` : p.fxSource === 'manual' ? esc(t('set.fxManual')) : ''}</p>
+        <p class="muted small">${esc(t('set.fxBody', { base: p.baseCcy }))} ${p.fxSource === 'ecb-auto' ? esc(t('set.fxAuto', { d: fmtDate(p.fxDate) })) : p.fxSource === 'ecb' ? esc(t('set.fxEcb', { d: fmtDate(p.fxDate) })) : p.fxSource === 'fallback' ? `<strong class="warn-text">${esc(t('set.fxFallback'))}</strong>` : p.fxSource === 'manual' ? esc(t('set.fxManual')) : ''}</p>
         <div class="fx-grid">${store.CURRENCIES.filter(c => c !== p.baseCcy).sort((a, b) => (usedCcys.includes(b) - usedCcys.includes(a)) || a.localeCompare(b)).map(c => `
           <label class="${usedCcys.includes(c) ? 'used' : ''}"><span>1 ${c} =</span><input data-fx="${c}" inputmode="decimal" value="${fx(c) != null ? +fx(c).toPrecision(6) : ''}"><span>${esc(p.baseCcy)}</span></label>`).join('')}</div>
-        <div class="btn-row"><button class="btn" data-act="ecb">${esc(t('set.fetchEcb'))}</button><input type="file" id="ecbFile" accept=".csv,.xml,text/csv,text/xml" hidden><a class="btn btn-sm" href="${ECB_PAGE}" target="_blank" rel="noopener noreferrer">${esc(t('set.ecbLink'))} ↗</a></div>
-        <p class="muted small">${esc(t('set.ecbHelp'))}</p>`, { sub: esc(t('set.fxSub')) }) : ''}
+        <div class="btn-row"><button class="btn btn-primary" data-act="ecbAuto">${esc(t('set.useAuto'))}</button><button class="btn" data-act="ecb">${esc(t('set.fetchEcb'))}</button><input type="file" id="ecbFile" accept=".csv,.xml,text/csv,text/xml" hidden><a class="btn btn-sm" href="${ECB_PAGE}" target="_blank" rel="noopener noreferrer">${esc(t('set.ecbLink'))} ↗</a></div>
+        <p class="muted small">${esc(t('set.ecbHelp'))}</p>
+        <label class="check"><input type="checkbox" id="marketAuto" ${S.marketAuto !== false ? 'checked' : ''}> <span>${esc(t('set.marketAuto'))}</span></label>
+        <h3 class="h3 mt">${esc(t('set.curve'))}</h3>
+        <p class="muted small">${esc(t('set.curveBody'))} ${p.curves?.EUR ? esc(t('set.curveOn', { d: fmtDate(p.curves.EUR.date) })) : `<strong>${esc(t('set.curveNone'))}</strong>`}</p>
+        <label class="check"><input type="checkbox" id="curveMode" ${p.curveMode !== 'off' ? 'checked' : ''}> <span>${esc(t('set.curveUse'))}</span></label>
+        <p class="muted small">${esc(t('set.marketSource'))}</p>`, { sub: esc(t('set.fxSub')) }) : ''}
       ${p ? card(t('set.cma'), `
         <p class="muted small">${esc(t('set.cmaBody'))}</p>
         <div class="cma-grid">${CMA_FIELDS.map(([k, unit]) => `<label><span>${esc(t('cma.' + k))}</span><span class="with-unit"><input data-cma="${k}" inputmode="decimal" value="${p.cma[k]}"><em>${unit}</em></span></label>`).join('')}</div>
@@ -87,6 +93,8 @@ export default {
       const x = numIn(e.target.value);
       if (x != null) store.update(pp => { pp.cma[e.target.dataset.cma] = x; }, t('set.cma'));
     }));
+    root.querySelector('#marketAuto')?.addEventListener('change', e => { store.setSetting('marketAuto', e.target.checked); if (e.target.checked) marketsync.syncAll(); });
+    root.querySelector('#curveMode')?.addEventListener('change', e => { store.update(pp => { pp.curveMode = e.target.checked ? 'auto' : 'off'; }, t('set.curve')); marketsync.syncAll(); });
     root.querySelector('#ecbFile')?.addEventListener('change', e => { const f = e.target.files[0]; if (f) importEcb(f); e.target.value = ''; });
     root.querySelector('#restoreFile').addEventListener('change', async e => {
       const f = e.target.files[0];
@@ -102,6 +110,15 @@ export default {
       if (seg) { store.setSetting(seg.dataset.seg, seg.dataset.value); return; }
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'ecb') root.querySelector('#ecbFile').click();
+      if (act === 'ecbAuto') {
+        try {
+          await marketsync.load({ force: true });
+          store.update(pp => { pp.fxSource = 'ecb-auto'; pp.fxDate = ''; }, t('set.fx'));
+          marketsync.syncAll();
+          const q = store.active();
+          toast(q.fxSource === 'ecb-auto' && q.fxDate ? t('set.autoDone', { d: q.fxDate }) : t('set.autoOutside'), { tone: q.fxDate ? '' : 'warn', ms: 7000 });
+        } catch (err) { toast(t('set.autoMissing'), { tone: 'warn', ms: 7000 }); }
+      }
       if (act === 'cmaReset') store.update(pp => { pp.cma = { ...store.DEFAULT_CMA }; }, t('set.cma'));
       if (act === 'backup') { downloadBackup(); toast(t('backup.done')); }
       if (act?.startsWith('file:')) fileAction(act.slice(5), root);

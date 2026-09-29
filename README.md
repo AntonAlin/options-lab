@@ -1,5 +1,7 @@
 # Nexus Portfolio Lab
 
+[![CI](https://github.com/AntonAlin/options-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/AntonAlin/options-lab/actions/workflows/ci.yml) [![CodeQL](https://github.com/AntonAlin/options-lab/actions/workflows/codeql.yml/badge.svg)](https://github.com/AntonAlin/options-lab/actions/workflows/codeql.yml) [![Release](https://img.shields.io/github/v/release/AntonAlin/options-lab?include_prereleases&label=release)](https://github.com/AntonAlin/options-lab/releases)
+
 Free portfolio analytics for fund managers, in English and Swedish. It runs entirely in the browser: holdings are stored in `localStorage`, nothing goes to a server, and there are no accounts.
 
 *Svenska nedan.*
@@ -8,7 +10,7 @@ Free portfolio analytics for fund managers, in English and Swedish. It runs enti
 
 There is no server, no database and no user accounts. Holdings are read from files on the user's own computer or network share, calculated in the browser and stored in the browser and in files the organisation controls. Nothing about a portfolio is sent anywhere. The **connected file** is the recommended way to work for exactly this reason: the browser reads the file where it lies, so the source of truth never leaves the organisation's storage, access control and backup.
 
-The only network requests are downloads of code (the page, Plotly, SheetJS, jsPDF, the Inter font); none carries portfolio data. ECB exchange rates are read from the ECB's own file, downloaded by the user. For zero external requests, host an unmodified copy on an internal web server (the licence allows this) and point the library URLs in `index.html`, `js/importer.js` and `js/report.js` to internal copies.
+The only network requests are downloads of code (the page, Plotly, SheetJS, jsPDF, the Inter font) and of one public data file from the site itself, `data/market.json` (ECB exchange rates and the euro curve); none carries portfolio data. For zero external requests, use the **offline zip** from a [release](https://github.com/AntonAlin/options-lab/releases) — every library bundled, no web fonts — on an internal web server (the licence allows this).
 
 **Check it yourself.** The source code is public in this repository, so anyone — IT, risk, compliance — can confirm what the platform does and check each formula: every section of *How we calculate* links to the module it describes. Public to read is not open source, though. The [licence](LICENSE) lets anyone use the platform freely, also professionally, host an unmodified copy inside their own organisation and use its output however they like; it may never be sold, modified, built upon or republished.
 
@@ -85,6 +87,23 @@ If you need a new column, add it to `FIELDS` with English/Swedish labels and the
 
 Developed by Anton Ålin with the help of AI. The product idea, requirements, structure, design choices and texts are his; much of the code was written with an AI coding assistant under his direction and review. The commit history shows how it was built.
 
+## Market data
+
+A scheduled GitHub Action (`pages.yml`, every business day at 15:35 UTC, after the ECB publishes around 16:00 CET) runs `scripts/market-data.mjs`. It downloads the ECB euro reference rates for the last 90 days, the ECB euro area AAA government spot curve and €STR, validates them (ranges, completeness, age) and publishes `data/market.json` with the site. A download that fails validation is never published; the previous file stays. In the app:
+
+- Portfolios on the placeholder or published rates get the ECB rates for their own valuation date. Rates typed in or imported from your own ECB file are never overwritten. Settings has a switch to turn the automatic update off.
+- EUR positions without their own rate are discounted on the curve (€STR + AAA curve): options and structured products, IRS annuities, swaptions, caps/floors, inflation and variance swaps.
+- EUR fixed-rate bonds show their spread over the AAA curve (a G-spread) on Fixed income.
+
+Source: European Central Bank. GitHub pauses scheduled workflows after 60 days without activity in the repository; re-enable it under Actions if that happens.
+
+## Quality, releases and security
+
+- **CI** (`ci.yml`) on every push and pull request: unit tests, a browser smoke test that opens every page in both languages and fails on any script error or NaN, a download-and-validate run of the ECB data, and a dry run of the release packaging.
+- **Releases** (`release.yml`): push a tag such as `v1.0.0`. The workflow builds two zips — the site as published, and an offline version with Plotly, SheetJS and jsPDF bundled (checked against their integrity hashes) and no web fonts — and attaches a signed build provenance attestation. Verify with `gh attestation verify nexus-portfolio-lab-v1.0.0-offline.zip --repo AntonAlin/options-lab`.
+- **CodeQL** (`codeql.yml`) scans the JavaScript on every change to `main` and weekly.
+- **Issues** use templates that ask for made-up numbers only — never real holdings. Security problems go through private reporting; see [SECURITY.md](SECURITY.md).
+
 ## Development
 
 No build step for the app itself. It uses ES modules, so serve the folder over HTTP rather than opening the file directly:
@@ -94,9 +113,12 @@ npm install
 npm test          # node:test unit tests (pricing, importer, analytics, translations)
 npm run serve     # http://localhost:8000
 npm run build     # rebuilds tailwind.css (Options Lab only)
+node tests/smoke.mjs                      # browser smoke test (needs Playwright)
+node scripts/market-data.mjs --check      # download and validate the ECB data
+bash scripts/build-release.sh v0 --no-download   # packaging dry run into dist/
 ```
 
-The Pages workflow runs the tests, builds Tailwind and deploys on push to `main`.
+The Pages workflow runs the tests, builds Tailwind, fetches the ECB data and deploys on push to `main` and every business day.
 
 ---
 
@@ -119,6 +141,9 @@ Nexus Portfolio Lab är en gratis portföljanalysplattform för förvaltare, på
 - **Din data stannar inom organisationen:** ingen server, ingen databas, inga konton. Filer läses där de ligger och allt beräknas i webbläsaren; ingen portföljdata skickas någonstans.
 - **Användarguide** i appen med fullständiga instruktioner på svenska och engelska.
 - **Options Lab**, den tidigare strategivisualiseraren, finns kvar på `options-lab.html`.
+
+- **Marknadsdata från ECB:** ett schemalagt jobb på GitHub hämtar ECB:s referenskurser, AAA-statskurvan och €STR varje bankdag och publicerar dem med sajten. Portföljer får kurserna för sitt värderingsdatum (egna kurser skrivs aldrig över), EUR-positioner diskonteras med kurvan och obligationer visar spread mot AAA-kurvan.
+- **Kvalitet och säkerhet:** automatiska tester och webbläsartest vid varje ändring, CodeQL-skanning, releaser med offline-zip och signerad attestering av bygget, samt ärendemallar och privat säkerhetsrapportering (SECURITY.md).
 
 Under Inställningar kan du läsa in ECB:s referenskurser från ECB:s egen fil eller ange valutakurser manuellt, justera riskmodellens antaganden och ta en säkerhetskopia (JSON) av alla portföljer.
 
