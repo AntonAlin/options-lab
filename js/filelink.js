@@ -21,6 +21,7 @@ const status = { state: 'none', name: '', kind: '', lastSaved: null, error: '', 
 const listeners = new Set();
 export const supported = () => typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function';
 export const getStatus = () => status;
+export const handle = () => (rec ? rec.handle : null);
 export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function set(patch) { Object.assign(status, patch); listeners.forEach(fn => { try { fn(status); } catch (e) { console.error(e); } }); }
 

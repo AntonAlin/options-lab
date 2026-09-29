@@ -62,6 +62,7 @@ export default {
     root.innerHTML = `
       ${pageHead(t('nav.holdings'), esc(t('hold.sub', { n: v.rows.length, nav: fmtMoney(v.nav, base, { compact: true }) })),
         `<button class="btn" data-act="csv">${esc(t('hold.exportCsv'))}</button><button class="btn" data-act="xlsx">${esc(t('hold.exportXlsx'))}</button><a class="btn" href="#/import">${esc(t('nav.import'))}</a><button class="btn btn-primary" data-act="add">+ ${esc(t('hold.add'))}</button>`)}
+      ${p.source && p.source.file ? `<div class="alert alert-info"><span>${esc(t('src.holdingsNote', { name: p.source.fileName, d: p.source.shown || p.valDate }))}</span></div>` : ''}
       <div class="toolbar">
         <input type="search" id="hq" placeholder="${esc(t('hold.search'))}" value="${esc(ui.q)}" aria-label="${esc(t('hold.search'))}">
         ${selectHtml('id="htype" aria-label="' + esc(t('col.type')) + '"', [['', t('hold.allTypes')], ...typesPresent.map(k => [k, typeLabel(k, lang())])], ui.type)}

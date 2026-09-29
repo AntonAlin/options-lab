@@ -7,6 +7,7 @@ import {
   typeValues, mandatoryFields, buildTemplate, applyTemplateMapping, detectTemplate, validateTemplate, DATE_FORMATS
 } from '../importer.js';
 import { downloadBlob, loadScript, slug } from '../util.js';
+import { sourceCardHtml, bindSourceCard } from './source-card.js';
 
 // Import state survives re-renders (language switch etc.) but not a page reload.
 const FRESH = () => ({
@@ -189,6 +190,7 @@ export default {
 
     root.innerHTML = `
       ${pageHead(t('nav.import'), esc(t('imp.sub')))}
+      ${sourceCardHtml()}
       <div class="grid-2 import-top">
         ${card(t('imp.step1'), `
           <div class="drop" id="drop" tabindex="0" role="button" aria-label="${esc(t('imp.drop'))}">
@@ -382,6 +384,7 @@ export default {
         app.navigate('holdings');
       }
     };
+    return bindSourceCard(root);
   }
 };
 

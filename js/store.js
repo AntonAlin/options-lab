@@ -139,6 +139,25 @@ export function addPortfolio(p) {
   persist(); emit('active');
   return p;
 }
+// Add a portfolio without necessarily switching to it (a connected file can bring in several).
+export function upsertPortfolio(p, { activate = false } = {}) {
+  upgradePortfolio(p);
+  state.portfolios[p.id] = p;
+  if (activate || !state.activeId) { state.activeId = p.id; undoStack = []; }
+  persist(); emit('active');
+  return p;
+}
+// Change any portfolio, not only the active one. Not undoable: used when a connected file
+// refreshes, and the undo snapshots taken before that would bring back stale holdings.
+export function mutatePortfolio(id, fn, { silent = false } = {}) {
+  const p = state.portfolios[id];
+  if (!p) return;
+  fn(p);
+  p.updatedAt = new Date().toISOString();
+  if (id === state.activeId) undoStack = [];
+  persist();
+  if (!silent) emit('data');
+}
 export function deletePortfolio(id) {
   delete state.portfolios[id];
   if (state.activeId === id) state.activeId = Object.keys(state.portfolios)[0] || null;

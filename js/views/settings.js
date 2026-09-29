@@ -6,6 +6,7 @@ import { loadDemo } from '../app.js';
 import { downloadBackup, backupAge } from '../backup.js';
 import * as filelink from '../filelink.js';
 import { lang } from '../i18n.js';
+import { sourceCardHtml, bindSourceCard } from './source-card.js';
 
 const CMA_FIELDS = [
   ['equityVol', '%'], ['equitySpecificVol', '%'], ['ratesVolBp', 'bp'], ['creditVolBp', 'bp'], ['fxVol', '%'], ['commodityVol', '%'], ['volOfVolPts', 'pts'],
@@ -45,6 +46,7 @@ export default {
         <p class="muted small">${esc(t('set.cmaBody'))}</p>
         <div class="cma-grid">${CMA_FIELDS.map(([k, unit]) => `<label><span>${esc(t('cma.' + k))}</span><span class="with-unit"><input data-cma="${k}" inputmode="decimal" value="${p.cma[k]}"><em>${unit}</em></span></label>`).join('')}</div>
         <div class="btn-row"><button class="btn btn-sm" data-act="cmaReset">${esc(t('set.cmaReset'))}</button></div>`) : ''}
+      ${sourceCardHtml()}
       ${card(t('file.title'), fileCardHtml(), { sub: esc(t('file.sub')), id: 'fileCard' })}
       ${card(t('set.data'), `
         <p class="muted small">${esc(t('set.dataBody'))}</p>
@@ -104,7 +106,8 @@ export default {
       if (act === 'demo') loadDemo();
       if (act === 'reset' && await confirmDialog(t('set.resetConfirm'), { danger: true, ok: t('set.reset') })) { store.resetWorkspace(); toast(t('set.resetDone')); }
     };
-    return off;
+    const offSrc = bindSourceCard(root);
+    return () => { off(); offSrc(); };
   }
 };
 

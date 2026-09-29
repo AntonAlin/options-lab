@@ -6,6 +6,8 @@ import * as charts from '../charts.js';
 import * as filelink from '../filelink.js';
 import { backupAge } from '../backup.js';
 import { loadDemo, newPortfolioDialog } from '../app.js';
+import * as source from '../sourcefile.js';
+import { connectFlow } from './source-card.js';
 
 function welcome(root) {
   root.innerHTML = `
@@ -18,6 +20,7 @@ function welcome(root) {
           <button class="btn btn-primary btn-lg" data-act="demo">${esc(t('welcome.demo'))}</button>
           <button class="btn btn-lg" data-act="new">${esc(t('welcome.new'))}</button>
           <button class="btn btn-lg" data-act="import">${esc(t('welcome.import'))}</button>
+          ${source.supported() ? `<button class="btn btn-lg" data-act="connect">${esc(t('welcome.connect'))}</button>` : ''}
         </div>
         <p class="hero-note">${esc(t('welcome.note'))}</p>
       </div>
@@ -30,6 +33,7 @@ function welcome(root) {
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (a === 'demo') loadDemo();
     if (a === 'new') newPortfolioDialog();
+    if (a === 'connect') connectFlow();
     if (a === 'import') { if (!store.active()) store.addPortfolio(store.newPortfolio({ name: t('pf.defaultName') })); location.hash = '#/import'; }
   });
 }

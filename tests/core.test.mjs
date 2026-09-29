@@ -639,3 +639,66 @@ test('risk by asset class adds up to the portfolio volatility, and the performan
   assert.equal(pts.length, a.risk.hp.covered.filter(c => c.key !== 'FX').length);
   assert.ok(pts.every(q => Number.isFinite(q.ret) && Number.isFinite(q.vol) && Number.isFinite(q.contribPct)));
 });
+
+test('connected source file: dates in the first column split snapshots and portfolios', async () => {
+  const { cellDate, detectLayout, analyseRows, carryIds, snapshotPositions, snapshotHistory } = await import('../js/sourcefile.js');
+  assert.equal(cellDate('2026-09-29'), '2026-09-29');
+  assert.equal(cellDate('29.09.2026'), '2026-09-29');
+  assert.equal(cellDate('20260929'), '2026-09-29');
+  assert.equal(cellDate(46294), '2026-09-29');
+  assert.equal(cellDate('Total'), '');
+  assert.equal(cellDate('1234'), '');
+  assert.equal(cellDate(12.5), '');
+
+  const csv = [
+    'Exported by custodian',
+    'Date;Portfolio;Name;ISIN;Type;Quantity;Price;Currency',
+    '2026-09-28;Fund A;Volvo B;SE0000115446;Equity;1000;250,5;SEK',
+    '2026-09-28;Fund A;Cash;;Cash;50000;1;SEK',
+    '2026-09-28;Fund B;Apple;US0378331005;Equity;10;230;USD',
+    '2026-09-29;Fund A;Volvo B;SE0000115446;Equity;1200;255;SEK',
+    '2026-09-29;Fund A;Cash;;Cash;0;1;SEK',
+    '2026-09-29;Fund B;Apple;US0378331005;Equity;12;232;USD',
+    'Total;;;;;;;'
+  ].join('\n');
+  const { sheets, decimal } = parseText(csv, 'x.csv');
+  const rows = sheets[0].rows;
+  const layout = detectLayout(rows);
+  assert.equal(layout.headerRow, 1);
+  assert.equal(layout.dateCol, 0);
+  assert.equal(layout.pfCol, 1);
+
+  const r = analyseRows(rows, { decimal });
+  assert.ok(!r.error, r.error);
+  assert.deepEqual(r.groups.map(g => g.key), ['Fund A', 'Fund B']);
+  assert.deepEqual(r.groups[0].dates.map(d => d.date), ['2026-09-28', '2026-09-29']);
+  assert.equal(r.skipped, 1, 'the total line is not a snapshot');
+  assert.equal(r.mapping[0], '', 'date column is not a position field');
+  assert.equal(r.mapping[1], '', 'portfolio column is not a position field');
+
+  const latestA = snapshotPositions(r.groups[0].dates[1].rows, r.mapping, r.opts);
+  assert.equal(latestA.length, 2);
+  const volvo = latestA.find(x => x.isin === 'SE0000115446');
+  assert.equal(volvo.qty, 1200);
+  assert.equal(volvo.price, 255);
+
+  const hist = snapshotHistory(r.groups[0], r.mapping, r.opts);
+  assert.deepEqual(hist.dates, ['2026-09-28', '2026-09-29']);
+  assert.deepEqual(hist.series.SE0000115446, [250.5, 255]);
+
+  const prev = snapshotPositions(r.groups[0].dates[0].rows, r.mapping, r.opts);
+  const next = carryIds(prev, latestA);
+  assert.equal(next.find(x => x.isin === 'SE0000115446').id, prev.find(x => x.isin === 'SE0000115446').id, 'ids survive a refresh');
+});
+
+test('connected source file: no portfolio column means one portfolio; no date column is an error', async () => {
+  const { analyseRows } = await import('../js/sourcefile.js');
+  const one = parseText('Datum,Namn,Antal,Kurs,Valuta\n2026-09-29,Ericsson B,100,80,SEK\n2026-09-29,Nokia,50,4,EUR\n', 'y.csv');
+  const r = analyseRows(one.sheets[0].rows, { decimal: one.decimal });
+  assert.ok(!r.error, r.error);
+  assert.equal(r.groups.length, 1);
+  assert.equal(r.groups[0].key, '');
+  assert.equal(r.groups[0].dates[0].rows.length, 2);
+  const none = parseText('Name,Quantity,Price\nVolvo,1,2\n', 'z.csv');
+  assert.equal(analyseRows(none.sheets[0].rows, { decimal: '.' }).error, 'no_date');
+});

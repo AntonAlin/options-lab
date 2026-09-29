@@ -9,6 +9,8 @@ import { purgeAll } from './charts.js';
 import { buildDemo } from './demo.js';
 import { todayISO, debounce } from './util.js';
 import * as filelink from './filelink.js';
+import * as source from './sourcefile.js';
+import { errorText as sourceError } from './views/source-card.js';
 import { backupAge, maybeAutoBackup, BACKUP_WARN_DAYS } from './backup.js';
 
 import dashboard from './views/dashboard.js';
@@ -97,6 +99,7 @@ function renderSidebar() {
     </nav>
     <div class="sidebar-foot">
       <div class="privacy-note">${icon('M12 11c1.7 0 3-1.3 3-3V6a3 3 0 10-6 0v2c0 1.7 1.3 3 3 3zM5 11h14v10H5z')}<span>${esc(t('app.privacy'))}</span></div>
+      ${sourceStatusHtml()}
       ${dataStatusHtml()}
       <div class="copyright">© 2026 Anton Ålin · <a href="#/settings">${esc(t('nav.settings'))}</a></div>
     </div>`;
@@ -121,13 +124,27 @@ function dataStatusHtml() {
   return `<a class="data-status ${tone}" href="#/settings">${icon('M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3')}<span><strong>${esc(t('backup.label'))}</strong><br>${esc(text)}</span></a>`;
 }
 
+// The connected source file (read side), when there is one.
+function sourceStatusHtml() {
+  const s = source.getStatus();
+  if (s.state === 'none' || s.state === 'unsupported') return '';
+  const time = iso => new Date(iso).toLocaleTimeString(lang() === 'sv' ? 'sv-SE' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+  const bad = s.state !== 'linked' || !!s.error;
+  const text = s.state === 'needs-permission' ? t('src.needsPermission') : bad ? sourceError(s.error) : t('src.readAt', { t: s.lastRead ? time(s.lastRead) : '—' });
+  return `<a class="data-status ${bad ? 'warn' : 'ok'}" href="#/import" title="${esc(s.name)}">${icon('M4 4h10l6 6v10H4zM14 4v6h6M8 14l3 3 5-6')}<span><strong>${esc(s.name)}</strong><br>${esc(text)}</span></a>`;
+}
+
 // Banner above the page: the linked file needs a click to reconnect, or holds newer data.
 function renderBanner() {
   const el = document.getElementById('banner');
   if (!el) return;
   const fs = filelink.getStatus();
+  const ss = source.getStatus();
   let html = '';
-  if (fs.state === 'needs-permission') html = `<div class="alert alert-warn"><span>${esc(t('file.bannerPermission', { name: fs.name }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="reconnect">${esc(t('file.reconnect'))}</button><button class="btn btn-sm" data-file="unlink">${esc(t('file.unlink'))}</button></span></div>`;
+  if (ss.state === 'needs-permission') html = `<div class="alert alert-warn"><span>${esc(t('src.bannerPermission', { name: ss.name }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="src-reconnect">${esc(t('src.reconnect'))}</button><button class="btn btn-sm" data-file="src-disconnect">${esc(t('src.disconnect'))}</button></span></div>`;
+  else if (ss.state === 'error') html = `<div class="alert alert-breach"><span>${esc(t('src.bannerError', { name: ss.name, err: sourceError(ss.error) }))}</span><span class="btn-row"><button class="btn btn-sm" data-file="src-connect">${esc(t('src.connectOther'))}</button><button class="btn btn-sm" data-file="src-disconnect">${esc(t('src.disconnect'))}</button></span></div>`;
+  if (html) { /* the source file comes first; the linked-file banner shows once that is sorted */ }
+  else if (fs.state === 'needs-permission') html = `<div class="alert alert-warn"><span>${esc(t('file.bannerPermission', { name: fs.name }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="reconnect">${esc(t('file.reconnect'))}</button><button class="btn btn-sm" data-file="unlink">${esc(t('file.unlink'))}</button></span></div>`;
   else if (fs.state === 'error') html = `<div class="alert alert-breach"><span>${esc(t('file.bannerError', { name: fs.name, err: fs.error }))}</span><span class="btn-row"><button class="btn btn-sm" data-file="retry">${esc(t('file.retry'))}</button><button class="btn btn-sm" data-file="unlink">${esc(t('file.unlink'))}</button></span></div>`;
   else if (fs.conflict) html = `<div class="alert alert-info"><span>${esc(fs.conflict.empty ? t('file.bannerLoad', { name: fs.name, n: fs.conflict.n }) : t('file.bannerNewer', { name: fs.name, n: fs.conflict.n, d: fs.conflict.fileAt ? new Date(fs.conflict.fileAt).toLocaleString(lang() === 'sv' ? 'sv-SE' : 'en-GB') : '' }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="load">${esc(t('file.loadFromFile'))}</button><button class="btn btn-sm" data-file="keep">${esc(t('file.keepLocal'))}</button></span></div>`;
   el.innerHTML = html;
@@ -136,6 +153,9 @@ function renderBanner() {
     const act = e.target.closest('[data-file]')?.dataset.file;
     if (!act) return;
     try {
+      if (act === 'src-reconnect') await source.reconnect();
+      if (act === 'src-disconnect' && await confirmDialog(t('src.disconnectConfirm'))) await source.disconnect();
+      if (act === 'src-connect') { const { connectFlow } = await import('./views/source-card.js'); await connectFlow(); }
       if (act === 'reconnect') await filelink.reconnect();
       if (act === 'retry') await filelink.save({ lang: lang() });
       if (act === 'unlink' && await confirmDialog(t('file.unlinkConfirm'))) await filelink.unlink();
@@ -156,7 +176,8 @@ function renderTopbar() {
       ${p ? `<button class="icon-btn" id="pfMenu" aria-label="${esc(t('top.more'))}" title="${esc(t('top.more'))}">${icon('M12 6h.01M12 12h.01M12 18h.01')}</button>` : ''}
     </div>
     <div class="top-right">
-      ${p ? `<label class="valdate" title="${esc(t('top.valdateHelp'))}"><span>${esc(t('top.valdate'))}</span><input type="date" id="valDate" value="${esc(p.valDate || todayISO())}"></label>
+      ${p && p.source && p.source.file ? snapshotSelect(p) : p ? `<label class="valdate" title="${esc(t('top.valdateHelp'))}"><span>${esc(t('top.valdate'))}</span><input type="date" id="valDate" value="${esc(p.valDate || todayISO())}"></label>` : ''}
+      ${p ? `
         <span class="base-chip" title="${esc(t('top.base'))}">${esc(p.baseCcy)}</span>` : ''}
       <div class="seg lang-seg" role="group" aria-label="Language / Språk">
         <span class="lang-globe" aria-hidden="true">${icon('M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18')}</span>
@@ -170,6 +191,7 @@ function renderTopbar() {
   $('pfSelect')?.addEventListener('change', e => store.setActive(e.target.value));
   $('pfNew').onclick = newPortfolioDialog;
   $('pfMenu')?.addEventListener('click', portfolioMenu);
+  $('srcDate')?.addEventListener('change', e => { source.setDate(p.id, e.target.value).catch(err => { console.error(err); toast(t('src.err.other', { err: err.message || '' }), { tone: 'warn' }); }); });
   $('valDate')?.addEventListener('change', e => {
     const v = e.target.value;
     store.update(pp => { pp.valDate = v === todayISO() ? '' : v; }, t('top.valdate'));
@@ -180,6 +202,14 @@ function renderTopbar() {
     const cur = store.settings().theme || 'auto';
     store.setSetting('theme', order[(order.indexOf(cur) + 1) % 3]);
   };
+}
+
+// A portfolio fed by the connected file picks a snapshot date from the file instead of a free date.
+function snapshotSelect(p) {
+  const dates = source.datesFor(p).slice().reverse();
+  const latest = dates[0] || p.source.shown || p.valDate;
+  const opts = [['', t('src.latest', { d: latest || '—' })], ...dates.slice(1).map(d => [d, d])];
+  return `<label class="valdate" title="${esc(t('src.dateHelp'))}"><span>${esc(t('src.date'))}</span>${selectHtml('id="srcDate"', opts, p.source.date || '')}</label>`;
 }
 
 export function newPortfolioDialog() {
@@ -298,6 +328,8 @@ function init() {
     if (['data', 'active', 'templates'].includes(reason)) filelink.markDirty({ lang: lang() });
     scheduleRender();
   });
+  source.onChange(() => { renderBanner(); if (document.querySelector('.sidebar-foot')) renderSidebar(); });
+  source.init().then(() => { renderSidebar(); renderBanner(); }).catch(err => console.error(err));
   filelink.onChange(() => { renderBanner(); const sb = document.querySelector('.sidebar-foot'); if (sb) renderSidebar(); });
   // Only the sidebar and banner depend on the file status, so no second full render (Plotly
   // dislikes being re-run while its first draw is still settling).
