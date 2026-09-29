@@ -1,4 +1,4 @@
-// Browser smoke test: serve the site, load the demo, open every page in both languages and fail on
+// Browser smoke test: serve the site, load the demo, open every page and fail on
 // any script error or a NaN/undefined on screen. Also checks that the published ECB data file is
 // picked up. Run: node tests/smoke.mjs  (needs Playwright; CI installs it, see .github/workflows/ci.yml)
 // Set SITE_DIR to test an assembled site instead of the repository.
@@ -42,14 +42,11 @@ try {
   await page.goto(base + 'index.html');
   await page.click('[data-act="demo"]');
   await page.waitForTimeout(1500);
-  for (const lang of ['en', 'sv']) {
-    await page.evaluate(async l => { const s = await import('./js/store.js'); s.setSetting('lang', l); }, lang);
-    for (const r of routes) {
-      await page.goto(base + 'index.html#/' + r);
-      await page.waitForTimeout(400);
-      const bad = await page.evaluate(() => { const t = document.getElementById('main')?.innerText || ''; const m = t.match(/.{0,40}\b(NaN|undefined)\b.{0,40}/); return m ? m[0] : ''; });
-      if (bad) failures.push(`${lang} #/${r}: "${bad}"`);
-    }
+  for (const r of routes) {
+    await page.goto(base + 'index.html#/' + r);
+    await page.waitForTimeout(400);
+    const bad = await page.evaluate(() => { const t = document.getElementById('main')?.innerText || ''; const m = t.match(/.{0,40}\b(NaN|undefined)\b.{0,40}/); return m ? m[0] : ''; });
+    if (bad) failures.push(`#/${r}: "${bad}"`);
   }
   // Published ECB data: a new portfolio on placeholder rates takes the rates and the curve.
   const synced = await page.evaluate(async () => {
@@ -62,7 +59,7 @@ try {
     return { fxSource: p.fxSource, fxDate: p.fxDate, curve: p.curves?.EUR?.date };
   });
   if (synced.fxSource !== 'ecb-auto' || synced.fxDate !== '2026-09-28' || synced.curve !== '2026-09-28') failures.push('market data not applied: ' + JSON.stringify(synced));
-  console.log(`Visited ${routes.length} pages × 2 languages; market data ${JSON.stringify(synced)}`);
+  console.log(`Visited ${routes.length} pages; market data ${JSON.stringify(synced)}`);
 } finally {
   await browser.close();
   server.close();

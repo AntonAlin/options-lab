@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, L, lang } from '../i18n.js';
+import { t, L } from '../i18n.js';
 import { esc, card, pageHead, fmtMoney, fmtPct, fmtNum, table, openModal, closeModal, confirmDialog, toast, selectHtml, empty } from '../ui.js';
 import { INSTRUMENTS, GROUPS, FIELDS, OPTION_LABELS, fieldLabel, typeLabel, validatePosition } from '../instruments.js';
 import { makeCtx } from '../analytics.js';
@@ -9,9 +9,9 @@ import { toCSV, positionRows, XLSX_URL, XLSX_SRI } from '../importer.js';
 const ui = { q: '', type: '', sort: 'mv', dir: -1, selected: new Set() };
 
 function errorText(e, type) {
-  const f = fieldLabel(type, e.field, lang());
+  const f = fieldLabel(type, e.field);
   const [code, arg] = e.code.split(':');
-  if (code === 'one_of') return t('val.oneOf', { fields: arg.split('|').map(k => fieldLabel(type, k, lang())).join(' / ') });
+  if (code === 'one_of') return t('val.oneOf', { fields: arg.split('|').map(k => fieldLabel(type, k)).join(' / ') });
   if (code === 'type_guessed') return t('val.typeGuessed', { raw: arg });
   if (code === 'unknown_type' && arg) return t('val.unknownTypeRaw', { raw: arg });
   return t('val.' + code, { field: f });
@@ -37,7 +37,7 @@ export default {
     let rows = v.rows.filter(x => (!ui.type || x.pos.type === ui.type) &&
       (!q || [x.name, x.pos.ticker, x.pos.isin, x.pos.issuer, x.pos.sector, x.pos.strategy].some(s => String(s || '').toLowerCase().includes(q))));
     const sorters = {
-      name: x => x.name.toLowerCase(), type: x => typeLabel(x.pos.type, lang()), mv: x => x.r?.mv ?? -Infinity,
+      name: x => x.name.toLowerCase(), type: x => typeLabel(x.pos.type), mv: x => x.r?.mv ?? -Infinity,
       weight: x => x.weight ?? -Infinity, exposure: x => x.r?.exposure ?? -Infinity, ccy: x => x.pos.ccy || '', qty: x => x.pos.qty ?? 0
     };
     const sf = sorters[ui.sort] || sorters.mv;
@@ -48,7 +48,7 @@ export default {
     const cols = [
       { key: 'sel', label: '', fmt: x => `<input type="checkbox" class="rowsel" data-id="${x.pos.id}" ${ui.selected.has(x.pos.id) ? 'checked' : ''} aria-label="${esc(t('hold.select'))}">` },
       { key: 'name', label: t('col.name'), sort: 1, fmt: x => `<button class="linkish cell-name" data-edit="${x.pos.id}">${esc(x.name)}</button><div class="cell-sub">${esc([x.pos.ticker, x.pos.isin].filter(Boolean).join(' · '))}${x.pos.strategy ? `<span class="strategy-tag">${esc(x.pos.strategy)}</span>` : ''}</div>` },
-      { key: 'type', label: t('col.type'), sort: 1, cls: 'nowrap', fmt: x => `<span class="type-tag">${esc(INSTRUMENTS[x.pos.type]?.icon || '?')}</span> ${esc(typeLabel(x.pos.type, lang()))}` },
+      { key: 'type', label: t('col.type'), sort: 1, cls: 'nowrap', fmt: x => `<span class="type-tag">${esc(INSTRUMENTS[x.pos.type]?.icon || '?')}</span> ${esc(typeLabel(x.pos.type))}` },
       { key: 'qty', label: t('col.qty'), align: 'right', sort: 1, fmt: x => fmtNum(x.pos.qty ?? x.pos.buyAmount, isNum(x.pos.qty) && Math.abs(x.pos.qty) < 100 && x.pos.qty % 1 ? 2 : 0) },
       { key: 'price', label: t('col.price'), align: 'right', fmt: x => isNum(x.pos.price) ? fmtNum(x.pos.price, x.pos.price < 10 ? 4 : 2) : (isNum(x.pos.yield) ? fmtPct(x.pos.yield / 100, 2) : '—') },
       { key: 'ccy', label: t('col.ccy'), sort: 1, fmt: x => esc(x.pos.ccy || '') },
@@ -66,7 +66,7 @@ export default {
       ${p.source && p.source.file ? `<div class="alert alert-info"><span>${esc(t('src.holdingsNote', { name: p.source.fileName, d: p.source.shown || p.valDate }))}</span></div>` : ''}
       <div class="toolbar">
         <input type="search" id="hq" placeholder="${esc(t('hold.search'))}" value="${esc(ui.q)}" aria-label="${esc(t('hold.search'))}">
-        ${selectHtml('id="htype" aria-label="' + esc(t('col.type')) + '"', [['', t('hold.allTypes')], ...typesPresent.map(k => [k, typeLabel(k, lang())])], ui.type)}
+        ${selectHtml('id="htype" aria-label="' + esc(t('col.type')) + '"', [['', t('hold.allTypes')], ...typesPresent.map(k => [k, typeLabel(k)])], ui.type)}
         ${ui.selected.size ? `<button class="btn btn-danger btn-sm" data-act="delsel">${esc(t('hold.deleteSelected', { n: ui.selected.size }))}</button>` : ''}
         <span class="muted small">${esc(t('hold.showing', { n: rows.length, total: v.rows.length }))}</span>
       </div>
@@ -122,7 +122,7 @@ function exportRows(p, v) {
 }
 async function exportHoldings(p, v, kind) {
   const rows = exportRows(p, v);
-  if (kind === 'csv') { downloadBlob('﻿' + toCSV(rows, lang() === 'sv' ? ';' : ','), 'text/csv;charset=utf-8', slug(p.name) + '-holdings.csv'); return; }
+  if (kind === 'csv') { downloadBlob('﻿' + toCSV(rows, ','), 'text/csv;charset=utf-8', slug(p.name) + '-holdings.csv'); return; }
   try {
     await loadScript(XLSX_URL, { integrity: XLSX_SRI });
     const XLSX = window.XLSX;
@@ -146,7 +146,7 @@ function typePicker() {
 function inputFor(type, key, val) {
   const spec = FIELDS[key];
   const req = INSTRUMENTS[type].required.includes(key);
-  const label = `${esc(fieldLabel(type, key, lang()))}${req ? ' <span class="req" aria-hidden="true">*</span>' : ''}`;
+  const label = `${esc(fieldLabel(type, key))}${req ? ' <span class="req" aria-hidden="true">*</span>' : ''}`;
   const name = `name="${key}" ${req ? 'aria-required="true"' : ''}`;
   let control;
   if (spec.type === 'select') {
@@ -162,7 +162,7 @@ function inputFor(type, key, val) {
 
 function readForm(form, type) {
   const pos = { type };
-  const dec = lang() === 'sv' ? ',' : '.';
+  const dec = '.';
   for (const key of INSTRUMENTS[type].fields) {
     const el = form.elements[key];
     if (!el) continue;
@@ -189,10 +189,10 @@ export function openForm(existing, { onSave = null } = {}) {
   const draft = { ...(INSTRUMENTS[type].defaults || {}), ccy: p.baseCcy, ...existing };
 
   const renderForm = () => `
-    <div class="modal-head"><h2>${esc(isNew ? t('hold.addTitle', { type: typeLabel(type, lang()) }) : t('hold.editTitle'))}</h2><button class="icon-btn" data-close aria-label="${esc(t('common.close'))}">✕</button></div>
+    <div class="modal-head"><h2>${esc(isNew ? t('hold.addTitle', { type: typeLabel(type) }) : t('hold.editTitle'))}</h2><button class="icon-btn" data-close aria-label="${esc(t('common.close'))}">✕</button></div>
     <form class="modal-body" id="posForm" novalidate>
       <div class="form-top">
-        <label><span>${esc(t('col.type'))}</span>${selectHtml('name="__type"', Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k, lang())]), type)}</label>
+        <label><span>${esc(t('col.type'))}</span>${selectHtml('name="__type"', Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k)]), type)}</label>
         <p class="hint">${esc(L(INSTRUMENTS[type].hint))}</p>
       </div>
       <div class="form-grid">${INSTRUMENTS[type].fields.map(k => inputFor(type, k, draft[k])).join('')}</div>
@@ -255,7 +255,7 @@ export function openForm(existing, { onSave = null } = {}) {
       if (isNew) {
         pos.id = uid();
         store.update(pp => pp.positions.push(pos), t('hold.add'));
-        toast(t('hold.added', { name: pos.name || typeLabel(type, lang()) }));
+        toast(t('hold.added', { name: pos.name || typeLabel(type) }));
       } else {
         pos.id = existing.id;
         if (existing.seriesKey) pos.seriesKey = existing.seriesKey;

@@ -1,7 +1,7 @@
 // The "connected file" card, shown on the Bulk upload page and in Settings. The file is read, never
 // written; see js/sourcefile.js.
 import * as store from '../store.js';
-import { t, lang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { esc, card, toast, confirmDialog, fmtDate, privacyCallout } from '../ui.js';
 import * as source from '../sourcefile.js';
 import * as filelink from '../filelink.js';
@@ -12,7 +12,7 @@ function bodyHtml() {
   const s = source.getStatus();
   if (s.state === 'unsupported') return `${privacyCallout(t('src.privacy'))}<div class="alert alert-warn"><span>${esc(t('src.unsupported'))}</span></div>`;
   const on = s.state !== 'none';
-  const time = iso => new Date(iso).toLocaleTimeString(lang() === 'sv' ? 'sv-SE' : 'en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const time = iso => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const pfs = source.sourced();
   return `
     ${privacyCallout(t('src.privacy'))}

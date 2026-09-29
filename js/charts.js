@@ -3,7 +3,7 @@
 //
 // Styling follows the Options Lab: gradient-filled areas, 2.5 px lines with an end-point marker,
 // rounded bars, soft grids and a neon palette in dark mode.
-import { locale, lang } from './i18n.js';
+import { locale } from './i18n.js';
 import { isNum } from './util.js';
 
 const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -54,7 +54,7 @@ function baseLayout(th, extra = {}) {
     legend: { orientation: 'h', y: 1.1, x: 0, yanchor: 'bottom', font: { color: P.ink2, size: 11 }, bgcolor: 'rgba(0,0,0,0)' },
     showlegend: false,
     barcornerradius: 5,
-    separators: lang() === 'sv' ? ', ' : '.,',
+    separators: '.,',
     ...extra
   };
 }
@@ -272,12 +272,12 @@ export function lineSpec(x, series, { th = currentTheme(), fmt = 'pct', height =
       bgcolor: th === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.04)', activecolor: rgba(P.accent, 0.35),
       bordercolor: 'rgba(0,0,0,0)', font: { color: P.ink2, size: 11 },
       buttons: [
-        { count: 1, label: lang() === 'sv' ? '1 mån' : '1M', step: 'month', stepmode: 'backward' },
-        { count: 3, label: lang() === 'sv' ? '3 mån' : '3M', step: 'month', stepmode: 'backward' },
-        { count: 6, label: lang() === 'sv' ? '6 mån' : '6M', step: 'month', stepmode: 'backward' },
-        { count: 1, label: lang() === 'sv' ? 'I år' : 'YTD', step: 'year', stepmode: 'todate' },
-        { count: 1, label: lang() === 'sv' ? '1 år' : '1Y', step: 'year', stepmode: 'backward' },
-        { step: 'all', label: lang() === 'sv' ? 'Allt' : 'All' }
+        { count: 1, label: '1M', step: 'month', stepmode: 'backward' },
+        { count: 3, label: '3M', step: 'month', stepmode: 'backward' },
+        { count: 6, label: '6M', step: 'month', stepmode: 'backward' },
+        { count: 1, label: 'YTD', step: 'year', stepmode: 'todate' },
+        { count: 1, label: '1Y', step: 'year', stepmode: 'backward' },
+        { step: 'all', label: 'All' }
       ]
     };
   }
@@ -345,7 +345,7 @@ export function render(el, spec) {
   if (typeof el === 'string') el = document.getElementById(el);
   if (!el) return;
   if (!plotlyReady()) {
-    el.innerHTML = `<div class="chart-fallback">${lang() === 'sv' ? 'Diagrambiblioteket kunde inte laddas (offline?). Siffrorna i tabellerna gäller fortfarande.' : 'The chart library could not load (offline?). The numbers in the tables still apply.'}</div>`;
+    el.innerHTML = `<div class="chart-fallback">${'The chart library could not load (offline?). The numbers in the tables still apply.'}</div>`;
     return;
   }
   window.Plotly.react(el, spec.data, { ...spec.layout, autosize: true }, CONFIG);

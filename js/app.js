@@ -1,6 +1,6 @@
-// App shell: sidebar, top bar, hash router, theme and language. Views live in ./views/*.
+// App shell: sidebar, top bar, hash router and theme. Views live in ./views/*.
 import * as store from './store.js';
-import { t, lang } from './i18n.js';
+import { t } from './i18n.js';
 import { esc, toast, openModal, closeModal, confirmDialog, selectHtml } from './ui.js';
 import { fullAnalysis } from './analytics.js';
 import { fundAnalysis } from './fund.js';
@@ -112,7 +112,7 @@ function renderSidebar() {
 // old the last manual backup is. Sits in the sidebar so it is always in view.
 function dataStatusHtml() {
   const fs = filelink.getStatus();
-  const time = iso => new Date(iso).toLocaleTimeString(lang() === 'sv' ? 'sv-SE' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+  const time = iso => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   if (fs.state === 'linked' || fs.state === 'needs-permission' || fs.state === 'error') {
     const tone = fs.state === 'linked' ? (fs.pending ? 'pending' : 'ok') : 'warn';
     const text = fs.state === 'linked' ? (fs.pending ? t('file.saving') : fs.lastSaved ? t('file.savedAt', { t: time(fs.lastSaved) }) : t('file.notYetSaved'))
@@ -131,7 +131,7 @@ function dataStatusHtml() {
 function sourceStatusHtml() {
   const s = source.getStatus();
   if (s.state === 'none' || s.state === 'unsupported') return '';
-  const time = iso => new Date(iso).toLocaleTimeString(lang() === 'sv' ? 'sv-SE' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+  const time = iso => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const bad = s.state !== 'linked' || !!s.error;
   const text = s.state === 'needs-permission' ? t('src.needsPermission') : bad ? sourceError(s.error) : t('src.readAt', { t: s.lastRead ? time(s.lastRead) : '—' });
   return `<a class="data-status ${bad ? 'warn' : 'ok'}" href="#/import" title="${esc(s.name)}">${icon('M4 4h10l6 6v10H4zM14 4v6h6M8 14l3 3 5-6')}<span><strong>${esc(s.name)}</strong><br>${esc(text)}</span></a>`;
@@ -149,7 +149,7 @@ function renderBanner() {
   if (html) { /* the source file comes first; the linked-file banner shows once that is sorted */ }
   else if (fs.state === 'needs-permission') html = `<div class="alert alert-warn"><span>${esc(t('file.bannerPermission', { name: fs.name }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="reconnect">${esc(t('file.reconnect'))}</button><button class="btn btn-sm" data-file="unlink">${esc(t('file.unlink'))}</button></span></div>`;
   else if (fs.state === 'error') html = `<div class="alert alert-breach"><span>${esc(t('file.bannerError', { name: fs.name, err: fs.error }))}</span><span class="btn-row"><button class="btn btn-sm" data-file="retry">${esc(t('file.retry'))}</button><button class="btn btn-sm" data-file="unlink">${esc(t('file.unlink'))}</button></span></div>`;
-  else if (fs.conflict) html = `<div class="alert alert-info"><span>${esc(fs.conflict.empty ? t('file.bannerLoad', { name: fs.name, n: fs.conflict.n }) : t('file.bannerNewer', { name: fs.name, n: fs.conflict.n, d: fs.conflict.fileAt ? new Date(fs.conflict.fileAt).toLocaleString(lang() === 'sv' ? 'sv-SE' : 'en-GB') : '' }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="load">${esc(t('file.loadFromFile'))}</button><button class="btn btn-sm" data-file="keep">${esc(t('file.keepLocal'))}</button></span></div>`;
+  else if (fs.conflict) html = `<div class="alert alert-info"><span>${esc(fs.conflict.empty ? t('file.bannerLoad', { name: fs.name, n: fs.conflict.n }) : t('file.bannerNewer', { name: fs.name, n: fs.conflict.n, d: fs.conflict.fileAt ? new Date(fs.conflict.fileAt).toLocaleString('en-GB') : '' }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="load">${esc(t('file.loadFromFile'))}</button><button class="btn btn-sm" data-file="keep">${esc(t('file.keepLocal'))}</button></span></div>`;
   el.innerHTML = html;
   el.hidden = !html;
   el.onclick = async e => {
@@ -160,10 +160,10 @@ function renderBanner() {
       if (act === 'src-disconnect' && await confirmDialog(t('src.disconnectConfirm'))) await source.disconnect();
       if (act === 'src-connect') { const { connectFlow } = await import('./views/source-card.js'); await connectFlow(); }
       if (act === 'reconnect') await filelink.reconnect();
-      if (act === 'retry') await filelink.save({ lang: lang() });
+      if (act === 'retry') await filelink.save();
       if (act === 'unlink' && await confirmDialog(t('file.unlinkConfirm'))) await filelink.unlink();
       if (act === 'load') { const n = await filelink.loadFromFile(); toast(t('file.loaded', { n })); }
-      if (act === 'keep') { filelink.dismissConflict(); await filelink.save({ lang: lang() }); }
+      if (act === 'keep') { filelink.dismissConflict(); await filelink.save(); }
     } catch (err) { console.error(err); toast(t('file.failed'), { tone: 'warn' }); }
   };
 }
@@ -182,11 +182,6 @@ function renderTopbar() {
       ${p && p.source && p.source.file ? snapshotSelect(p) : p ? `<label class="valdate" title="${esc(t('top.valdateHelp'))}"><span>${esc(t('top.valdate'))}</span><input type="date" id="valDate" value="${esc(p.valDate || todayISO())}"></label>` : ''}
       ${p ? `
         <span class="base-chip" title="${esc(t('top.base'))}">${esc(p.baseCcy)}</span>` : ''}
-      <div class="seg lang-seg" role="group" aria-label="Language / Språk">
-        <span class="lang-globe" aria-hidden="true">${icon('M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18')}</span>
-        <button data-lang="en" lang="en" class="${lang() === 'en' ? 'on' : ''}" aria-pressed="${lang() === 'en'}"><span class="long">English</span><span class="short">EN</span></button>
-        <button data-lang="sv" lang="sv" class="${lang() === 'sv' ? 'on' : ''}" aria-pressed="${lang() === 'sv'}"><span class="long">Svenska</span><span class="short">SV</span></button>
-      </div>
       <button class="icon-btn" id="themeBtn" aria-label="${esc(t('top.theme'))}" title="${esc(t('top.theme'))}: ${esc(t('theme.' + (store.settings().theme || 'auto')))}">${icon(document.documentElement.dataset.resolvedTheme === 'dark' ? 'M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z' : 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.4-6.4l-.7.7M6.3 17.7l-.7.7m12.8 0l-.7-.7M6.3 6.3l-.7-.7M16 12a4 4 0 11-8 0 4 4 0 018 0z')}</button>
     </div>`;
   const $ = id => document.getElementById(id);
@@ -199,7 +194,6 @@ function renderTopbar() {
     const v = e.target.value;
     store.update(pp => { pp.valDate = v === todayISO() ? '' : v; }, t('top.valdate'));
   });
-  document.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => store.setSetting('lang', b.dataset.lang));
   $('themeBtn').onclick = () => {
     const order = ['auto', 'light', 'dark'];
     const cur = store.settings().theme || 'auto';
@@ -284,7 +278,6 @@ let cleanup = null;
 function renderRoute() {
   const main = document.getElementById('main');
   const route = currentRoute();
-  document.documentElement.lang = lang();
   document.title = `${t('nav.' + ({ 'fixed-income': 'fi' }[route] || route))} · Nexus Portfolio Lab`;
   renderSidebar();
   renderTopbar();
@@ -323,7 +316,7 @@ function init() {
   store.subscribe(reason => {
     if (reason === 'settings') applyTheme();
     if (reason === 'storage_error') { toast(t('err.storage'), { tone: 'warn', ms: 8000 }); return; }
-    if (['data', 'active', 'templates'].includes(reason)) filelink.markDirty({ lang: lang() });
+    if (['data', 'active', 'templates'].includes(reason)) filelink.markDirty();
     scheduleRender();
   });
   source.onChange(() => { renderBanner(); if (document.querySelector('.sidebar-foot')) renderSidebar(); });

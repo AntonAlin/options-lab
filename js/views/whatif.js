@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, lang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtPct, fmtNum, fmtMoney, selectHtml, toast, confirmDialog, numIn } from '../ui.js';
 import { typeLabel } from '../instruments.js';
 import { valuePortfolio } from '../analytics.js';
@@ -29,14 +29,14 @@ export default {
     const tradeRow = (tr, i) => {
       const applied = res?.applied[i];
       if (tr.pos) {
-        return `<tr><td>${esc(tr.pos.name || typeLabel(tr.pos.type, lang()))}<div class="cell-sub">${esc(t('wi.newInstrument'))} · ${esc(typeLabel(tr.pos.type, lang()))}</div></td>
+        return `<tr><td>${esc(tr.pos.name || typeLabel(tr.pos.type))}<div class="cell-sub">${esc(t('wi.newInstrument'))} · ${esc(typeLabel(tr.pos.type))}</div></td>
           <td class="r num">—</td><td class="r num">—</td><td>${esc(t('wi.asEntered'))}</td><td class="r num">${fmtNum(sizeOf(tr.pos), 2)}</td>
           <td class="r num">${applied ? fmtMoney(applied.mv, '', { compact: true }) : ''}</td>
           <td><button class="btn btn-sm" data-edit="${tr.k}">${esc(t('common.edit'))}</button> <button class="icon-btn sm" data-rm="${tr.k}" aria-label="${esc(t('common.delete'))}">✕</button></td></tr>`;
       }
       const x = rowOf(tr.id);
       return `<tr>
-        <td>${selectHtml(`data-hold="${tr.k}" aria-label="${esc(t('col.name'))}"`, holdings.map(h => [h.pos.id, h.name]), tr.id)}<div class="cell-sub">${x ? esc(typeLabel(x.pos.type, lang())) : ''}</div></td>
+        <td>${selectHtml(`data-hold="${tr.k}" aria-label="${esc(t('col.name'))}"`, holdings.map(h => [h.pos.id, h.name]), tr.id)}<div class="cell-sub">${x ? esc(typeLabel(x.pos.type)) : ''}</div></td>
         <td class="r num">${x ? fmtNum(sizeOf(x.pos), 2) : ''}</td>
         <td class="r num">${x ? fmtPct(x.weight, 2) : ''}</td>
         <td>${selectHtml(`data-mode="${tr.k}" aria-label="${esc(t('wi.mode'))}"`, [['weight', t('wi.mode.weight')], ['delta', t('wi.mode.delta')], ['qty', t('wi.mode.qty')]], tr.mode)}</td>

@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, lang, locale } from '../i18n.js';
+import { t, locale } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtNum, fmtDate, segmented, selectHtml, signCls, empty } from '../ui.js';
 import { typeLabel } from '../instruments.js';
 import { CF_KINDS, toICS } from '../fund.js';
@@ -43,7 +43,7 @@ export default {
           ${table([
             { key: 'd', label: t('cf.date'), fmt: e => `<span class="nowrap">${fmtDate(e.date)}</span>` },
             { key: 'k', label: t('cf.event'), fmt: e => `<span class="kind-dot" style="background:${P.series[KIND_COLOR[e.kind] % 8]}"></span>${esc(kindLabel(e.kind))}${e.estimate ? ` <span class="type-pill" title="${esc(t('cf.estimateHelp'))}">${esc(t('cf.estimate'))}</span>` : ''}${e.kind === 'option_expiry' ? ` <span class="chip ${e.itm ? 'chip-warn' : 'chip-ok'}">${e.itm ? 'ITM' : 'OTM'}</span>` : ''}` },
-            { key: 'n', label: t('col.name'), fmt: e => `${esc(e.name)}<div class="cell-sub">${esc(typeLabel(e.type, lang()))}</div>` },
+            { key: 'n', label: t('col.name'), fmt: e => `${esc(e.name)}<div class="cell-sub">${esc(typeLabel(e.type))}</div>` },
             { key: 'c', label: t('col.ccy'), fmt: e => esc(e.ccy || '') },
             { key: 'a', label: t('cf.amountLocal'), align: 'right', fmt: e => `<span class="${e.cash ? signCls(e.amount) : 'muted'}">${fmtNum(e.amount, 0)}</span>` },
             { key: 'b', label: t('cf.amountBase', { base }), align: 'right', fmt: e => `<span class="${e.cash ? signCls(e.amountBase) : 'muted'}">${fmtNum(e.amountBase, 0)}</span>` }
@@ -67,7 +67,7 @@ export default {
       if (act === 'csv') {
         const head = ['date', 'event', 'estimate', 'moves_cash', 'instrument', 'type', 'ccy', 'amount', 'amount_' + base];
         const body = cf.events.map(x => [x.date, kindLabel(x.kind), x.estimate ? 'yes' : '', x.cash ? 'yes' : 'no', x.name, x.type, x.ccy, Math.round(x.amount * 100) / 100, Math.round(x.amountBase * 100) / 100]);
-        downloadBlob('﻿' + toCSV([head, ...body], lang() === 'sv' ? ';' : ','), 'text/csv;charset=utf-8', `${slug(p.name)}-cashflows.csv`);
+        downloadBlob('﻿' + toCSV([head, ...body], ','), 'text/csv;charset=utf-8', `${slug(p.name)}-cashflows.csv`);
       }
       if (act === 'ics') {
         const labels = Object.fromEntries(CF_KINDS.map(k => [k, kindLabel(k)]));

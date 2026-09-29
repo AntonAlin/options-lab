@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, lang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { esc, card, pageHead, table, toast, selectHtml, fmtNum, fmtPct, fmtDate, empty, confirmDialog } from '../ui.js';
 import { readFile, parseHistory, mergeHistory, parseText, toCSV } from '../importer.js';
 import { seriesKeyFor } from '../analytics.js';
@@ -55,7 +55,7 @@ export default {
           { key: 'del', label: '', fmt: r => `<button class="icon-btn sm" data-delkey="${esc(r.key)}" aria-label="${esc(t('common.delete'))}">✕</button>` }
         ], seriesRows, { dense: true }), { actions: `<button class="btn btn-sm btn-danger" data-act="clear">${esc(t('hist.clear'))}</button>` })}
         ${card(t('hist.matching'), `<p class="muted small">${esc(t('hist.matchingHelp'))}</p>` + table([
-          { key: 'name', label: t('col.name'), fmt: x => `${esc(x.name)}<div class="cell-sub">${esc(typeLabel(x.pos.type, lang()))}</div>` },
+          { key: 'name', label: t('col.name'), fmt: x => `${esc(x.name)}<div class="cell-sub">${esc(typeLabel(x.pos.type))}</div>` },
           { key: 'k', label: t('hist.key'), fmt: x => selectHtml(`data-match="${x.pos.id}"`, [['', '— ' + t('hist.none') + ' —'], ...keys.map(k => [k, k])], seriesKeyFor(x.pos, h) || '') }
         ], [...matchable].sort((x, y) => (seriesKeyFor(x.pos, h) ? 1 : 0) - (seriesKeyFor(y.pos, h) ? 1 : 0) || Math.abs(y.r.mv) - Math.abs(x.r.mv)), { dense: true }))}
       </div>` : empty(esc(t('hist.empty')))}
@@ -92,7 +92,7 @@ export default {
       if (act === 'clear' && await confirmDialog(t('hist.clearConfirm'), { danger: true, ok: t('common.delete') })) store.update(pp => { pp.history = { dates: [], series: {} }; pp.benchmark = ''; }, t('hist.clear'));
       if (act === 'tpl') {
         const cols = ['Date', ...new Set(matchable.map(x => x.pos.ticker || x.pos.isin || x.name)), ...fxKeys];
-        downloadBlob('﻿' + toCSV([cols, [h.dates[h.dates.length - 1] || new Date().toISOString().slice(0, 10), ...cols.slice(1).map(() => '')]], lang() === 'sv' ? ';' : ','), 'text/csv;charset=utf-8', slug(p.name) + '-history-template.csv');
+        downloadBlob('﻿' + toCSV([cols, [h.dates[h.dates.length - 1] || new Date().toISOString().slice(0, 10), ...cols.slice(1).map(() => '')]], ','), 'text/csv;charset=utf-8', slug(p.name) + '-history-template.csv');
       }
     };
   }

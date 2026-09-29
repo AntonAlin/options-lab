@@ -56,11 +56,11 @@ export function kindOfName(name) {
   const ext = (m ? m[1] : '').toLowerCase();
   return ext === 'json' ? 'json' : ext === 'csv' ? 'csv' : /^xls[xm]?$/.test(ext) ? 'xlsx' : null;
 }
-export function buildContent(kind, { p = store.active(), lang = 'en', stamp = new Date().toISOString() } = {}) {
+export function buildContent(kind, { p = store.active(), stamp = new Date().toISOString() } = {}) {
   if (kind === 'json') return { blob: new Blob([store.exportWorkspace({ exportedAt: stamp })], { type: 'application/json' }) };
   if (!p) return null;
   const rows = positionRows(p);
-  if (kind === 'csv') return { blob: new Blob(['﻿' + toCSV(rows, lang === 'sv' ? ';' : ',')], { type: 'text/csv;charset=utf-8' }) };
+  if (kind === 'csv') return { blob: new Blob(['﻿' + toCSV(rows, ',')], { type: 'text/csv;charset=utf-8' }) };
   return { rows, p };
 }
 async function xlsxBlob({ rows, p }) {
@@ -115,13 +115,13 @@ export async function unlink() {
 
 // ---- saving ------------------------------------------------------------------------------------------------
 let saving = null;
-export async function save({ lang = 'en' } = {}) {
+export async function save() {
   if (!rec || status.state === 'none' || status.state === 'unsupported') return false;
   if (saving) { await saving; }
   saving = (async () => {
     try {
       const stamp = new Date().toISOString();
-      const c = buildContent(rec.kind, { lang, stamp });
+      const c = buildContent(rec.kind, { stamp });
       if (!c) { set({ pending: false }); return false; } // no active portfolio to mirror
       const blob = c.blob || await xlsxBlob(c);
       const w = await rec.handle.createWritable();
@@ -139,8 +139,8 @@ export async function save({ lang = 'en' } = {}) {
   })();
   return saving;
 }
-const scheduleSave = debounce(opts => { save(opts); }, 1500);
-export function markDirty(opts) { if (status.state === 'linked') { set({ pending: true }); scheduleSave(opts); } }
+const scheduleSave = debounce(() => { save(); }, 1500);
+export function markDirty() { if (status.state === 'linked') { set({ pending: true }); scheduleSave(); } }
 
 // ---- startup ------------------------------------------------------------------------------------------------
 export async function init() {

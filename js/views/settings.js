@@ -5,7 +5,6 @@ import { todayISO } from '../util.js';
 import { loadDemo } from '../app.js';
 import { downloadBackup, backupAge } from '../backup.js';
 import * as filelink from '../filelink.js';
-import { lang } from '../i18n.js';
 import { sourceCardHtml, bindSourceCard } from './source-card.js';
 import { parseEcbRates, ECB_PAGE } from '../fxfile.js';
 import * as marketsync from '../marketsync.js';
@@ -27,7 +26,6 @@ export default {
       ${pageHead(t('nav.settings'), esc(t('set.sub')))}
       ${card(t('set.app'), `
         <div class="toolbar wrap">
-          <span>${esc(t('set.lang'))}</span>${segmented('lang', [['en', 'English'], ['sv', 'Svenska']], S.lang)}
           <span>${esc(t('set.theme'))}</span>${segmented('theme', [['auto', t('theme.auto')], ['light', t('theme.light')], ['dark', t('theme.dark')]], S.theme || 'auto')}
         </div>`)}
       ${p ? card(t('set.portfolio'), `
@@ -135,7 +133,7 @@ export default {
 function fileCardHtml() {
   const fs = filelink.getStatus();
   if (fs.state === 'unsupported') return `<div class="alert alert-warn"><span>${esc(t('file.unsupported'))}</span></div><p class="muted small">${esc(t('file.unsupportedHow'))}</p>`;
-  const when = iso => new Date(iso).toLocaleString(lang() === 'sv' ? 'sv-SE' : 'en-GB');
+  const when = iso => new Date(iso).toLocaleString('en-GB');
   const linked = fs.state !== 'none';
   return `
     ${linked ? `<div class="file-status ${fs.state}">
@@ -160,7 +158,6 @@ function fileCardHtml() {
     <p class="muted small">${esc(t('file.formatsHelp'))}</p>`;
 }
 async function fileAction(act, root) {
-  const L = lang();
   try {
     if (act === 'new') {
       const kind = root.querySelector('#fileKind')?.value || 'json';
@@ -178,9 +175,9 @@ async function fileAction(act, root) {
         await filelink.unlink();
         return;
       }
-      await filelink.save({ lang: L });
+      await filelink.save();
       toast(t('file.linked', { name: r.name }));
-    } else if (act === 'save') { if (await filelink.save({ lang: L })) toast(t('file.saved')); }
+    } else if (act === 'save') { if (await filelink.save()) toast(t('file.saved')); }
     else if (act === 'reconnect') await filelink.reconnect();
     else if (act === 'unlink') { if (await confirmDialog(t('file.unlinkConfirm'))) { await filelink.unlink(); toast(t('file.unlinked')); } }
   } catch (err) {

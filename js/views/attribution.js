@@ -1,7 +1,7 @@
 import * as store from '../store.js';
-import { t, L, lang } from '../i18n.js';
+import { t, L } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtPct, fmtNum, fmtDate, empty, signCls, selectHtml, toast } from '../ui.js';
-import { ASSET_CLASSES, REGIONS, normKey } from '../instruments.js';
+import { ASSET_CLASSES, REGIONS, SEGMENT_ALIASES, normKey } from '../instruments.js';
 import { parseText, readFile, parseNumber } from '../importer.js';
 import { brinson, portfolioSegments, parseBenchmark, SEGMENT_DIMS } from '../insights.js';
 import { snapshots } from '../snapshots.js';
@@ -10,7 +10,7 @@ import { downloadBlob, loadScript, slug } from '../util.js';
 
 const ui = { pf: '', from: '', to: '' };
 
-// Label in the current language, and every name a benchmark file might use for the same segment.
+// Display label, and every name a benchmark file might use for the same segment.
 const labelOf = (dim, k) => dim === 'assetClass' ? L(ASSET_CLASSES[k] || { en: k }) : dim === 'region' ? L(REGIONS[k] || { en: k }) : k;
 // Names index factsheets commonly use for the same asset class.
 const CLASS_SYNONYMS = {
@@ -24,10 +24,10 @@ const CLASS_SYNONYMS = {
 };
 const aliasesOf = (dim, k) => {
   const src = dim === 'assetClass' ? ASSET_CLASSES[k] : dim === 'region' ? REGIONS[k] : null;
-  return [k, ...(src ? [src.en, src.sv] : []), ...(dim === 'assetClass' ? CLASS_SYNONYMS[k] || [] : [])].map(normKey);
+  return [k, ...(src ? [src.en] : []), ...(SEGMENT_ALIASES[dim]?.[k] || []), ...(dim === 'assetClass' ? CLASS_SYNONYMS[k] || [] : [])].map(normKey);
 };
-// Plain numbers for the text box: 60 not 60.0000, with the language's decimal sign.
-const plain = x => String(+(+x).toPrecision(8)).replace('.', lang() === 'sv' ? ',' : '.');
+// Plain numbers for the text box: 60 not 60.0000.
+const plain = x => String(+(+x).toPrecision(8)).replace('.', '.');
 
 export default {
   render(root, app) {

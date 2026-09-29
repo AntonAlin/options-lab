@@ -471,17 +471,17 @@ export function monthlyReturns(dates, ret) {
 // i.e. the base currency weakens). These are stylised calibrations of well-known episodes, not a
 // replay of history — the page says so.
 export const SCENARIOS = [
-  { id: 'gfc2008', en: 'Global financial crisis (autumn 2008)', sv: 'Finanskrisen (hösten 2008)', eq: -0.35, rates: -150, cs: 300, fxAll: 0.15, cmd: -0.40, vol: 30, infl: -150 },
-  { id: 'euro2011', en: 'Euro debt crisis (2011)', sv: 'Eurokrisen (2011)', eq: -0.22, rates: -100, cs: 180, fxAll: 0.05, cmd: -0.15, vol: 20, infl: -40 },
-  { id: 'covid2020', en: 'Covid crash (Feb–Mar 2020)', sv: 'Coronakraschen (feb–mar 2020)', eq: -0.30, rates: -80, cs: 200, fxAll: 0.08, cmd: -0.30, vol: 40, infl: -90 },
-  { id: 'rates2022', en: 'Inflation & rate shock (2022)', sv: 'Inflations- och räntechocken (2022)', eq: -0.20, rates: 250, cs: 120, fxAll: 0.12, cmd: 0.20, vol: 10, infl: 60 },
-  { id: 'eq10', en: 'Equities −10 %', sv: 'Aktier −10 %', eq: -0.10, rates: 0, cs: 0, fxAll: 0, cmd: 0, vol: 5 },
-  { id: 'eq20up', en: 'Equities +15 %', sv: 'Aktier +15 %', eq: 0.15, rates: 0, cs: -30, fxAll: 0, cmd: 0, vol: -4 },
-  { id: 'rup100', en: 'Rates +100 bp parallel', sv: 'Räntor +100 bp parallellt', eq: 0, rates: 100, cs: 0, fxAll: 0, cmd: 0, vol: 0 },
-  { id: 'rdn100', en: 'Rates −100 bp parallel', sv: 'Räntor −100 bp parallellt', eq: 0, rates: -100, cs: 0, fxAll: 0, cmd: 0, vol: 0 },
-  { id: 'cs100', en: 'Credit spreads +100 bp', sv: 'Kreditspreadar +100 bp', eq: 0, rates: 0, cs: 100, fxAll: 0, cmd: 0, vol: 0 },
-  { id: 'basestrong', en: 'Base currency +10 %', sv: 'Basvalutan +10 %', eq: 0, rates: 0, cs: 0, fxAll: -0.0909, cmd: 0, vol: 0 },
-  { id: 'stagflation', en: 'Stagflation', sv: 'Stagflation', eq: -0.15, rates: 150, cs: 150, fxAll: 0.03, cmd: 0.25, vol: 12, infl: 100 }
+  { id: 'gfc2008', en: 'Global financial crisis (autumn 2008)', eq: -0.35, rates: -150, cs: 300, fxAll: 0.15, cmd: -0.40, vol: 30, infl: -150 },
+  { id: 'euro2011', en: 'Euro debt crisis (2011)', eq: -0.22, rates: -100, cs: 180, fxAll: 0.05, cmd: -0.15, vol: 20, infl: -40 },
+  { id: 'covid2020', en: 'Covid crash (Feb–Mar 2020)', eq: -0.30, rates: -80, cs: 200, fxAll: 0.08, cmd: -0.30, vol: 40, infl: -90 },
+  { id: 'rates2022', en: 'Inflation & rate shock (2022)', eq: -0.20, rates: 250, cs: 120, fxAll: 0.12, cmd: 0.20, vol: 10, infl: 60 },
+  { id: 'eq10', en: 'Equities −10 %', eq: -0.10, rates: 0, cs: 0, fxAll: 0, cmd: 0, vol: 5 },
+  { id: 'eq20up', en: 'Equities +15 %', eq: 0.15, rates: 0, cs: -30, fxAll: 0, cmd: 0, vol: -4 },
+  { id: 'rup100', en: 'Rates +100 bp parallel', eq: 0, rates: 100, cs: 0, fxAll: 0, cmd: 0, vol: 0 },
+  { id: 'rdn100', en: 'Rates −100 bp parallel', eq: 0, rates: -100, cs: 0, fxAll: 0, cmd: 0, vol: 0 },
+  { id: 'cs100', en: 'Credit spreads +100 bp', eq: 0, rates: 0, cs: 100, fxAll: 0, cmd: 0, vol: 0 },
+  { id: 'basestrong', en: 'Base currency +10 %', eq: 0, rates: 0, cs: 0, fxAll: -0.0909, cmd: 0, vol: 0 },
+  { id: 'stagflation', en: 'Stagflation', eq: -0.15, rates: 150, cs: 150, fxAll: 0.03, cmd: 0.25, vol: 12, infl: 100 }
 ];
 
 export function stressPosition(x, s, ctx) {

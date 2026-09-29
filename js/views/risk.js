@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, lang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtPct, fmtNum, segmented } from '../ui.js';
 import { typeLabel, ASSET_CLASSES } from '../instruments.js';
 import { L } from '../i18n.js';
@@ -60,7 +60,7 @@ export default {
           { key: 'p', label: t('risk.share'), align: 'right', fmt: ([, c]) => fmtPct(P.sigmaAnnual ? c / P.sigmaAnnual : 0, 0) }
         ], groups, { dense: true }) + '</details>', { sub: esc(t('risk.byClassSub', { m: t('method.' + (useHist ? 'historical' : 'parametric')) })) })}
         ${card(t('risk.topContrib'), table([
-          { key: 'n', label: t('col.name'), fmt: x => `${esc(x.row.name)}<div class="cell-sub">${esc(typeLabel(x.row.pos.type, lang()))}</div>` },
+          { key: 'n', label: t('col.name'), fmt: x => `${esc(x.row.name)}<div class="cell-sub">${esc(typeLabel(x.row.pos.type))}</div>` },
           { key: 'w', label: t('col.weight'), align: 'right', fmt: x => fmtPct(x.row.weight, 1) },
           { key: 'c', label: t('risk.contribVol'), align: 'right', fmt: x => fmtPct(v.nav ? x.contrib / v.nav : 0, 2) },
           { key: 'p', label: t('risk.share'), align: 'right', fmt: x => `<span class="${x.pct < 0 ? 'pos' : ''}">${fmtPct(x.pct, 1)}</span>` }

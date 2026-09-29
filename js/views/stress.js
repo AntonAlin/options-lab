@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, L, lang } from '../i18n.js';
+import { t, L } from '../i18n.js';
 import { esc, card, pageHead, table, fmtMoney, fmtPct, fmtNum, signCls } from '../ui.js';
 import { ASSET_CLASSES, typeLabel } from '../instruments.js';
 import { runStress } from '../analytics.js';
@@ -26,7 +26,7 @@ export default {
     const sorted = [...stress].sort((x, y) => x.total - y.total);
     if (!ui.sel || !stress.some(s => s.scenario.id === ui.sel)) ui.sel = sorted[0]?.scenario.id;
     const sel = stress.find(s => s.scenario.id === ui.sel);
-    const scen = s => ({ id: 'custom', en: 'Custom', sv: 'Eget', eq: s.eq / 100, rates: s.rates, cs: s.cs, fxAll: s.fxAll / 100, cmd: s.cmd / 100, vol: s.vol, infl: s.infl });
+    const scen = s => ({ id: 'custom', en: 'Custom', eq: s.eq / 100, rates: s.rates, cs: s.cs, fxAll: s.fxAll / 100, cmd: s.cmd / 100, vol: s.vol, infl: s.infl });
     const custom = runStress(v, [scen(ui.custom)])[0];
     const shockText = s => [
       s.eq ? `${t('stress.eqShort')} ${fmtPct(s.eq, 0, { sign: true })}` : '', s.rates ? `${t('stress.ratesShort')} ${fmtNum(s.rates, 0)} bp` : '',
@@ -42,7 +42,7 @@ export default {
           { key: 'p', label: '% NAV', align: 'right', fmt: ([, x]) => `<span class="${signCls(x)}">${fmtPct(v.nav ? x / v.nav : 0, 2, { sign: true })}</span>` }
         ], Object.entries(res.byClass).filter(([, x]) => Math.abs(x) > 0.5).sort((x, y) => x[1] - y[1]), { dense: true })}</div>
         <div><h3 class="h3">${esc(t('stress.worstPos'))}</h3>${table([
-          { key: 'n', label: t('col.name'), fmt: q => `${esc(q.row.name)}<div class="cell-sub">${esc(typeLabel(q.row.pos.type, lang()))}</div>` },
+          { key: 'n', label: t('col.name'), fmt: q => `${esc(q.row.name)}<div class="cell-sub">${esc(typeLabel(q.row.pos.type))}</div>` },
           { key: 'v', label: t('col.pnl', { base }), align: 'right', fmt: q => `<span class="${signCls(q.pnl)}">${fmtMoney(q.pnl, '', { compact: true })}</span>` },
           { key: 'p', label: '% NAV', align: 'right', fmt: q => `<span class="${signCls(q.pnl)}">${fmtPct(v.nav ? q.pnl / v.nav : 0, 2, { sign: true })}</span>` }
         ], [...res.per.slice(0, 6), ...res.per.slice(-3).reverse().filter(q => q.pnl > 0)], { dense: true })}</div>

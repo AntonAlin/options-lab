@@ -82,7 +82,7 @@ export default {
       </div>
       <div class="grid-2">
         ${card(t('dash.top10'), table([
-          { key: 'name', label: t('col.name'), fmt: x => `<div class="cell-name">${esc(x.name)}</div><div class="cell-sub">${esc(typeLabel(x.pos.type, store.settings().lang))}</div>` },
+          { key: 'name', label: t('col.name'), fmt: x => `<div class="cell-name">${esc(x.name)}</div><div class="cell-sub">${esc(typeLabel(x.pos.type))}</div>` },
           { key: 'mv', label: t('col.mv', { base }), align: 'right', fmt: x => fmtMoney(x.r.mv, '', { compact: true }) },
           { key: 'w', label: t('col.weight'), align: 'right', fmt: x => fmtPct(x.weight, 1) }
         ], conc.top10Rows, { dense: true }), { sub: esc(t('dash.top10Sub', { top: fmtPct(conc.top10, 1), n: fmtNum(conc.effectiveN, 1) })) })}

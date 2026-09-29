@@ -19,8 +19,7 @@ export default {
     const B = perf.bench;
     const monthly = monthlyReturns(dates, hp.portfolioRet);
     const years = Object.keys(monthly).sort().reverse();
-    const months = lang => Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(2020, i, 1)).toLocaleString(lang, { month: 'short', timeZone: 'UTC' }));
-    const mNames = months(store.settings().lang === 'sv' ? 'sv-SE' : 'en-GB');
+    const mNames = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(2020, i, 1)).toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' }));
     const row = (label, x, b, f = v => fmtPct(v, 2)) => ({ label, x, b, f });
     const stats = [
       row(t('perf.total'), perf.total, B?.total), row(t('perf.cagr'), perf.cagr, B?.cagr), row(t('perf.vol'), perf.vol, B?.vol),

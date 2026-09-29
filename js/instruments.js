@@ -14,14 +14,14 @@ import { isNum, num, freqOf, yearsBetween } from './util.js';
 
 // ---- asset classes, used for allocation and the risk model ----------------------------------
 export const ASSET_CLASSES = {
-  equity:        { en: 'Equity',            sv: 'Aktier' },
-  fixed_income:  { en: 'Fixed income',      sv: 'Räntebärande' },
-  money_market:  { en: 'Money market',      sv: 'Penningmarknad' },
-  cash:          { en: 'Cash',              sv: 'Likvida medel' },
-  commodity:     { en: 'Commodities',       sv: 'Råvaror' },
-  currency:      { en: 'Currency',          sv: 'Valuta' },
-  alternative:   { en: 'Alternatives',      sv: 'Alternativa' },
-  mixed:         { en: 'Multi-asset',       sv: 'Blandat' }
+  equity:        { en: 'Equity' },
+  fixed_income:  { en: 'Fixed income' },
+  money_market:  { en: 'Money market' },
+  cash:          { en: 'Cash' },
+  commodity:     { en: 'Commodities' },
+  currency:      { en: 'Currency' },
+  alternative:   { en: 'Alternatives' },
+  mixed:         { en: 'Multi-asset' }
 };
 
 export const RATINGS = ['AAA', 'AA+', 'AA', 'AA-', 'A+', 'A', 'A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC+', 'CCC', 'CCC-', 'CC', 'C', 'D'];
@@ -39,13 +39,13 @@ const REGION_OF = {
   XS: 'global', GLOBAL: 'global', WORLD: 'global'
 };
 export const REGIONS = {
-  nordics: { en: 'Nordics', sv: 'Norden' },
-  europe: { en: 'Europe ex Nordics', sv: 'Europa exkl. Norden' },
-  north_america: { en: 'North America', sv: 'Nordamerika' },
-  asia_pacific: { en: 'Asia-Pacific', sv: 'Asien-Stillahavsområdet' },
-  emerging: { en: 'Emerging markets', sv: 'Tillväxtmarknader' },
-  global: { en: 'Global', sv: 'Global' },
-  other: { en: 'Other / unknown', sv: 'Övrigt / okänt' }
+  nordics: { en: 'Nordics' },
+  europe: { en: 'Europe ex Nordics' },
+  north_america: { en: 'North America' },
+  asia_pacific: { en: 'Asia-Pacific' },
+  emerging: { en: 'Emerging markets' },
+  global: { en: 'Global' },
+  other: { en: 'Other / unknown' }
 };
 export const regionOf = c => REGION_OF[String(c || '').toUpperCase().trim()] || 'other';
 
@@ -54,102 +54,111 @@ export const regionOf = c => REGION_OF[String(c || '').toUpperCase().trim()] || 
 // (compared lower-case with spaces/underscores/dots stripped), so add any header your
 // custodian or PMS spits out.
 export const FIELDS = {
-  name:        { type: 'text', en: 'Name', sv: 'Namn', aliases: ['name', 'security', 'securityname', 'instrument', 'instrumentname', 'description', 'namn', 'värdepapper', 'benämning', 'beskrivning'] },
-  ticker:      { type: 'text', en: 'Ticker / ID', sv: 'Ticker / ID', aliases: ['ticker', 'symbol', 'bloomberg', 'bbgticker', 'ric', 'kortnamn', 'id', 'securityid'] },
-  isin:        { type: 'text', en: 'ISIN', sv: 'ISIN', aliases: ['isin', 'isincode'] },
-  issuer:      { type: 'text', en: 'Issuer', sv: 'Emittent', aliases: ['issuer', 'issuername', 'company', 'emittent', 'utgivare', 'bolag', 'counterparty', 'motpart'] },
-  type:        { type: 'select', en: 'Instrument type', sv: 'Instrumenttyp', aliases: ['type', 'instrumenttype', 'securitytype', 'assettype', 'typ', 'instrumenttyp', 'värdepapperstyp'] },
-  qty:         { type: 'number', en: 'Quantity', sv: 'Antal', aliases: ['qty', 'quantity', 'shares', 'units', 'position', 'holding', 'antal', 'innehav', 'andelar', 'nominal', 'nominalvalue', 'nominellt', 'facevalue', 'notional', 'contracts', 'kontrakt', 'amount', 'belopp'] },
-  price:       { type: 'number', en: 'Price', sv: 'Kurs', aliases: ['price', 'lastprice', 'close', 'marketprice', 'kurs', 'pris', 'senastekurs', 'stängningskurs', 'cleanprice', 'premium', 'premie', 'nav', 'navperunit'] },
-  ccy:         { type: 'ccy', en: 'Currency', sv: 'Valuta', aliases: ['ccy', 'currency', 'cur', 'valuta', 'tradingcurrency', 'handelsvaluta'] },
-  multiplier:  { type: 'number', en: 'Multiplier', sv: 'Multiplikator', aliases: ['multiplier', 'contractsize', 'mult', 'multiplikator', 'kontraktsstorlek', 'pointvalue'] },
-  sector:      { type: 'text', en: 'Sector', sv: 'Sektor', aliases: ['sector', 'gicssector', 'industry', 'sektor', 'bransch', 'industri'] },
-  country:     { type: 'text', en: 'Country (ISO)', sv: 'Land (ISO)', aliases: ['country', 'countrycode', 'domicile', 'countryofrisk', 'land', 'landskod', 'hemvist'] },
-  rating:      { type: 'text', en: 'Rating', sv: 'Rating', aliases: ['rating', 'creditrating', 'sp', 'moodys', 'kreditbetyg', 'betyg'] },
-  beta:        { type: 'number', en: 'Beta', sv: 'Beta', aliases: ['beta'] },
-  adv:         { type: 'number', en: 'Avg daily volume', sv: 'Snittvolym/dag', aliases: ['adv', 'avgdailyvolume', 'averagevolume', 'volume', 'snittvolym', 'omsättning', 'volym'] },
-  maturity:    { type: 'date', en: 'Maturity / expiry', sv: 'Förfall', aliases: ['maturity', 'maturitydate', 'expiry', 'expiration', 'expirydate', 'enddate', 'förfall', 'förfallodag', 'förfallodatum', 'slutdag', 'lösendag'] },
-  coupon:      { type: 'number', en: 'Coupon %', sv: 'Kupong %', aliases: ['coupon', 'couponrate', 'cpn', 'kupong', 'kupongränta', 'ränta'] },
-  freq:        { type: 'select', en: 'Payments / year', sv: 'Betalningar/år', options: ['1', '2', '4', '12'], aliases: ['freq', 'frequency', 'couponfrequency', 'frekvens', 'kupongfrekvens'] },
-  yield:       { type: 'number', en: 'Yield %', sv: 'Avkastning %', aliases: ['yield', 'ytm', 'yieldtomaturity', 'marketyield', 'effektivränta', 'avkastning', 'ränteläge'] },
-  spread:      { type: 'number', en: 'Spread (bp)', sv: 'Spread (bp)', aliases: ['spread', 'discountmargin', 'dm', 'quotedmargin', 'marginal', 'spreadbp'] },
-  optType:     { type: 'select', en: 'Call / put', sv: 'Köp / sälj', options: ['call', 'put'], aliases: ['callput', 'putcall', 'optiontype', 'cp', 'optionstyp', 'köpsälj'] },
-  strike:      { type: 'number', en: 'Strike', sv: 'Lösenpris', aliases: ['strike', 'strikeprice', 'exerciseprice', 'lösenpris', 'lösenkurs'] },
-  underlyingPrice: { type: 'number', en: 'Underlying price', sv: 'Underliggande kurs', aliases: ['underlyingprice', 'spot', 'underlying', 'underliggande', 'underliggandekurs', 'spotpris'] },
-  vol:         { type: 'number', en: 'Implied vol %', sv: 'Implicit vol %', aliases: ['vol', 'iv', 'impliedvol', 'impliedvolatility', 'volatility', 'volatilitet', 'implicitvolatilitet'] },
-  rate:        { type: 'number', en: 'Risk-free rate %', sv: 'Riskfri ränta %', aliases: ['rate', 'riskfreerate', 'rfr', 'riskfriränta'] },
-  divYield:    { type: 'number', en: 'Dividend / foreign rate %', sv: 'Utdelning / utländsk ränta %', aliases: ['divyield', 'dividendyield', 'dividend', 'q', 'foreignrate', 'utdelningsyield', 'utdelning', 'direktavkastning'] },
-  reportedNotional: { type: 'number', en: 'Reported notional', sv: 'Rapporterat nominellt värde', aliases: ['reportednotional', 'notionalamount', 'notionalvalue', 'underlyingnotional', 'contractvalue', 'grossnotional', 'rapporteratnominellt', 'nominelltvärde', 'kontraktsvärde', 'underliggandevärde'] },
-  reportedDelta: { type: 'number', en: 'Reported delta', sv: 'Rapporterad delta', aliases: ['delta', 'reporteddelta', 'optiondelta', 'brokerdelta', 'rapporteraddelta', 'deltaper'] },
-  reportedDeltaExposure: { type: 'number', en: 'Reported delta-adjusted exposure', sv: 'Rapporterad deltajusterad exponering', aliases: ['deltaadjustedexposure', 'deltaexposure', 'deltanotional', 'deltaadjustednotional', 'deltaequivalent', 'commitment', 'deltajusteradexponering', 'deltajusteratbelopp', 'åtagande'] },
-  costPrice:   { type: 'number', en: 'Average cost per unit', sv: 'Anskaffningsvärde per enhet (GAV)', aliases: ['costprice', 'averagecost', 'avgcost', 'averageprice', 'unitcost', 'bookcost', 'costbasis', 'purchaseprice', 'gav', 'anskaffningsvärde', 'anskaffningskurs', 'snittkurs', 'inköpskurs', 'genomsnittligtanskaffningsvärde'] },
-  strategy:    { type: 'text', en: 'Strategy', sv: 'Strategi', aliases: ['strategy', 'strategi', 'book', 'bok', 'portfoliogroup', 'group', 'grupp'] },
-  underlyingClass: { type: 'select', en: 'Underlying', sv: 'Underliggande tillgång', options: ['equity', 'rates', 'commodity', 'fx', 'credit', 'volatility'], aliases: ['underlyingclass', 'underlyingtype', 'underlyingasset', 'tillgångsslag', 'underliggandetyp'] },
-  duration:    { type: 'number', en: 'Duration (yrs)', sv: 'Duration (år)', aliases: ['duration', 'modifiedduration', 'modduration', 'ctdduration', 'duration(år)', 'durationår'] },
-  buyCcy:      { type: 'ccy', en: 'Buy currency', sv: 'Köpvaluta', aliases: ['buyccy', 'buycurrency', 'köpvaluta', 'ccy1'] },
-  buyAmount:   { type: 'number', en: 'Buy amount', sv: 'Köpbelopp', aliases: ['buyamount', 'buynotional', 'köpbelopp', 'amount1'] },
-  sellCcy:     { type: 'ccy', en: 'Sell currency', sv: 'Säljvaluta', aliases: ['sellccy', 'sellcurrency', 'säljvaluta', 'ccy2'] },
-  sellAmount:  { type: 'number', en: 'Sell amount', sv: 'Säljbelopp', aliases: ['sellamount', 'sellnotional', 'säljbelopp', 'amount2'] },
-  direction:   { type: 'select', en: 'Direction', sv: 'Riktning', options: ['receive', 'pay'], aliases: ['direction', 'side', 'payreceive', 'riktning', 'sida'] },
-  protection:  { type: 'select', en: 'Protection', sv: 'Skydd', options: ['buy', 'sell'], aliases: ['protection', 'buysell', 'protectionside', 'skydd'] },
-  fixedRate:   { type: 'number', en: 'Fixed rate %', sv: 'Fast ränta %', aliases: ['fixedrate', 'swaprate', 'fastränta', 'contractrate'] },
-  marketRate:  { type: 'number', en: 'Market rate %', sv: 'Marknadsränta %', aliases: ['marketrate', 'currentrate', 'parrate', 'marknadsränta'] },
-  marketSpread:{ type: 'number', en: 'Market spread (bp)', sv: 'Marknadsspread (bp)', aliases: ['marketspread', 'currentspread', 'marknadsspread'] },
-  mtm:         { type: 'number', en: 'Market value override', sv: 'Marknadsvärde (manuellt)', aliases: ['mtm', 'marketvalue', 'mv', 'fairvalue', 'marknadsvärde', 'värde', 'npv', 'verkligtvärde', 'marketvaluelocal', 'marknadsvärdelokal', 'premiumvalue'] },
-  subClass:    { type: 'select', en: 'Look-through class', sv: 'Genomlyst tillgångsslag', options: ['equity', 'fixed_income', 'money_market', 'mixed', 'alternative', 'commodity'], aliases: ['assetclass', 'fundtype', 'category', 'tillgångsklass', 'fondtyp', 'kategori'] },
-  equityShare: { type: 'number', en: 'Equity share %', sv: 'Aktieandel %', aliases: ['equityshare', 'equityweight', 'aktieandel'] },
-  altType:     { type: 'select', en: 'Alternative type', sv: 'Alternativ typ', options: ['private_equity', 'real_estate', 'hedge_fund', 'infrastructure', 'private_credit', 'crypto', 'other'], aliases: ['alttype', 'subtype', 'strategy', 'strategi', 'undertyp'] },
-  liquidityDays:{ type: 'number', en: 'Days to liquidate', sv: 'Dagar att avveckla', aliases: ['liquiditydays', 'redemptiondays', 'noticeperiod', 'likviditetsdagar', 'uppsägningstid'] },
-  dirtyPrice:  { type: 'number', en: 'Dirty price % (incl. accrued)', sv: 'Smutsig kurs % (inkl. upplupen ränta)', aliases: ['dirtyprice', 'fullprice', 'priceinclaccrued', 'priceincludingaccrued', 'dirty', 'smutsigkurs', 'kursinklupplupen', 'kursinklupplupenränta'] },
-  indexRatio:  { type: 'number', en: 'Index ratio', sv: 'Indexkvot', aliases: ['indexratio', 'indexfactor', 'inflationfactor', 'inflationindexratio', 'indexkvot', 'indexfaktor', 'indexuppräkning'] },
-  callDate:    { type: 'date', en: 'Next call date', sv: 'Nästa inlösendag (call)', aliases: ['calldate', 'nextcalldate', 'firstcalldate', 'callable', 'call', 'inlösendag', 'förstainlösendag', 'callbar'] },
-  callPrice:   { type: 'number', en: 'Call price %', sv: 'Inlösenkurs vid call %', aliases: ['callprice', 'callpricepct', 'inlösenkursvidcall'] },
-  structure:   { type: 'select', en: 'Repayment', sv: 'Amortering', options: ['bullet', 'amortising'], aliases: ['structure', 'repayment', 'amortisation', 'amortization', 'amortering'] },
-  leverage:    { type: 'number', en: 'Leverage / participation', sv: 'Hävstång / deltagandegrad', aliases: ['leverage', 'gearing', 'exposurefactor', 'participation', 'participationrate', 'hävstång', 'deltagandegrad', 'hävstångsfaktor'] },
-  exercise:    { type: 'select', en: 'Exercise style', sv: 'Lösenstil', options: ['european', 'american'], aliases: ['exercise', 'exercisestyle', 'optionstyle', 'lösenstil', 'lösentyp'] },
-  margining:   { type: 'select', en: 'Premium / margining', sv: 'Premie / marginalavräkning', options: ['premium', 'futures'], aliases: ['margining', 'marginstyle', 'premiumstyle', 'settlementstyle', 'marginal'] },
-  vega:        { type: 'number', en: 'Vega per vol point', sv: 'Vega per volpunkt', aliases: ['vega', 'veganotional', 'vegaamount'] },
-  tenor:       { type: 'number', en: 'Swap tenor (years)', sv: 'Swappens löptid (år)', aliases: ['tenor', 'swaptenor', 'underlyingtenor', 'löptid', 'swaplöptid'] },
-  volType:     { type: 'select', en: 'Vol quote', sv: 'Volkvotering', options: ['normal', 'lognormal'], aliases: ['voltype', 'volquote', 'volatilitytype', 'model'] },
-  payerReceiver: { type: 'select', en: 'Payer / receiver', sv: 'Betalare / mottagare', options: ['payer', 'receiver'], aliases: ['payerreceiver', 'swaptiontype', 'payrec', 'betalaremottagare'] },
-  capFloor:    { type: 'select', en: 'Cap / floor', sv: 'Tak / golv', options: ['cap', 'floor'], aliases: ['capfloor', 'captype', 'takgolv'] },
-  breakeven:   { type: 'number', en: 'Market breakeven inflation %', sv: 'Marknadens break-even-inflation %', aliases: ['breakeven', 'breakevenrate', 'marketbreakeven', 'inflationrate', 'breakeveninflation'] },
-  startDate:   { type: 'date', en: 'Start / issue date', sv: 'Start- / emissionsdag', aliases: ['startdate', 'effectivedate', 'issuedate', 'tradedate', 'startdatum', 'emissionsdag', 'likviddag'] },
-  exoticKind:  { type: 'select', en: 'Exotic kind', sv: 'Exotisk typ', options: ['barrier', 'digital'], aliases: ['exotickind', 'exotictype', 'optionkind', 'exotisktyp'] },
-  barrierType: { type: 'select', en: 'Barrier type', sv: 'Barriärtyp', options: ['down-and-out', 'down-and-in', 'up-and-out', 'up-and-in'], aliases: ['barriertype', 'knocktype', 'barriärtyp'] },
-  barrier:     { type: 'number', en: 'Barrier / stop-loss level', sv: 'Barriär / stop loss-nivå', aliases: ['barrier', 'barrierlevel', 'knockout', 'knockoutlevel', 'stoploss', 'stoplosslevel', 'barriär', 'stoplossnivå'] },
-  payout:      { type: 'number', en: 'Digital payout per unit', sv: 'Digital utbetalning per enhet', aliases: ['payout', 'digitalpayout', 'cashpayout', 'utbetalning'] },
-  certType:    { type: 'select', en: 'Certificate kind', sv: 'Certifikatstyp', options: ['leverage', 'knock_out', 'protected', 'tracker'], aliases: ['certtype', 'certificatetype', 'producttype', 'certifikatstyp', 'produkttyp'] },
-  cpr:         { type: 'number', en: 'Prepayment speed (CPR %)', sv: 'Förtidsinlösen (CPR %)', aliases: ['cpr', 'prepaymentspeed', 'prepayment', 'förtidsinlösen'] },
-  poolFactor:  { type: 'number', en: 'Pool factor', sv: 'Poolfaktor', aliases: ['poolfactor', 'factor', 'currentfactor', 'amortisationfactor', 'poolfaktor'] },
-  collateralValue: { type: 'number', en: 'Collateral value', sv: 'Säkerhetens värde', aliases: ['collateralvalue', 'collateral', 'collateralmv', 'collateralmarketvalue', 'säkerhet', 'säkerhetsvärde'] },
-  haircut:     { type: 'number', en: 'Haircut %', sv: 'Värderingsavdrag %', aliases: ['haircut', 'haircutpct', 'värderingsavdrag'] },
-  collateralType: { type: 'select', en: 'Collateral type', sv: 'Säkerhetstyp', options: ['cash', 'government', 'equity', 'other'], aliases: ['collateraltype', 'säkerhetstyp'] },
-  notes:       { type: 'text', en: 'Notes', sv: 'Anteckningar', aliases: ['notes', 'comment', 'comments', 'anteckning', 'anteckningar', 'kommentar'] }
+  name:        { type: 'text', en: 'Name', aliases: ['name', 'security', 'securityname', 'instrument', 'instrumentname', 'description', 'namn', 'värdepapper', 'benämning', 'beskrivning'] },
+  ticker:      { type: 'text', en: 'Ticker / ID', aliases: ['ticker', 'symbol', 'bloomberg', 'bbgticker', 'ric', 'kortnamn', 'id', 'securityid'] },
+  isin:        { type: 'text', en: 'ISIN', aliases: ['isin', 'isincode'] },
+  issuer:      { type: 'text', en: 'Issuer', aliases: ['issuer', 'issuername', 'company', 'emittent', 'utgivare', 'bolag', 'counterparty', 'motpart'] },
+  type:        { type: 'select', en: 'Instrument type', aliases: ['type', 'instrumenttype', 'securitytype', 'assettype', 'typ', 'instrumenttyp', 'värdepapperstyp'] },
+  qty:         { type: 'number', en: 'Quantity', aliases: ['qty', 'quantity', 'shares', 'units', 'position', 'holding', 'antal', 'innehav', 'andelar', 'nominal', 'nominalvalue', 'nominellt', 'facevalue', 'notional', 'contracts', 'kontrakt', 'amount', 'belopp'] },
+  price:       { type: 'number', en: 'Price', aliases: ['price', 'lastprice', 'close', 'marketprice', 'kurs', 'pris', 'senastekurs', 'stängningskurs', 'cleanprice', 'premium', 'premie', 'nav', 'navperunit'] },
+  ccy:         { type: 'ccy', en: 'Currency', aliases: ['ccy', 'currency', 'cur', 'valuta', 'tradingcurrency', 'handelsvaluta'] },
+  multiplier:  { type: 'number', en: 'Multiplier', aliases: ['multiplier', 'contractsize', 'mult', 'multiplikator', 'kontraktsstorlek', 'pointvalue'] },
+  sector:      { type: 'text', en: 'Sector', aliases: ['sector', 'gicssector', 'industry', 'sektor', 'bransch', 'industri'] },
+  country:     { type: 'text', en: 'Country (ISO)', aliases: ['country', 'countrycode', 'domicile', 'countryofrisk', 'land', 'landskod', 'hemvist', 'Land (ISO)'] },
+  rating:      { type: 'text', en: 'Rating', aliases: ['rating', 'creditrating', 'sp', 'moodys', 'kreditbetyg', 'betyg'] },
+  beta:        { type: 'number', en: 'Beta', aliases: ['beta'] },
+  adv:         { type: 'number', en: 'Avg daily volume', aliases: ['adv', 'avgdailyvolume', 'averagevolume', 'volume', 'snittvolym', 'omsättning', 'volym', 'Snittvolym/dag'] },
+  maturity:    { type: 'date', en: 'Maturity / expiry', aliases: ['maturity', 'maturitydate', 'expiry', 'expiration', 'expirydate', 'enddate', 'förfall', 'förfallodag', 'förfallodatum', 'slutdag', 'lösendag'] },
+  coupon:      { type: 'number', en: 'Coupon %', aliases: ['coupon', 'couponrate', 'cpn', 'kupong', 'kupongränta', 'ränta'] },
+  freq:        { type: 'select', en: 'Payments / year', options: ['1', '2', '4', '12'], aliases: ['freq', 'frequency', 'couponfrequency', 'frekvens', 'kupongfrekvens', 'Betalningar/år'] },
+  yield:       { type: 'number', en: 'Yield %', aliases: ['yield', 'ytm', 'yieldtomaturity', 'marketyield', 'effektivränta', 'avkastning', 'ränteläge'] },
+  spread:      { type: 'number', en: 'Spread (bp)', aliases: ['spread', 'discountmargin', 'dm', 'quotedmargin', 'marginal', 'spreadbp'] },
+  optType:     { type: 'select', en: 'Call / put', options: ['call', 'put'], aliases: ['callput', 'putcall', 'optiontype', 'cp', 'optionstyp', 'köpsälj'] },
+  strike:      { type: 'number', en: 'Strike', aliases: ['strike', 'strikeprice', 'exerciseprice', 'lösenpris', 'lösenkurs'] },
+  underlyingPrice: { type: 'number', en: 'Underlying price', aliases: ['underlyingprice', 'spot', 'underlying', 'underliggande', 'underliggandekurs', 'spotpris'] },
+  vol:         { type: 'number', en: 'Implied vol %', aliases: ['vol', 'iv', 'impliedvol', 'impliedvolatility', 'volatility', 'volatilitet', 'implicitvolatilitet', 'Implicit vol %'] },
+  rate:        { type: 'number', en: 'Risk-free rate %', aliases: ['rate', 'riskfreerate', 'rfr', 'riskfriränta'] },
+  divYield:    { type: 'number', en: 'Dividend / foreign rate %', aliases: ['divyield', 'dividendyield', 'dividend', 'q', 'foreignrate', 'utdelningsyield', 'utdelning', 'direktavkastning', 'Utdelning / utländsk ränta %'] },
+  reportedNotional: { type: 'number', en: 'Reported notional', aliases: ['reportednotional', 'notionalamount', 'notionalvalue', 'underlyingnotional', 'contractvalue', 'grossnotional', 'rapporteratnominellt', 'nominelltvärde', 'kontraktsvärde', 'underliggandevärde', 'Rapporterat nominellt värde'] },
+  reportedDelta: { type: 'number', en: 'Reported delta', aliases: ['delta', 'reporteddelta', 'optiondelta', 'brokerdelta', 'rapporteraddelta', 'deltaper'] },
+  reportedDeltaExposure: { type: 'number', en: 'Reported delta-adjusted exposure', aliases: ['deltaadjustedexposure', 'deltaexposure', 'deltanotional', 'deltaadjustednotional', 'deltaequivalent', 'commitment', 'deltajusteradexponering', 'deltajusteratbelopp', 'åtagande', 'Rapporterad deltajusterad exponering'] },
+  costPrice:   { type: 'number', en: 'Average cost per unit', aliases: ['costprice', 'averagecost', 'avgcost', 'averageprice', 'unitcost', 'bookcost', 'costbasis', 'purchaseprice', 'gav', 'anskaffningsvärde', 'anskaffningskurs', 'snittkurs', 'inköpskurs', 'genomsnittligtanskaffningsvärde', 'Anskaffningsvärde per enhet (GAV)'] },
+  strategy:    { type: 'text', en: 'Strategy', aliases: ['strategy', 'strategi', 'book', 'bok', 'portfoliogroup', 'group', 'grupp'] },
+  underlyingClass: { type: 'select', en: 'Underlying', options: ['equity', 'rates', 'commodity', 'fx', 'credit', 'volatility'], aliases: ['underlyingclass', 'underlyingtype', 'underlyingasset', 'tillgångsslag', 'underliggandetyp', 'Underliggande tillgång'] },
+  duration:    { type: 'number', en: 'Duration (yrs)', aliases: ['duration', 'modifiedduration', 'modduration', 'ctdduration', 'duration(år)', 'durationår'] },
+  buyCcy:      { type: 'ccy', en: 'Buy currency', aliases: ['buyccy', 'buycurrency', 'köpvaluta', 'ccy1'] },
+  buyAmount:   { type: 'number', en: 'Buy amount', aliases: ['buyamount', 'buynotional', 'köpbelopp', 'amount1'] },
+  sellCcy:     { type: 'ccy', en: 'Sell currency', aliases: ['sellccy', 'sellcurrency', 'säljvaluta', 'ccy2'] },
+  sellAmount:  { type: 'number', en: 'Sell amount', aliases: ['sellamount', 'sellnotional', 'säljbelopp', 'amount2'] },
+  direction:   { type: 'select', en: 'Direction', options: ['receive', 'pay'], aliases: ['direction', 'side', 'payreceive', 'riktning', 'sida'] },
+  protection:  { type: 'select', en: 'Protection', options: ['buy', 'sell'], aliases: ['protection', 'buysell', 'protectionside', 'skydd'] },
+  fixedRate:   { type: 'number', en: 'Fixed rate %', aliases: ['fixedrate', 'swaprate', 'fastränta', 'contractrate'] },
+  marketRate:  { type: 'number', en: 'Market rate %', aliases: ['marketrate', 'currentrate', 'parrate', 'marknadsränta'] },
+  marketSpread:{ type: 'number', en: 'Market spread (bp)', aliases: ['marketspread', 'currentspread', 'marknadsspread', 'Marknadsspread (bp)'] },
+  mtm:         { type: 'number', en: 'Market value override', aliases: ['mtm', 'marketvalue', 'mv', 'fairvalue', 'marknadsvärde', 'värde', 'npv', 'verkligtvärde', 'marketvaluelocal', 'marknadsvärdelokal', 'premiumvalue', 'Marknadsvärde (manuellt)'] },
+  subClass:    { type: 'select', en: 'Look-through class', options: ['equity', 'fixed_income', 'money_market', 'mixed', 'alternative', 'commodity'], aliases: ['assetclass', 'fundtype', 'category', 'tillgångsklass', 'fondtyp', 'kategori', 'Genomlyst tillgångsslag'] },
+  equityShare: { type: 'number', en: 'Equity share %', aliases: ['equityshare', 'equityweight', 'aktieandel'] },
+  altType:     { type: 'select', en: 'Alternative type', options: ['private_equity', 'real_estate', 'hedge_fund', 'infrastructure', 'private_credit', 'crypto', 'other'], aliases: ['alttype', 'subtype', 'strategy', 'strategi', 'undertyp', 'Alternativ typ'] },
+  liquidityDays:{ type: 'number', en: 'Days to liquidate', aliases: ['liquiditydays', 'redemptiondays', 'noticeperiod', 'likviditetsdagar', 'uppsägningstid', 'Dagar att avveckla'] },
+  dirtyPrice:  { type: 'number', en: 'Dirty price % (incl. accrued)', aliases: ['dirtyprice', 'fullprice', 'priceinclaccrued', 'priceincludingaccrued', 'dirty', 'smutsigkurs', 'kursinklupplupen', 'kursinklupplupenränta', 'Smutsig kurs % (inkl. upplupen ränta)'] },
+  indexRatio:  { type: 'number', en: 'Index ratio', aliases: ['indexratio', 'indexfactor', 'inflationfactor', 'inflationindexratio', 'indexkvot', 'indexfaktor', 'indexuppräkning'] },
+  callDate:    { type: 'date', en: 'Next call date', aliases: ['calldate', 'nextcalldate', 'firstcalldate', 'callable', 'call', 'inlösendag', 'förstainlösendag', 'callbar', 'Nästa inlösendag (call)'] },
+  callPrice:   { type: 'number', en: 'Call price %', aliases: ['callprice', 'callpricepct', 'inlösenkursvidcall'] },
+  structure:   { type: 'select', en: 'Repayment', options: ['bullet', 'amortising'], aliases: ['structure', 'repayment', 'amortisation', 'amortization', 'amortering'] },
+  leverage:    { type: 'number', en: 'Leverage / participation', aliases: ['leverage', 'gearing', 'exposurefactor', 'participation', 'participationrate', 'hävstång', 'deltagandegrad', 'hävstångsfaktor', 'Hävstång / deltagandegrad'] },
+  exercise:    { type: 'select', en: 'Exercise style', options: ['european', 'american'], aliases: ['exercise', 'exercisestyle', 'optionstyle', 'lösenstil', 'lösentyp'] },
+  margining:   { type: 'select', en: 'Premium / margining', options: ['premium', 'futures'], aliases: ['margining', 'marginstyle', 'premiumstyle', 'settlementstyle', 'marginal', 'Premie / marginalavräkning'] },
+  vega:        { type: 'number', en: 'Vega per vol point', aliases: ['vega', 'veganotional', 'vegaamount', 'Vega per volpunkt'] },
+  tenor:       { type: 'number', en: 'Swap tenor (years)', aliases: ['tenor', 'swaptenor', 'underlyingtenor', 'löptid', 'swaplöptid', 'Swappens löptid (år)'] },
+  volType:     { type: 'select', en: 'Vol quote', options: ['normal', 'lognormal'], aliases: ['voltype', 'volquote', 'volatilitytype', 'model', 'Volkvotering'] },
+  payerReceiver: { type: 'select', en: 'Payer / receiver', options: ['payer', 'receiver'], aliases: ['payerreceiver', 'swaptiontype', 'payrec', 'betalaremottagare'] },
+  capFloor:    { type: 'select', en: 'Cap / floor', options: ['cap', 'floor'], aliases: ['capfloor', 'captype', 'takgolv'] },
+  breakeven:   { type: 'number', en: 'Market breakeven inflation %', aliases: ['breakeven', 'breakevenrate', 'marketbreakeven', 'inflationrate', 'breakeveninflation', 'Marknadens break-even-inflation %'] },
+  startDate:   { type: 'date', en: 'Start / issue date', aliases: ['startdate', 'effectivedate', 'issuedate', 'tradedate', 'startdatum', 'emissionsdag', 'likviddag', 'Start- / emissionsdag'] },
+  exoticKind:  { type: 'select', en: 'Exotic kind', options: ['barrier', 'digital'], aliases: ['exotickind', 'exotictype', 'optionkind', 'exotisktyp'] },
+  barrierType: { type: 'select', en: 'Barrier type', options: ['down-and-out', 'down-and-in', 'up-and-out', 'up-and-in'], aliases: ['barriertype', 'knocktype', 'barriärtyp'] },
+  barrier:     { type: 'number', en: 'Barrier / stop-loss level', aliases: ['barrier', 'barrierlevel', 'knockout', 'knockoutlevel', 'stoploss', 'stoplosslevel', 'barriär', 'stoplossnivå', 'Barriär / stop loss-nivå'] },
+  payout:      { type: 'number', en: 'Digital payout per unit', aliases: ['payout', 'digitalpayout', 'cashpayout', 'utbetalning', 'Digital utbetalning per enhet'] },
+  certType:    { type: 'select', en: 'Certificate kind', options: ['leverage', 'knock_out', 'protected', 'tracker'], aliases: ['certtype', 'certificatetype', 'producttype', 'certifikatstyp', 'produkttyp'] },
+  cpr:         { type: 'number', en: 'Prepayment speed (CPR %)', aliases: ['cpr', 'prepaymentspeed', 'prepayment', 'förtidsinlösen', 'Förtidsinlösen (CPR %)'] },
+  poolFactor:  { type: 'number', en: 'Pool factor', aliases: ['poolfactor', 'factor', 'currentfactor', 'amortisationfactor', 'poolfaktor'] },
+  collateralValue: { type: 'number', en: 'Collateral value', aliases: ['collateralvalue', 'collateral', 'collateralmv', 'collateralmarketvalue', 'säkerhet', 'säkerhetsvärde', 'Säkerhetens värde'] },
+  haircut:     { type: 'number', en: 'Haircut %', aliases: ['haircut', 'haircutpct', 'värderingsavdrag'] },
+  collateralType: { type: 'select', en: 'Collateral type', options: ['cash', 'government', 'equity', 'other'], aliases: ['collateraltype', 'säkerhetstyp'] },
+  notes:       { type: 'text', en: 'Notes', aliases: ['notes', 'comment', 'comments', 'anteckning', 'anteckningar', 'kommentar'] }
 };
 
 export const OPTION_LABELS = {
-  call: { en: 'Call', sv: 'Köp (call)' }, put: { en: 'Put', sv: 'Sälj (put)' },
-  equity: { en: 'Equity', sv: 'Aktier' }, rates: { en: 'Interest rates', sv: 'Räntor' }, commodity: { en: 'Commodity', sv: 'Råvara' },
-  fx: { en: 'Currency', sv: 'Valuta' }, credit: { en: 'Credit', sv: 'Kredit' }, volatility: { en: 'Volatility (VIX, VSTOXX)', sv: 'Volatilitet (VIX, VSTOXX)' },
-  bullet: { en: 'Bullet (repaid at maturity)', sv: 'Rak (återbetalas vid förfall)' }, amortising: { en: 'Amortising (ABS, MBS, CLO)', sv: 'Amorterande (ABS, MBS, CLO)' },
-  european: { en: 'European', sv: 'Europeisk' }, american: { en: 'American', sv: 'Amerikansk' },
-  normal: { en: 'Normal (bp, Bachelier)', sv: 'Normal (bp, Bachelier)' }, lognormal: { en: 'Lognormal (%, Black)', sv: 'Lognormal (%, Black)' },
-  payer: { en: 'Payer (right to pay fixed)', sv: 'Betalare (rätt att betala fast)' }, receiver: { en: 'Receiver (right to receive fixed)', sv: 'Mottagare (rätt att erhålla fast)' },
-  cap: { en: 'Cap', sv: 'Räntetak' }, floor: { en: 'Floor', sv: 'Räntegolv' }, barrier: { en: 'Barrier', sv: 'Barriär' }, digital: { en: 'Digital (cash-or-nothing)', sv: 'Digital (kontant eller inget)' },
-  'down-and-out': { en: 'Down-and-out', sv: 'Ned-och-ut' }, 'down-and-in': { en: 'Down-and-in', sv: 'Ned-och-in' }, 'up-and-out': { en: 'Up-and-out', sv: 'Upp-och-ut' }, 'up-and-in': { en: 'Up-and-in', sv: 'Upp-och-in' },
-  leverage: { en: 'Daily leverage (bull/bear)', sv: 'Daglig hävstång (bull/bear)' }, knock_out: { en: 'Knock-out (mini future, turbo)', sv: 'Knock-out (mini future, turbo)' },
-  protected: { en: 'Capital protected', sv: 'Kapitalskyddad' }, tracker: { en: 'Tracker', sv: 'Tracker' },
-  government: { en: 'Government bonds', sv: 'Statsobligationer' }, other: { en: 'Other', sv: 'Övrigt' },
-  premium: { en: 'Premium paid up front', sv: 'Premie betalas direkt' }, futures: { en: 'Futures-style (margined)', sv: 'Terminsstil (marginalavräknas)' },
-  receive: { en: 'Receive fixed', sv: 'Erhåll fast' }, pay: { en: 'Pay fixed', sv: 'Betala fast' },
-  buy: { en: 'Buy protection', sv: 'Köp skydd' }, sell: { en: 'Sell protection', sv: 'Sälj skydd' },
-  fixed_income: { en: 'Fixed income', sv: 'Räntebärande' }, money_market: { en: 'Money market', sv: 'Penningmarknad' },
-  mixed: { en: 'Multi-asset', sv: 'Blandat' }, alternative: { en: 'Alternative', sv: 'Alternativ' },
-  private_equity: { en: 'Private equity', sv: 'Onoterat (PE)' }, real_estate: { en: 'Real estate', sv: 'Fastigheter' },
-  hedge_fund: { en: 'Hedge fund', sv: 'Hedgefond' }, infrastructure: { en: 'Infrastructure', sv: 'Infrastruktur' },
-  private_credit: { en: 'Private credit', sv: 'Direktlån' }, crypto: { en: 'Crypto asset', sv: 'Kryptotillgång' }, other: { en: 'Other', sv: 'Övrigt' },
-  '1': { en: 'Annual', sv: 'Årlig' }, '2': { en: 'Semi-annual', sv: 'Halvårs' }, '4': { en: 'Quarterly', sv: 'Kvartal' }, '12': { en: 'Monthly', sv: 'Månad' }
+  call: { en: 'Call' }, put: { en: 'Put' },
+  equity: { en: 'Equity' }, rates: { en: 'Interest rates' }, commodity: { en: 'Commodity' },
+  fx: { en: 'Currency' }, credit: { en: 'Credit' }, volatility: { en: 'Volatility (VIX, VSTOXX)' },
+  bullet: { en: 'Bullet (repaid at maturity)' }, amortising: { en: 'Amortising (ABS, MBS, CLO)' },
+  european: { en: 'European' }, american: { en: 'American' },
+  normal: { en: 'Normal (bp, Bachelier)' }, lognormal: { en: 'Lognormal (%, Black)' },
+  payer: { en: 'Payer (right to pay fixed)' }, receiver: { en: 'Receiver (right to receive fixed)' },
+  cap: { en: 'Cap' }, floor: { en: 'Floor' }, barrier: { en: 'Barrier' }, digital: { en: 'Digital (cash-or-nothing)' },
+  'down-and-out': { en: 'Down-and-out' }, 'down-and-in': { en: 'Down-and-in' }, 'up-and-out': { en: 'Up-and-out' }, 'up-and-in': { en: 'Up-and-in' },
+  leverage: { en: 'Daily leverage (bull/bear)' }, knock_out: { en: 'Knock-out (mini future, turbo)' },
+  protected: { en: 'Capital protected' }, tracker: { en: 'Tracker' },
+  government: { en: 'Government bonds' }, other: { en: 'Other' },
+  premium: { en: 'Premium paid up front' }, futures: { en: 'Futures-style (margined)' },
+  receive: { en: 'Receive fixed' }, pay: { en: 'Pay fixed' },
+  buy: { en: 'Buy protection' }, sell: { en: 'Sell protection' },
+  fixed_income: { en: 'Fixed income' }, money_market: { en: 'Money market' },
+  mixed: { en: 'Multi-asset' }, alternative: { en: 'Alternative' },
+  private_equity: { en: 'Private equity' }, real_estate: { en: 'Real estate' },
+  hedge_fund: { en: 'Hedge fund' }, infrastructure: { en: 'Infrastructure' },
+  private_credit: { en: 'Private credit' }, crypto: { en: 'Crypto asset' }, other: { en: 'Other' },
+  '1': { en: 'Annual' }, '2': { en: 'Semi-annual' }, '4': { en: 'Quarterly' }, '12': { en: 'Monthly' }
+};
+// Swedish option names a file may use (the labels above are what the platform shows).
+export const OPTION_ALIASES = {
+  '1': ['Årlig'], '2': ['Halvårs'], '4': ['Kvartal'], '12': ['Månad'], call: ['Köp (call)'], put: ['Sälj (put)'], equity: ['Aktier'], rates: ['Räntor'], commodity: ['Råvara'], fx: ['Valuta'], credit: ['Kredit'], volatility: ['Volatilitet (VIX, VSTOXX)'], bullet: ['Rak (återbetalas vid förfall)'], amortising: ['Amorterande (ABS, MBS, CLO)'], european: ['Europeisk'], american: ['Amerikansk'], payer: ['Betalare (rätt att betala fast)'], receiver: ['Mottagare (rätt att erhålla fast)'], cap: ['Räntetak'], floor: ['Räntegolv'], barrier: ['Barriär'], digital: ['Digital (kontant eller inget)'], 'down-and-out': ['Ned-och-ut'], 'down-and-in': ['Ned-och-in'], 'up-and-out': ['Upp-och-ut'], 'up-and-in': ['Upp-och-in'], leverage: ['Daglig hävstång (bull/bear)'], protected: ['Kapitalskyddad'], government: ['Statsobligationer'], other: ['Övrigt'], premium: ['Premie betalas direkt'], futures: ['Terminsstil (marginalavräknas)'], receive: ['Erhåll fast'], pay: ['Betala fast'], buy: ['Köp skydd'], sell: ['Sälj skydd'], fixed_income: ['Räntebärande'], money_market: ['Penningmarknad'], mixed: ['Blandat'], alternative: ['Alternativ'], private_equity: ['Onoterat (PE)'], real_estate: ['Fastigheter'], hedge_fund: ['Hedgefond'], infrastructure: ['Infrastruktur'], private_credit: ['Direktlån'], crypto: ['Kryptotillgång']
+};
+// Swedish asset class and region names in benchmark files.
+export const SEGMENT_ALIASES = {
+  assetClass: { equity: ['Aktier'], fixed_income: ['Räntebärande'], money_market: ['Penningmarknad'], cash: ['Likvida medel'], commodity: ['Råvaror'], currency: ['Valuta'], alternative: ['Alternativa'], mixed: ['Blandat'] },
+  region: { nordics: ['Norden'], europe: ['Europa exkl. Norden'], north_america: ['Nordamerika'], asia_pacific: ['Asien-Stillahavsområdet'], emerging: ['Tillväxtmarknader'], other: ['Övrigt / okänt'] }
 };
 
 // ---- shared risk building blocks --------------------------------------------------------------
@@ -268,8 +277,8 @@ const CLASSIFY = ['sector', 'country'];
 // ---- the registry ------------------------------------------------------------------------------
 export const INSTRUMENTS = {
   equity: {
-    en: 'Equity', sv: 'Aktie', group: 'securities', icon: 'EQ',
-    hint: { en: 'Listed shares. Quantity in shares, price per share.', sv: 'Noterade aktier. Antal aktier, kurs per aktie.' },
+    en: 'Equity', group: 'securities', icon: 'EQ',
+    hint: { en: 'Listed shares. Quantity in shares, price per share.' },
     fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', ...CLASSIFY, 'beta', 'adv', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'ccy'],
     defaults: { beta: 1 },
@@ -284,8 +293,8 @@ export const INSTRUMENTS = {
   },
 
   etf: {
-    en: 'ETF', sv: 'ETF (börshandlad fond)', group: 'funds', icon: 'ETF',
-    hint: { en: 'Set the look-through class so an equity ETF is treated as equity risk and a bond ETF as duration.', sv: 'Ange genomlyst tillgångsslag så att en aktie-ETF behandlas som aktierisk och en ränte-ETF som duration.' },
+    en: 'ETF', group: 'funds', icon: 'ETF',
+    hint: { en: 'Set the look-through class so an equity ETF is treated as equity risk and a bond ETF as duration.' },
     fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', 'subClass', 'equityShare', 'duration', 'leverage', 'beta', ...CLASSIFY, 'adv', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'ccy', 'subClass'],
     defaults: { subClass: 'equity', beta: 1 },
@@ -293,8 +302,8 @@ export const INSTRUMENTS = {
   },
 
   fund: {
-    en: 'Mutual fund', sv: 'Fond (UCITS/AIF)', group: 'funds', icon: 'FND',
-    hint: { en: 'Units × NAV. Redemption settles in a few days, so liquidity defaults to 3 days.', sv: 'Andelar × NAV-kurs. Inlösen tar några dagar, så likviditet sätts som standard till 3 dagar.' },
+    en: 'Mutual fund', group: 'funds', icon: 'FND',
+    hint: { en: 'Units × NAV. Redemption settles in a few days, so liquidity defaults to 3 days.' },
     fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', 'subClass', 'equityShare', 'duration', 'beta', 'liquidityDays', ...CLASSIFY, 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'ccy', 'subClass'],
     defaults: { subClass: 'mixed', equityShare: 50, liquidityDays: 3, beta: 1 },
@@ -302,45 +311,45 @@ export const INSTRUMENTS = {
   },
 
   govt_bond: {
-    en: 'Government bond', sv: 'Statsobligation', group: 'fixed_income', icon: 'GOV',
-    hint: { en: 'Quantity = nominal amount. Price = clean price in % of par. Give yield instead of price if that is what you have.', sv: 'Antal = nominellt belopp. Kurs = ren kurs i % av nominellt. Ange avkastning i stället för kurs om det är vad du har.' },
+    en: 'Government bond', group: 'fixed_income', icon: 'GOV',
+    hint: { en: 'Quantity = nominal amount. Price = clean price in % of par. Give yield instead of price if that is what you have.' },
     fields: [...COMMON, 'qty', 'price', 'dirtyPrice', 'costPrice', 'yield', 'ccy', 'coupon', 'freq', 'maturity', 'rating', 'country', 'strategy', 'notes'],
     required: ['name', 'qty', 'ccy', 'maturity'],
     requireOneOf: [['price', 'dirtyPrice', 'yield']],
     defaults: { freq: '1', rating: 'AAA', coupon: 0 },
-    labels: { qty: { en: 'Nominal', sv: 'Nominellt belopp' }, price: { en: 'Clean price %', sv: 'Ren kurs %' } },
+    labels: { qty: { en: 'Nominal' }, price: { en: 'Clean price %' } },
     risk(p, ctx) { return bondRisk(p, ctx, { government: true }); }
   },
 
   corp_bond: {
-    en: 'Corporate bond', sv: 'Företagsobligation', group: 'fixed_income', icon: 'CRP',
-    hint: { en: 'Fixed-coupon credit. Carries both rate duration and spread duration.', sv: 'Kreditobligation med fast kupong. Bär både ränte- och spreadduration.' },
+    en: 'Corporate bond', group: 'fixed_income', icon: 'CRP',
+    hint: { en: 'Fixed-coupon credit. Carries both rate duration and spread duration.' },
     fields: [...COMMON, 'qty', 'price', 'dirtyPrice', 'costPrice', 'yield', 'ccy', 'coupon', 'freq', 'maturity', 'callDate', 'callPrice', 'structure', 'cpr', 'poolFactor', 'rating', ...CLASSIFY, 'adv', 'strategy', 'notes'],
     required: ['name', 'issuer', 'qty', 'ccy'],
     requireOneOf: [['price', 'dirtyPrice', 'yield'], ['maturity', 'callDate']],
     defaults: { freq: '1' },
-    labels: { qty: { en: 'Nominal', sv: 'Nominellt belopp' }, price: { en: 'Clean price %', sv: 'Ren kurs %' } },
+    labels: { qty: { en: 'Nominal' }, price: { en: 'Clean price %' } },
     risk(p, ctx) { return bondRisk(p, ctx); }
   },
 
   frn: {
-    en: 'Floating rate note', sv: 'FRN (rörlig kupong)', group: 'fixed_income', icon: 'FRN',
-    hint: { en: 'Coupon = current fixing + margin. Rate duration is time to next reset; spread duration runs to maturity. Typical for Nordic credit funds.', sv: 'Kupong = aktuell fixing + marginal. Räntedurationen är tid till nästa räntesättning; kreditdurationen löper till förfall. Vanligt i nordiska kreditfonder.' },
+    en: 'Floating rate note', group: 'fixed_income', icon: 'FRN',
+    hint: { en: 'Coupon = current fixing + margin. Rate duration is time to next reset; spread duration runs to maturity. Typical for Nordic credit funds.' },
     fields: [...COMMON, 'qty', 'price', 'dirtyPrice', 'costPrice', 'yield', 'ccy', 'coupon', 'spread', 'freq', 'maturity', 'callDate', 'callPrice', 'structure', 'cpr', 'poolFactor', 'rating', ...CLASSIFY, 'strategy', 'notes'],
     required: ['name', 'issuer', 'qty', 'ccy'],
     requireOneOf: [['price', 'dirtyPrice'], ['maturity', 'callDate']],
     defaults: { freq: '4' },
-    labels: { qty: { en: 'Nominal', sv: 'Nominellt belopp' }, price: { en: 'Clean price %', sv: 'Ren kurs %' }, coupon: { en: 'Current coupon %', sv: 'Aktuell kupong %' } },
+    labels: { qty: { en: 'Nominal' }, price: { en: 'Clean price %' }, coupon: { en: 'Current coupon %' } },
     risk(p, ctx) { return bondRisk(p, ctx, { floating: true }); }
   },
 
   money_market: {
-    en: 'Money market / T-bill', sv: 'Penningmarknad / statsskuldväxel', group: 'fixed_income', icon: 'MM',
-    hint: { en: 'Discount paper and certificates under a year. Enter price in % of par or the yield.', sv: 'Diskonteringspapper och certifikat under ett år. Ange kurs i % av nominellt eller avkastningen.' },
+    en: 'Money market / T-bill', group: 'fixed_income', icon: 'MM',
+    hint: { en: 'Discount paper and certificates under a year. Enter price in % of par or the yield.' },
     fields: [...COMMON, 'qty', 'price', 'dirtyPrice', 'costPrice', 'yield', 'ccy', 'maturity', 'rating', 'country', 'strategy', 'notes'],
     required: ['name', 'qty', 'ccy', 'maturity'],
     requireOneOf: [['price', 'dirtyPrice', 'yield']],
-    labels: { qty: { en: 'Nominal', sv: 'Nominellt belopp' }, price: { en: 'Price %', sv: 'Kurs %' } },
+    labels: { qty: { en: 'Nominal' }, price: { en: 'Price %' } },
     risk(p, ctx) {
       const r = bondRisk({ ...p, coupon: 0, freq: 1 }, ctx, { government: !p.issuer || /stat|gov|treas|riksg/i.test(p.issuer) });
       r.assetClass = 'money_market';
@@ -350,12 +359,12 @@ export const INSTRUMENTS = {
   },
 
   cash: {
-    en: 'Cash / deposit', sv: 'Kassa / inlåning', group: 'cash', icon: 'CSH',
-    hint: { en: 'Quantity = amount in the account currency. Negative for overdraft or unsettled payables.', sv: 'Antal = belopp i kontots valuta. Negativt för checkkredit eller ej likviderade skulder.' },
+    en: 'Cash / deposit', group: 'cash', icon: 'CSH',
+    hint: { en: 'Quantity = amount in the account currency. Negative for overdraft or unsettled payables.' },
     fields: ['name', 'qty', 'ccy', 'issuer', 'maturity', 'rate', 'strategy', 'notes'],
     required: ['qty', 'ccy'],
     defaults: { name: 'Cash' },
-    labels: { qty: { en: 'Amount', sv: 'Belopp' }, issuer: { en: 'Bank', sv: 'Bank' }, maturity: { en: 'Maturity (term deposit)', sv: 'Förfall (bunden inlåning)' }, rate: { en: 'Deposit rate %', sv: 'Inlåningsränta %' } },
+    labels: { qty: { en: 'Amount' }, issuer: { en: 'Bank' }, maturity: { en: 'Maturity (term deposit)' }, rate: { en: 'Deposit rate %' } },
     risk(p, ctx) {
       const r = cashLike({ ...p, price: 1 }, ctx, 'cash');
       // A term deposit is only available at maturity (break costs aside).
@@ -366,12 +375,12 @@ export const INSTRUMENTS = {
   },
 
   future: {
-    en: 'Future', sv: 'Termin (future)', group: 'derivatives', icon: 'FUT',
-    hint: { en: 'Contracts × price × multiplier = notional. Daily margined, so market value is ~0 and the notional is the exposure. For bond futures enter the CTD modified duration.', sv: 'Kontrakt × kurs × multiplikator = nominellt värde. Marginalavräknas dagligen, så marknadsvärdet är ~0 och det nominella värdet är exponeringen. För obligationsterminer anges CTD:ns modifierade duration.' },
+    en: 'Future', group: 'derivatives', icon: 'FUT',
+    hint: { en: 'Contracts × price × multiplier = notional. Daily margined, so market value is ~0 and the notional is the exposure. For bond futures enter the CTD modified duration.' },
     fields: [...COMMON, 'qty', 'price', 'multiplier', 'ccy', 'underlyingClass', 'maturity', 'duration', 'beta', 'buyCcy', 'mtm', 'reportedNotional', 'country', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'multiplier', 'ccy', 'underlyingClass'],
     defaults: { multiplier: 1, underlyingClass: 'equity', beta: 1 },
-    labels: { qty: { en: 'Contracts (negative = short)', sv: 'Kontrakt (negativt = kort)' }, buyCcy: { en: 'Currency bought (FX futures)', sv: 'Köpt valuta (valutaterminer)' }, duration: { en: 'Duration (bond futures)', sv: 'Duration (obligationsterminer)' }, mtm: { en: 'Variation margin (unsettled)', sv: 'Ej avräknad variationsmarginal' } },
+    labels: { qty: { en: 'Contracts (negative = short)' }, buyCcy: { en: 'Currency bought (FX futures)' }, duration: { en: 'Duration (bond futures)' }, mtm: { en: 'Variation margin (unsettled)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -416,15 +425,15 @@ export const INSTRUMENTS = {
   },
 
   option: {
-    en: 'Option', sv: 'Option', group: 'derivatives', icon: 'OPT',
-    hint: { en: 'Priced with Black-Scholes-Merton (Black-76 when the underlying is rates or commodity). Leave price empty to use the model value. Delta-adjusted notional counts as exposure. Listed or OTC: for an OTC option put the counterparty in Issuer, and it counts toward the OTC counterparty limit. A market value from your file overrides premium and model.', sv: 'Prissätts med Black-Scholes-Merton (Black-76 för ränte- och råvaruunderliggande). Lämna kurs tom för modellvärde. Deltajusterat nominellt belopp räknas som exponering. Noterad eller OTC: för en OTC-option anger du motparten som emittent, så räknas den mot gränsen för OTC-motparter. Ett marknadsvärde från filen går före premie och modell.' },
+    en: 'Option', group: 'derivatives', icon: 'OPT',
+    hint: { en: 'Priced with Black-Scholes-Merton (Black-76 when the underlying is rates or commodity). Leave price empty to use the model value. Delta-adjusted notional counts as exposure. Listed or OTC: for an OTC option put the counterparty in Issuer, and it counts toward the OTC counterparty limit. A market value from your file overrides premium and model.' },
     fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'costPrice', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'divYield', 'beta', 'duration', 'buyCcy', 'reportedNotional', 'reportedDelta', 'reportedDeltaExposure', 'strategy', 'notes', 'mtm', 'exercise', 'margining'],
     required: ['name', 'qty', 'optType', 'multiplier', 'ccy'],
     // Strike, expiry, spot and vol are needed for the model price and the delta; with a market price
     // (a warrant from a custody file) the position is still valid, and flagged.
     validate: p => (isNum(p.price) || isNum(p.mtm) ? [] : ['strike', 'maturity', 'underlyingPrice', 'vol'].filter(f => !isNum(p[f]) && !p[f]).map(f => ({ field: f, code: 'required' }))),
     defaults: { multiplier: 100, optType: 'call', underlyingClass: 'equity', vol: 20, beta: 1, exercise: 'european', margining: 'premium' },
-    labels: { issuer: { en: 'Counterparty (OTC only)', sv: 'Motpart (endast OTC)' }, mtm: { en: 'Market value (overrides premium)', sv: 'Marknadsvärde (går före premien)' }, qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)', sv: 'Utdelningsyield % (valuta: utländsk ränta)' }, buyCcy: { en: 'Underlying currency (FX options; put = short it)', sv: 'Underliggande valuta (valutaoptioner; put = kort)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
+    labels: { issuer: { en: 'Counterparty (OTC only)' }, mtm: { en: 'Market value (overrides premium)' }, qty: { en: 'Contracts (negative = written)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)' }, buyCcy: { en: 'Underlying currency (FX options; put = short it)' }, duration: { en: 'Underlying duration (rate options)' }, price: { en: 'Premium (optional)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -508,11 +517,11 @@ export const INSTRUMENTS = {
   },
 
   fx_forward: {
-    en: 'FX forward / swap', sv: 'Valutatermin / swap', group: 'derivatives', icon: 'FXF',
-    hint: { en: 'One leg bought, one sold. Typical share-class or portfolio hedge. Value = buy leg − sell leg at spot unless you give a market value.', sv: 'Ett ben köpt, ett sålt. Typisk valutasäkring av andelsklass eller portfölj. Värde = köpben − säljben till spotkurs om du inte anger marknadsvärde.' },
+    en: 'FX forward / swap', group: 'derivatives', icon: 'FXF',
+    hint: { en: 'One leg bought, one sold. Typical share-class or portfolio hedge. Value = buy leg − sell leg at spot unless you give a market value.' },
     fields: ['name', 'buyCcy', 'buyAmount', 'sellCcy', 'sellAmount', 'maturity', 'issuer', 'mtm', 'ccy', 'strategy', 'notes'],
     required: ['buyCcy', 'buyAmount', 'sellCcy', 'sellAmount', 'maturity'],
-    labels: { issuer: { en: 'Counterparty', sv: 'Motpart' }, ccy: { en: 'Currency of MV override', sv: 'Valuta för manuellt värde' } },
+    labels: { issuer: { en: 'Counterparty' }, ccy: { en: 'Currency of MV override' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fb = fxOrWarn(p, ctx, r, p.buyCcy), fs = fxOrWarn(p, ctx, r, p.sellCcy);
@@ -532,12 +541,12 @@ export const INSTRUMENTS = {
   },
 
   irs: {
-    en: 'Interest rate swap', sv: 'Ränteswap', group: 'derivatives', icon: 'IRS',
-    hint: { en: 'Receive fixed adds duration, pay fixed removes it. Value is estimated from the fixed rate vs the current par rate unless you enter a market value.', sv: 'Erhåll fast ger duration, betala fast tar bort den. Värdet uppskattas från fast ränta mot aktuell swapränta om du inte anger marknadsvärde.' },
+    en: 'Interest rate swap', group: 'derivatives', icon: 'IRS',
+    hint: { en: 'Receive fixed adds duration, pay fixed removes it. Value is estimated from the fixed rate vs the current par rate unless you enter a market value.' },
     fields: ['name', 'qty', 'ccy', 'direction', 'fixedRate', 'marketRate', 'freq', 'maturity', 'issuer', 'mtm', 'strategy', 'notes'],
     required: ['qty', 'ccy', 'direction', 'fixedRate', 'marketRate', 'maturity'],
     defaults: { direction: 'receive', freq: '1' },
-    labels: { qty: { en: 'Notional', sv: 'Nominellt belopp' }, issuer: { en: 'Counterparty / CCP', sv: 'Motpart / CCP' } },
+    labels: { qty: { en: 'Notional' }, issuer: { en: 'Counterparty / CCP' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -560,12 +569,12 @@ export const INSTRUMENTS = {
   },
 
   cds: {
-    en: 'Credit default swap', sv: 'Kreditswap (CDS)', group: 'derivatives', icon: 'CDS',
-    hint: { en: 'Selling protection is long credit risk (like owning the bond without the cash). Spread DV01 uses a flat risky annuity.', sv: 'Att sälja skydd är lång kreditrisk (som att äga obligationen utan kapital). Spread-DV01 använder en platt riskjusterad annuitet.' },
+    en: 'Credit default swap', group: 'derivatives', icon: 'CDS',
+    hint: { en: 'Selling protection is long credit risk (like owning the bond without the cash). Spread DV01 uses a flat risky annuity.' },
     fields: ['name', 'issuer', 'qty', 'ccy', 'protection', 'spread', 'marketSpread', 'maturity', 'rating', 'sector', 'country', 'mtm', 'strategy', 'notes'],
     required: ['issuer', 'qty', 'ccy', 'protection', 'spread', 'marketSpread', 'maturity'],
     defaults: { protection: 'sell', spread: 100 },
-    labels: { qty: { en: 'Notional', sv: 'Nominellt belopp' }, spread: { en: 'Contract spread (bp)', sv: 'Kontraktsspread (bp)' } },
+    labels: { qty: { en: 'Notional' }, spread: { en: 'Contract spread (bp)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -589,8 +598,8 @@ export const INSTRUMENTS = {
   },
 
   commodity: {
-    en: 'Commodity / ETC', sv: 'Råvara / ETC', group: 'securities', icon: 'CMD',
-    hint: { en: 'Physical holdings or exchange-traded commodities. For futures use the Future type.', sv: 'Fysiska innehav eller börshandlade råvaror. Använd typen Termin för terminer.' },
+    en: 'Commodity / ETC', group: 'securities', icon: 'CMD',
+    hint: { en: 'Physical holdings or exchange-traded commodities. For futures use the Future type.' },
     fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', 'sector', 'adv', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'ccy'],
     risk(p, ctx) {
@@ -604,12 +613,12 @@ export const INSTRUMENTS = {
   },
 
   alternative: {
-    en: 'Alternative / unlisted', sv: 'Alternativ / onoterat', group: 'securities', icon: 'ALT',
-    hint: { en: 'Private equity, real estate, hedge funds, private credit, crypto. Valued at the last reported NAV; liquidity from the notice period.', sv: 'Onoterat, fastigheter, hedgefonder, direktlån, krypto. Värderas till senast rapporterade NAV; likviditet från uppsägningstiden.' },
+    en: 'Alternative / unlisted', group: 'securities', icon: 'ALT',
+    hint: { en: 'Private equity, real estate, hedge funds, private credit, crypto. Valued at the last reported NAV; liquidity from the notice period.' },
     fields: [...COMMON, 'altType', 'qty', 'price', 'costPrice', 'ccy', 'liquidityDays', 'beta', ...CLASSIFY, 'strategy', 'notes'],
     required: ['name', 'altType', 'qty', 'price', 'ccy'],
     defaults: { altType: 'private_equity', qty: 1 },
-    labels: { price: { en: 'Valuation / NAV', sv: 'Värdering / NAV' } },
+    labels: { price: { en: 'Valuation / NAV' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -627,13 +636,13 @@ export const INSTRUMENTS = {
   },
 
   inflation_linked: {
-    en: 'Inflation-linked bond', sv: 'Realränteobligation', group: 'fixed_income', icon: 'ILB',
-    hint: { en: 'Linkers (Swedish real-rate bonds, OAT€i, BTP€i, Bund€i, index-linked gilts, TIPS). Price, yield and coupon are real; the index ratio (reference CPI ÷ base CPI) turns them into money. Without it the value is understated.', sv: 'Realränteobligationer (svenska, OAT€i, BTP€i, Bund€i, index-linked gilts, TIPS). Kurs, avkastning och kupong är reala; indexkvoten (referens-KPI ÷ bas-KPI) räknar om dem till pengar. Utan den blir värdet för lågt.' },
+    en: 'Inflation-linked bond', group: 'fixed_income', icon: 'ILB',
+    hint: { en: 'Linkers (Swedish real-rate bonds, OAT€i, BTP€i, Bund€i, index-linked gilts, TIPS). Price, yield and coupon are real; the index ratio (reference CPI ÷ base CPI) turns them into money. Without it the value is understated.' },
     fields: [...COMMON, 'qty', 'price', 'dirtyPrice', 'costPrice', 'yield', 'indexRatio', 'ccy', 'coupon', 'freq', 'maturity', 'rating', 'country', 'strategy', 'notes'],
     required: ['name', 'qty', 'ccy', 'maturity', 'indexRatio'],
     requireOneOf: [['price', 'dirtyPrice', 'yield']],
     defaults: { freq: '1', rating: 'AAA' },
-    labels: { qty: { en: 'Nominal (unindexed)', sv: 'Nominellt belopp (ej uppräknat)' }, price: { en: 'Real clean price %', sv: 'Real ren kurs %' }, yield: { en: 'Real yield %', sv: 'Real avkastning %' } },
+    labels: { qty: { en: 'Nominal (unindexed)' }, price: { en: 'Real clean price %' }, yield: { en: 'Real yield %' } },
     risk(p, ctx) {
       const govt = !p.issuer || /(govern|treasur|stat|riksg|kingdom|republic|bund|federal|france|italy|uk|debt management)/i.test(p.issuer);
       return bondRisk(p, ctx, { government: govt, indexLinked: true });
@@ -641,13 +650,13 @@ export const INSTRUMENTS = {
   },
 
   convertible: {
-    en: 'Convertible bond', sv: 'Konvertibel', group: 'fixed_income', icon: 'CB',
-    hint: { en: 'A bond that converts into shares. Valued at its market price; the equity delta (0–1, or %) splits the risk between the shares and the bond floor. Without a delta, 0.5 is assumed and flagged.', sv: 'En obligation som kan konverteras till aktier. Värderas till marknadskurs; aktiedeltat (0–1 eller %) delar risken mellan aktien och obligationsgolvet. Utan delta antas 0,5 och flaggas.' },
+    en: 'Convertible bond', group: 'fixed_income', icon: 'CB',
+    hint: { en: 'A bond that converts into shares. Valued at its market price; the equity delta (0–1, or %) splits the risk between the shares and the bond floor. Without a delta, 0.5 is assumed and flagged.' },
     fields: [...COMMON, 'qty', 'price', 'dirtyPrice', 'costPrice', 'yield', 'ccy', 'coupon', 'freq', 'maturity', 'callDate', 'callPrice', 'reportedDelta', 'beta', 'rating', ...CLASSIFY, 'adv', 'strategy', 'notes'],
     required: ['name', 'issuer', 'qty', 'ccy', 'maturity'],
     requireOneOf: [['price', 'dirtyPrice']],
     defaults: { freq: '1' },
-    labels: { qty: { en: 'Nominal', sv: 'Nominellt belopp' }, price: { en: 'Clean price %', sv: 'Ren kurs %' }, reportedDelta: { en: 'Equity delta (0–1)', sv: 'Aktiedelta (0–1)' } },
+    labels: { qty: { en: 'Nominal' }, price: { en: 'Clean price %' }, reportedDelta: { en: 'Equity delta (0–1)' } },
     risk(p, ctx) {
       const r = bondRisk(p, ctx);
       const d = isNum(p.reportedDelta) ? normDelta(p.reportedDelta) : 0.5;
@@ -662,12 +671,12 @@ export const INSTRUMENTS = {
   },
 
   certificate: {
-    en: 'Certificate / structured product', sv: 'Certifikat / strukturerad produkt', group: 'securities', icon: 'CRT',
-    hint: { en: 'Exchange-traded certificates and structured products: bull/bear, mini futures, turbos, trackers, bonus certificates, autocalls, capital-protected notes. Value = quantity × price; exposure = value × leverage (negative for bear). For autocalls and other payoffs without a model here, put the issuer’s delta in Leverage. “BULL OMX X5” style names give the leverage if the column is empty. The issuer carries the credit risk.', sv: 'Börshandlade certifikat och strukturerade produkter: bull/bear, minilong/minishort, turbos, trackers, bonuscertifikat, autocalls, kapitalskyddade placeringar. Värde = antal × kurs; exponering = värde × hävstång (negativ för bear). Namn som ”BULL OMX X5” ger hävstången om kolumnen saknas. Emittenten bär kreditrisken.' },
+    en: 'Certificate / structured product', group: 'securities', icon: 'CRT',
+    hint: { en: 'Exchange-traded certificates and structured products: bull/bear, mini futures, turbos, trackers, bonus certificates, autocalls, capital-protected notes. Value = quantity × price; exposure = value × leverage (negative for bear). For autocalls and other payoffs without a model here, put the issuer’s delta in Leverage. “BULL OMX X5” style names give the leverage if the column is empty. The issuer carries the credit risk.' },
     fields: [...COMMON, 'qty', 'price', 'costPrice', 'ccy', 'certType', 'leverage', 'underlyingClass', 'underlyingPrice', 'strike', 'barrier', 'multiplier', 'optType', 'vol', 'rate', 'divYield', 'duration', 'maturity', 'beta', ...CLASSIFY, 'adv', 'strategy', 'notes'],
     required: ['name', 'qty', 'price', 'ccy'],
     defaults: { underlyingClass: 'equity' },
-    labels: { issuer: { en: 'Issuer (credit risk)', sv: 'Emittent (kreditrisk)' } },
+    labels: { issuer: { en: 'Issuer (credit risk)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -712,13 +721,13 @@ export const INSTRUMENTS = {
   },
 
   equity_swap: {
-    en: 'Equity swap / CFD / TRS', sv: 'Aktieswap / CFD / TRS', group: 'derivatives', icon: 'EQS',
-    hint: { en: 'Contracts for difference, total return swaps, portfolio and equity swaps. Market value is the unrealised result (the MTM), not the size: exposure = quantity × underlying price. Negative quantity = short. Counterparty in Issuer counts toward the OTC counterparty limit.', sv: 'CFD:er, totalavkastningsswappar, portfölj- och aktieswappar. Marknadsvärdet är det orealiserade resultatet (MTM), inte storleken: exponering = antal × underliggande kurs. Negativt antal = kort. Motpart som emittent räknas mot gränsen för OTC-motparter.' },
+    en: 'Equity swap / CFD / TRS', group: 'derivatives', icon: 'EQS',
+    hint: { en: 'Contracts for difference, total return swaps, portfolio and equity swaps. Market value is the unrealised result (the MTM), not the size: exposure = quantity × underlying price. Negative quantity = short. Counterparty in Issuer counts toward the OTC counterparty limit.' },
     fields: ['name', 'ticker', 'isin', 'issuer', 'qty', 'underlyingPrice', 'price', 'mtm', 'costPrice', 'ccy', 'underlyingClass', 'duration', 'maturity', 'beta', 'reportedNotional', ...CLASSIFY, 'strategy', 'notes'],
     required: ['name', 'qty', 'ccy'],
     requireOneOf: [['underlyingPrice', 'price', 'reportedNotional']],
     defaults: { underlyingClass: 'equity' },
-    labels: { qty: { en: 'Shares / units (negative = short)', sv: 'Antal (negativt = kort)' }, issuer: { en: 'Counterparty', sv: 'Motpart' }, price: { en: 'Underlying price', sv: 'Underliggande kurs' }, mtm: { en: 'Market value (unrealised P&L)', sv: 'Marknadsvärde (orealiserat resultat)' } },
+    labels: { qty: { en: 'Shares / units (negative = short)' }, issuer: { en: 'Counterparty' }, price: { en: 'Underlying price' }, mtm: { en: 'Market value (unrealised P&L)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -743,11 +752,11 @@ export const INSTRUMENTS = {
   },
 
   ccs: {
-    en: 'Cross-currency swap', sv: 'Valutaränteswap (CCS)', group: 'derivatives', icon: 'CCS',
-    hint: { en: 'Exchanges interest and principal in two currencies. Enter the leg received (buy) and the leg paid (sell). Give the counterparty’s MTM; without it the value is the final exchange at spot and is flagged. A fixed rate makes the legs carry rate risk; floating legs have almost none.', sv: 'Byter ränta och kapital i två valutor. Ange benet du erhåller (köp) och benet du betalar (sälj). Ange motpartens marknadsvärde; utan det värderas slutväxlingen till spot och flaggas. En fast ränta ger benen ränterisk; rörliga ben har nästan ingen.' },
+    en: 'Cross-currency swap', group: 'derivatives', icon: 'CCS',
+    hint: { en: 'Exchanges interest and principal in two currencies. Enter the leg received (buy) and the leg paid (sell). Give the counterparty’s MTM; without it the value is the final exchange at spot and is flagged. A fixed rate makes the legs carry rate risk; floating legs have almost none.' },
     fields: ['name', 'issuer', 'buyCcy', 'buyAmount', 'sellCcy', 'sellAmount', 'fixedRate', 'marketRate', 'maturity', 'mtm', 'ccy', 'strategy', 'notes'],
     required: ['buyCcy', 'buyAmount', 'sellCcy', 'sellAmount', 'maturity'],
-    labels: { issuer: { en: 'Counterparty', sv: 'Motpart' }, buyAmount: { en: 'Notional received', sv: 'Nominellt belopp som erhålls' }, sellAmount: { en: 'Notional paid', sv: 'Nominellt belopp som betalas' }, fixedRate: { en: 'Fixed rate % (fixed legs)', sv: 'Fast ränta % (fasta ben)' }, ccy: { en: 'Currency of the MTM', sv: 'Valuta för marknadsvärdet' } },
+    labels: { issuer: { en: 'Counterparty' }, buyAmount: { en: 'Notional received' }, sellAmount: { en: 'Notional paid' }, fixedRate: { en: 'Fixed rate % (fixed legs)' }, ccy: { en: 'Currency of the MTM' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fb = fxOrWarn(p, ctx, r, p.buyCcy), fs = fxOrWarn(p, ctx, r, p.sellCcy);
@@ -769,12 +778,12 @@ export const INSTRUMENTS = {
   },
 
   repo: {
-    en: 'Repo / reverse repo', sv: 'Repa / omvänd repa', group: 'cash', icon: 'REP',
-    hint: { en: 'Collateralised cash. Positive amount = reverse repo (cash lent against collateral); negative = repo (cash borrowed, which is leverage). Available at maturity; open repos count as next-day.', sv: 'Kontanter mot säkerhet. Positivt belopp = omvänd repa (utlånade kontanter mot säkerhet); negativt = repa (lånade kontanter, alltså hävstång). Tillgängligt vid förfall; öppna repor räknas som nästa dag.' },
+    en: 'Repo / reverse repo', group: 'cash', icon: 'REP',
+    hint: { en: 'Collateralised cash. Positive amount = reverse repo (cash lent against collateral); negative = repo (cash borrowed, which is leverage). Available at maturity; open repos count as next-day.' },
     fields: ['name', 'issuer', 'qty', 'ccy', 'rate', 'maturity', 'collateralValue', 'haircut', 'collateralType', 'strategy', 'notes'],
     required: ['qty', 'ccy'],
     defaults: { name: 'Repo', collateralType: 'government' },
-    labels: { qty: { en: 'Cash amount (+ lent, − borrowed)', sv: 'Belopp (+ utlånat, − lånat)' }, issuer: { en: 'Counterparty', sv: 'Motpart' }, rate: { en: 'Repo rate %', sv: 'Reporänta %' } },
+    labels: { qty: { en: 'Cash amount (+ lent, − borrowed)' }, issuer: { en: 'Counterparty' }, rate: { en: 'Repo rate %' } },
     risk(p, ctx) {
       const r = cashLike({ ...p, price: 1 }, ctx, 'money_market');
       const days = p.maturity ? Math.ceil(yearsBetween(ctx.valDate, p.maturity) * 365) : 1;
@@ -791,12 +800,12 @@ export const INSTRUMENTS = {
   },
 
   otc: {
-    en: 'Other OTC derivative (MTM)', sv: 'Övrigt OTC-derivat (marknadsvärde)', group: 'derivatives', icon: 'OTC',
-    hint: { en: 'Only for what the platform has no model for: Asian, lookback, cliquet, basket, rainbow and quanto options, variance, volatility, correlation and commodity swaps. The market value must come from the counterparty, and the risk is only as good as the delta, duration or vega you give. Swaptions, caps/floors, inflation swaps, variance swaps, barriers and digitals have their own types with models. Exposure (commitment) is the notional.', sv: 'Bara för det plattformen saknar modell för: asiatiska, lookback-, cliquet-, korg-, regnbågs- och quantooptioner, korrelations- och råvaruswappar. Marknadsvärdet måste komma från motparten, och risken blir aldrig bättre än det delta, den duration eller vega du anger. Swaptioner, räntetak/-golv, inflationsswappar, variansswappar, barriär- och digitaloptioner har egna typer med modeller. Exponeringen (åtagandet) är det nominella beloppet.' },
+    en: 'Other OTC derivative (MTM)', group: 'derivatives', icon: 'OTC',
+    hint: { en: 'Only for what the platform has no model for: Asian, lookback, cliquet, basket, rainbow and quanto options, variance, volatility, correlation and commodity swaps. The market value must come from the counterparty, and the risk is only as good as the delta, duration or vega you give. Swaptions, caps/floors, inflation swaps, variance swaps, barriers and digitals have their own types with models. Exposure (commitment) is the notional.' },
     fields: ['name', 'issuer', 'qty', 'ccy', 'mtm', 'underlyingClass', 'reportedDelta', 'duration', 'vega', 'maturity', 'beta', 'strategy', 'notes'],
     required: ['name', 'qty', 'ccy', 'mtm', 'underlyingClass'],
     defaults: { underlyingClass: 'rates' },
-    labels: { qty: { en: 'Notional', sv: 'Nominellt belopp' }, issuer: { en: 'Counterparty', sv: 'Motpart' }, mtm: { en: 'Market value (from counterparty)', sv: 'Marknadsvärde (från motpart)' }, reportedDelta: { en: 'Delta (0–1, sign = direction)', sv: 'Delta (0–1, tecken = riktning)' } },
+    labels: { qty: { en: 'Notional' }, issuer: { en: 'Counterparty' }, mtm: { en: 'Market value (from counterparty)' }, reportedDelta: { en: 'Delta (0–1, sign = direction)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -818,36 +827,36 @@ export const INSTRUMENTS = {
   },
 
   swaption: {
-    en: 'Swaption', sv: 'Swaption', group: 'derivatives', icon: 'SWO',
-    hint: { en: 'Option to enter an interest rate swap. Bachelier (normal vol in bp, the euro-market quote) or Black (lognormal %). Forward swap rate as the market rate; the counterparty’s MTM, if given, is used as the value. Negative quantity = sold.', sv: 'Option att ingå en ränteswap. Bachelier (normalvol i bp, eurmarknadens kvotering) eller Black (lognormal %). Terminsswapräntan som marknadsränta; motpartens marknadsvärde, om det anges, används som värde. Negativt belopp = såld.' },
+    en: 'Swaption', group: 'derivatives', icon: 'SWO',
+    hint: { en: 'Option to enter an interest rate swap. Bachelier (normal vol in bp, the euro-market quote) or Black (lognormal %). Forward swap rate as the market rate; the counterparty’s MTM, if given, is used as the value. Negative quantity = sold.' },
     fields: ['name', 'issuer', 'qty', 'ccy', 'payerReceiver', 'strike', 'maturity', 'tenor', 'marketRate', 'vol', 'volType', 'freq', 'mtm', 'strategy', 'notes'],
     required: ['qty', 'ccy', 'payerReceiver', 'strike', 'maturity', 'tenor', 'marketRate', 'vol'],
     defaults: { payerReceiver: 'payer', volType: 'normal', freq: '1' },
-    labels: { qty: { en: 'Notional (negative = sold)', sv: 'Nominellt belopp (negativt = såld)' }, issuer: { en: 'Counterparty', sv: 'Motpart' }, strike: { en: 'Strike rate %', sv: 'Lösenränta %' }, maturity: { en: 'Option expiry', sv: 'Optionens förfall' }, marketRate: { en: 'Forward swap rate %', sv: 'Terminsswapränta %' }, vol: { en: 'Implied vol (bp normal / % lognormal)', sv: 'Implicit vol (bp normal / % lognormal)' } },
+    labels: { qty: { en: 'Notional (negative = sold)' }, issuer: { en: 'Counterparty' }, strike: { en: 'Strike rate %' }, maturity: { en: 'Option expiry' }, marketRate: { en: 'Forward swap rate %' }, vol: { en: 'Implied vol (bp normal / % lognormal)' } },
     risk(p, ctx) { return rateOptionRisk(p, ctx, 'swaption'); },
     stressPnl(p, ctx, s) { return rateOptionStress(p, ctx, s, 'swaption'); },
     displayName: p => p.name || `${p.payerReceiver === 'receiver' ? 'Receiver' : 'Payer'} ${num(p.strike).toFixed(2)}% ${p.maturity || ''}×${p.tenor || ''}y`
   },
 
   cap_floor: {
-    en: 'Cap / floor', sv: 'Räntetak / räntegolv', group: 'derivatives', icon: 'CAP',
-    hint: { en: 'Strip of options on the floating rate (caplets or floorlets), valued like a swaption on a flat forward. The first period is already fixed and left out.', sv: 'En serie optioner på den rörliga räntan (caplets eller floorlets), värderade som swaptioner på en platt terminsränta. Första perioden är redan fixerad och utelämnas.' },
+    en: 'Cap / floor', group: 'derivatives', icon: 'CAP',
+    hint: { en: 'Strip of options on the floating rate (caplets or floorlets), valued like a swaption on a flat forward. The first period is already fixed and left out.' },
     fields: ['name', 'issuer', 'qty', 'ccy', 'capFloor', 'strike', 'startDate', 'maturity', 'marketRate', 'vol', 'volType', 'freq', 'mtm', 'strategy', 'notes'],
     required: ['qty', 'ccy', 'capFloor', 'strike', 'maturity', 'marketRate', 'vol'],
     defaults: { capFloor: 'cap', volType: 'normal', freq: '4' },
-    labels: { qty: { en: 'Notional (negative = sold)', sv: 'Nominellt belopp (negativt = såld)' }, issuer: { en: 'Counterparty', sv: 'Motpart' }, strike: { en: 'Strike rate %', sv: 'Lösenränta %' }, marketRate: { en: 'Forward rate %', sv: 'Terminsränta %' }, vol: { en: 'Implied vol (bp normal / % lognormal)', sv: 'Implicit vol (bp normal / % lognormal)' } },
+    labels: { qty: { en: 'Notional (negative = sold)' }, issuer: { en: 'Counterparty' }, strike: { en: 'Strike rate %' }, marketRate: { en: 'Forward rate %' }, vol: { en: 'Implied vol (bp normal / % lognormal)' } },
     risk(p, ctx) { return rateOptionRisk(p, ctx, 'cap'); },
     stressPnl(p, ctx, s) { return rateOptionStress(p, ctx, s, 'cap'); },
     displayName: p => p.name || `${p.capFloor === 'floor' ? 'Floor' : 'Cap'} ${num(p.strike).toFixed(2)}% ${p.maturity || ''}`
   },
 
   inflation_swap: {
-    en: 'Inflation swap', sv: 'Inflationsswap', group: 'derivatives', icon: 'INF',
-    hint: { en: 'Zero-coupon inflation swap: at maturity one side pays the compounded fixed rate, the other the realised inflation. Valued from the market breakeven; its risk is breakeven inflation (a factor of its own) and, a little, nominal rates.', sv: 'Nollkupongs-inflationsswap: vid förfall betalar ena sidan den ackumulerade fasta räntan, den andra den faktiska inflationen. Värderas från marknadens break-even; risken är break-even-inflation (en egen faktor) och, lite, nominella räntor.' },
+    en: 'Inflation swap', group: 'derivatives', icon: 'INF',
+    hint: { en: 'Zero-coupon inflation swap: at maturity one side pays the compounded fixed rate, the other the realised inflation. Valued from the market breakeven; its risk is breakeven inflation (a factor of its own) and, a little, nominal rates.' },
     fields: ['name', 'issuer', 'qty', 'ccy', 'direction', 'fixedRate', 'breakeven', 'marketRate', 'maturity', 'mtm', 'strategy', 'notes'],
     required: ['qty', 'ccy', 'direction', 'fixedRate', 'breakeven', 'maturity'],
     defaults: { direction: 'receive' },
-    labels: { qty: { en: 'Notional', sv: 'Nominellt belopp' }, issuer: { en: 'Counterparty', sv: 'Motpart' }, direction: { en: 'Receive or pay inflation', sv: 'Erhålla eller betala inflation' }, fixedRate: { en: 'Fixed (contract breakeven) %', sv: 'Fast (avtalad break-even) %' }, marketRate: { en: 'Discount rate %', sv: 'Diskonteringsränta %' } },
+    labels: { qty: { en: 'Notional' }, issuer: { en: 'Counterparty' }, direction: { en: 'Receive or pay inflation' }, fixedRate: { en: 'Fixed (contract breakeven) %' }, marketRate: { en: 'Discount rate %' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -867,12 +876,12 @@ export const INSTRUMENTS = {
   },
 
   exotic_option: {
-    en: 'Barrier / digital option', sv: 'Barriär- / digitaloption', group: 'derivatives', icon: 'EXO',
-    hint: { en: 'Barrier options (knock-in, knock-out, up or down) with the Reiner-Rubinstein formulas, and cash-or-nothing digitals. Delta and vega by revaluation. Knocked-out options are flagged. Negative quantity = sold.', sv: 'Barriäroptioner (knock-in, knock-out, upp eller ned) med Reiner-Rubinsteins formler, och digitaloptioner (kontant eller inget). Delta och vega genom omvärdering. Utslagna optioner flaggas. Negativt antal = utfärdad.' },
+    en: 'Barrier / digital option', group: 'derivatives', icon: 'EXO',
+    hint: { en: 'Barrier options (knock-in, knock-out, up or down) with the Reiner-Rubinstein formulas, and cash-or-nothing digitals. Delta and vega by revaluation. Knocked-out options are flagged. Negative quantity = sold.' },
     fields: [...COMMON, 'qty', 'exoticKind', 'optType', 'barrierType', 'barrier', 'payout', 'strike', 'maturity', 'underlyingPrice', 'vol', 'rate', 'divYield', 'multiplier', 'price', 'mtm', 'ccy', 'underlyingClass', 'beta', 'strategy', 'notes'],
     required: ['name', 'qty', 'exoticKind', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'ccy'],
     defaults: { exoticKind: 'barrier', barrierType: 'down-and-out', optType: 'call', multiplier: 1, underlyingClass: 'equity', beta: 1, payout: 1 },
-    labels: { issuer: { en: 'Counterparty', sv: 'Motpart' } },
+    labels: { issuer: { en: 'Counterparty' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -909,12 +918,12 @@ export const INSTRUMENTS = {
   },
 
   sec_lending: {
-    en: 'Securities lending', sv: 'Värdepapperslån', group: 'cash', icon: 'SLB',
-    hint: { en: 'A loan of securities the fund keeps owning (they stay in the holdings and in NAV). The loan itself adds counterparty risk: value lent minus collateral after haircut, which counts toward the counterparty limit. Cash collateral that is reinvested belongs in the holdings as the reinvested assets.', sv: 'Ett lån av värdepapper som fonden fortsatt äger (de ligger kvar bland innehaven och i NAV). Lånet i sig ger motpartsrisk: utlånat värde minus säkerheter efter värderingsavdrag, som räknas mot motpartsgränsen. Kontantsäkerheter som återinvesteras hör hemma bland innehaven som de återinvesterade tillgångarna.' },
+    en: 'Securities lending', group: 'cash', icon: 'SLB',
+    hint: { en: 'A loan of securities the fund keeps owning (they stay in the holdings and in NAV). The loan itself adds counterparty risk: value lent minus collateral after haircut, which counts toward the counterparty limit. Cash collateral that is reinvested belongs in the holdings as the reinvested assets.' },
     fields: ['name', 'isin', 'issuer', 'qty', 'ccy', 'collateralValue', 'haircut', 'collateralType', 'rate', 'maturity', 'strategy', 'notes'],
     required: ['issuer', 'qty', 'ccy', 'collateralValue'],
     defaults: { collateralType: 'government', name: 'Securities loan' },
-    labels: { issuer: { en: 'Borrower', sv: 'Låntagare' }, qty: { en: 'Market value lent', sv: 'Utlånat marknadsvärde' }, isin: { en: 'ISIN lent', sv: 'Utlånad ISIN' }, rate: { en: 'Lending fee %', sv: 'Låneavgift %' }, maturity: { en: 'Term (empty = open, recallable)', sv: 'Löptid (tom = öppen, kan återkallas)' } },
+    labels: { issuer: { en: 'Borrower' }, qty: { en: 'Market value lent' }, isin: { en: 'ISIN lent' }, rate: { en: 'Lending fee %' }, maturity: { en: 'Term (empty = open, recallable)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -1064,22 +1073,21 @@ function fundRisk(p, ctx, liqDefault) {
 }
 
 export const GROUPS = {
-  securities: { en: 'Securities', sv: 'Värdepapper' },
-  funds: { en: 'Funds', sv: 'Fonder' },
-  fixed_income: { en: 'Fixed income', sv: 'Räntebärande' },
-  cash: { en: 'Cash', sv: 'Likvida medel' },
-  derivatives: { en: 'Derivatives', sv: 'Derivat' }
+  securities: { en: 'Securities' },
+  funds: { en: 'Funds' },
+  fixed_income: { en: 'Fixed income' },
+  cash: { en: 'Cash' },
+  derivatives: { en: 'Derivatives' }
 };
 
 // ---- helpers used by the UI and importer ------------------------------------------------------
-export function fieldLabel(type, key, lang) {
-  const o = INSTRUMENTS[type]?.labels?.[key];
-  return (o && (o[lang] || o.en)) || FIELDS[key]?.[lang] || FIELDS[key]?.en || key;
+export function fieldLabel(type, key) {
+  return INSTRUMENTS[type]?.labels?.[key]?.en || FIELDS[key]?.en || key;
 }
-export function typeLabel(type, lang) {
+export function typeLabel(type) {
   const d = INSTRUMENTS[type];
-  if (!d && type === 'unknown') return lang === 'sv' ? 'Okänd typ' : 'Unknown type';
-  return d ? (d[lang] || d.en) : type;
+  if (!d && type === 'unknown') return 'Unknown type';
+  return d ? d.en : type;
 }
 export function displayName(p) {
   const d = INSTRUMENTS[p.type];
@@ -1094,31 +1102,31 @@ export function allFieldKeys() {
 // Map free-text type values ("Aktie", "Corp bond", "BOND_CORP", "FX Fwd"...) to registry ids.
 const TYPE_ALIASES = {
   equity: ['equity', 'stock', 'share', 'shares', 'commonstock', 'aktie', 'aktier', 'eq', 'ordinaryshare', 'preferred', 'preferenceshare', 'preferensaktie', 'adr', 'gdr', 'depositaryreceipt', 'sdb', 'svenskadepåbevis', 'rights', 'subscriptionrights', 'subscriptionright', 'teckningsrätt', 'teckningsrätter', 'tr', 'bta', 'betaldtecknadaktie', 'interimshare', 'interimaktie', 'reit', 'spac'],
-  etf: ['etf', 'exchangetradedfund', 'börshandladfond', 'etp', 'etn', 'exchangetradednote', 'exchangetradedproduct', 'ucitsetf', 'leveragedetf', 'inverseetf', 'hävstångsetf'],
-  fund: ['fund', 'mutualfund', 'ucits', 'aif', 'fond', 'fonder', 'sicav', 'unittrust', 'investmentfund', 'oeic', 'fcp', 'moneymarketfund', 'mmf', 'likviditetsfond', 'penningmarknadsfond', 'kortränefond', 'bondfund', 'räntefond', 'obligationsfond', 'equityfund', 'aktiefond', 'mixedfund', 'blandfond', 'balancedfund'],
+  etf: ['etf', 'exchangetradedfund', 'börshandladfond', 'etp', 'etn', 'exchangetradednote', 'exchangetradedproduct', 'ucitsetf', 'leveragedetf', 'inverseetf', 'hävstångsetf', 'ETF (börshandlad fond)'],
+  fund: ['fund', 'mutualfund', 'ucits', 'aif', 'fond', 'fonder', 'sicav', 'unittrust', 'investmentfund', 'oeic', 'fcp', 'moneymarketfund', 'mmf', 'likviditetsfond', 'penningmarknadsfond', 'kortränefond', 'bondfund', 'räntefond', 'obligationsfond', 'equityfund', 'aktiefond', 'mixedfund', 'blandfond', 'balancedfund', 'Fond (UCITS/AIF)'],
   govt_bond: ['govtbond', 'governmentbond', 'government', 'sovereign', 'treasury', 'gilt', 'bund', 'oat', 'btp', 'bono', 'dsl', 'statsobligation', 'stat', 'sgb', 'supranational', 'supra', 'agency', 'ssa', 'municipal', 'kommunobligation', 'kommuninvest'],
   corp_bond: ['corpbond', 'corporatebond', 'corporate', 'bond', 'obligation', 'företagsobligation', 'credit', 'hybrid', 'hybridbond', 'highyield', 'hy', 'ig', 'fixedbond', 'covered', 'coveredbond', 'pfandbrief', 'säkerställdobligation', 'bostadsobligation', 'perpetual', 'perp', 'at1', 'additionaltier1', 'coco', 'contingentconvertible', 'tier1', 'tier2', 't2', 'subordinated', 'callable', 'callablebond', 'seniornonpreferred', 'snp', 'greenbond', 'grönobligation', 'abs', 'mbs', 'rmbs', 'cmbs', 'clo', 'securitisation', 'securitization', 'assetbacked'],
-  frn: ['frn', 'floater', 'floatingratenote', 'floatingrate', 'frnobligation', 'rörlig', 'rörligränta', 'frncovered'],
-  money_market: ['moneymarket', 'tbill', 'bill', 'treasurybill', 'cp', 'commercialpaper', 'ecp', 'cd', 'certificateofdeposit', 'statsskuldväxel', 'ssvx', 'företagscertifikat', 'bankcertifikat', 'penningmarknad', 'btf', 'bot', 'letras'],
-  cash: ['cash', 'deposit', 'currentaccount', 'kassa', 'likvida', 'likvidamedel', 'bankkonto', 'inlåning', 'konto', 'termdeposit', 'timedeposit', 'fixeddeposit', 'fastränteplacering', 'placeringskonto', 'bundeninlåning', 'callaccount', 'collateral', 'margin', 'initialmargin', 'säkerhet'],
-  future: ['future', 'futures', 'fut', 'termin', 'terminer', 'indexfuture', 'indexterminer', 'bondfuture', 'obligationstermin', 'stir', 'stirfuture', 'euriborfuture', 'sofrfuture', 'soniafuture', 'estrfuture', 'interestratefuture', 'räntetermin', 'commodityfuture', 'råvarutermin', 'dividendfuture', 'utdelningstermin', 'fxfuture', 'valutafuture', 'vixfuture', 'vstoxxfuture', 'volatilityfuture', 'singlestockfuture', 'aktietermin'],
+  frn: ['frn', 'floater', 'floatingratenote', 'floatingrate', 'frnobligation', 'rörlig', 'rörligränta', 'frncovered', 'FRN (rörlig kupong)'],
+  money_market: ['moneymarket', 'tbill', 'bill', 'treasurybill', 'cp', 'commercialpaper', 'ecp', 'cd', 'certificateofdeposit', 'statsskuldväxel', 'ssvx', 'företagscertifikat', 'bankcertifikat', 'penningmarknad', 'btf', 'bot', 'letras', 'Penningmarknad / statsskuldväxel'],
+  cash: ['cash', 'deposit', 'currentaccount', 'kassa', 'likvida', 'likvidamedel', 'bankkonto', 'inlåning', 'konto', 'termdeposit', 'timedeposit', 'fixeddeposit', 'fastränteplacering', 'placeringskonto', 'bundeninlåning', 'callaccount', 'collateral', 'margin', 'initialmargin', 'säkerhet', 'Kassa / inlåning'],
+  future: ['future', 'futures', 'fut', 'termin', 'terminer', 'indexfuture', 'indexterminer', 'bondfuture', 'obligationstermin', 'stir', 'stirfuture', 'euriborfuture', 'sofrfuture', 'soniafuture', 'estrfuture', 'interestratefuture', 'räntetermin', 'commodityfuture', 'råvarutermin', 'dividendfuture', 'utdelningstermin', 'fxfuture', 'valutafuture', 'vixfuture', 'vstoxxfuture', 'volatilityfuture', 'singlestockfuture', 'aktietermin', 'Termin (future)'],
   option: ['option', 'options', 'opt', 'call', 'put', 'warrant', 'warrants', 'optioner', 'indexoption', 'stockoption', 'equityoption', 'aktieoption', 'fxoption', 'currencyoption', 'valutaoption', 'bondoption', 'optiononfuture', 'futuresoption', 'commodityoption', 'otcoption', 'vixoption'],
-  fx_forward: ['fxforward', 'forward', 'fxfwd', 'fwd', 'fxswap', 'currencyforward', 'valutatermin', 'valutaswap', 'ndf', 'nondeliverableforward', 'fxspot', 'spot'],
+  fx_forward: ['fxforward', 'forward', 'fxfwd', 'fwd', 'fxswap', 'currencyforward', 'valutatermin', 'valutaswap', 'ndf', 'nondeliverableforward', 'fxspot', 'spot', 'Valutatermin / swap'],
   irs: ['irs', 'swap', 'interestrateswap', 'ränteswap', 'ois', 'overnightindexswap', 'fra', 'forwardrateagreement'],
-  cds: ['cds', 'creditdefaultswap', 'kreditswap', 'cdx', 'itraxx', 'cdsindex', 'indexcds'],
-  commodity: ['commodity', 'etc', 'gold', 'physical', 'physicalgold', 'råvara', 'råvaror', 'guld', 'silver', 'preciousmetal'],
-  alternative: ['alternative', 'alternatives', 'private', 'privateequity', 'pe', 'realestate', 'hedgefund', 'crypto', 'cryptocurrency', 'kryptovaluta', 'bitcoin', 'ethereum', 'onoterat', 'fastighet', 'fastighetsfond', 'alternativ', 'infrastructure', 'privatecredit', 'directlending', 'direktlån', 'unlisted', 'venturecapital', 'fundoffunds'],
+  cds: ['cds', 'creditdefaultswap', 'kreditswap', 'cdx', 'itraxx', 'cdsindex', 'indexcds', 'Kreditswap (CDS)'],
+  commodity: ['commodity', 'etc', 'gold', 'physical', 'physicalgold', 'råvara', 'råvaror', 'guld', 'silver', 'preciousmetal', 'Råvara / ETC'],
+  alternative: ['alternative', 'alternatives', 'private', 'privateequity', 'pe', 'realestate', 'hedgefund', 'crypto', 'cryptocurrency', 'kryptovaluta', 'bitcoin', 'ethereum', 'onoterat', 'fastighet', 'fastighetsfond', 'alternativ', 'infrastructure', 'privatecredit', 'directlending', 'direktlån', 'unlisted', 'venturecapital', 'fundoffunds', 'Alternativ / onoterat'],
   inflation_linked: ['inflationlinked', 'inflationlinkedbond', 'linker', 'ilb', 'indexlinked', 'indexlinkedgilt', 'ilg', 'realränteobligation', 'realobligation', 'realränta', 'tips', 'oati', 'oat€i', 'oatei', 'btpei', 'btp€i', 'btpitalia', 'bundei', 'bund€i', 'dbrei'],
   convertible: ['convertible', 'convertiblebond', 'cb', 'konvertibel', 'konvertibelobligation', 'konvertibler', 'exchangeable', 'exchangeablebond', 'mandatoryconvertible'],
-  certificate: ['certificate', 'certifikat', 'bullcertificate', 'bearcertificate', 'bull', 'bear', 'bullbear', 'minifuture', 'minilong', 'minishort', 'turbo', 'turbowarrant', 'knockout', 'knockoutwarrant', 'trackercertificate', 'tracker', 'bonuscertificate', 'discountcertificate', 'structuredproduct', 'strukturerad', 'struktureradprodukt', 'autocall', 'autocallable', 'capitalprotected', 'kapitalskyddad', 'indexobligation', 'aktieobligation', 'marknadsobligation', 'creditlinkednote', 'cln', 'express', 'reverseconvertible'],
-  equity_swap: ['equityswap', 'aktieswap', 'cfd', 'contractfordifference', 'contractsfordifference', 'trs', 'totalreturnswap', 'portfolioswap', 'swapequity', 'dividendswap', 'basketswap', 'indexswap'],
-  ccs: ['ccs', 'crosscurrencyswap', 'ccirs', 'crosscurrencyinterestrateswap', 'currencyswap', 'basisswap', 'xccy', 'valutaränteswap'],
-  repo: ['repo', 'reverserepo', 'repurchaseagreement', 'reverserepurchaseagreement', 'repa', 'omvändrepa', 'tripartyrepo', 'buysellback', 'sellbuyback'],
-  otc: ['otc', 'otcderivative', 'correlationswap', 'varianceswap', 'volatilityswap', 'varswap', 'volswap', 'variansswap', 'volatilitetsswap', 'commodityswap', 'råvaruswap', 'asianoption', 'asian', 'cliquet', 'lookback', 'basketoption', 'rainbow', 'quanto', 'exotic', 'exoticoption', 'structuredswap'],
+  certificate: ['certificate', 'certifikat', 'bullcertificate', 'bearcertificate', 'bull', 'bear', 'bullbear', 'minifuture', 'minilong', 'minishort', 'turbo', 'turbowarrant', 'knockout', 'knockoutwarrant', 'trackercertificate', 'tracker', 'bonuscertificate', 'discountcertificate', 'structuredproduct', 'strukturerad', 'struktureradprodukt', 'autocall', 'autocallable', 'capitalprotected', 'kapitalskyddad', 'indexobligation', 'aktieobligation', 'marknadsobligation', 'creditlinkednote', 'cln', 'express', 'reverseconvertible', 'Certifikat / strukturerad produkt'],
+  equity_swap: ['equityswap', 'aktieswap', 'cfd', 'contractfordifference', 'contractsfordifference', 'trs', 'totalreturnswap', 'portfolioswap', 'swapequity', 'dividendswap', 'basketswap', 'indexswap', 'Aktieswap / CFD / TRS'],
+  ccs: ['ccs', 'crosscurrencyswap', 'ccirs', 'crosscurrencyinterestrateswap', 'currencyswap', 'basisswap', 'xccy', 'valutaränteswap', 'Valutaränteswap (CCS)'],
+  repo: ['repo', 'reverserepo', 'repurchaseagreement', 'reverserepurchaseagreement', 'repa', 'omvändrepa', 'tripartyrepo', 'buysellback', 'sellbuyback', 'Repa / omvänd repa'],
+  otc: ['otc', 'otcderivative', 'correlationswap', 'varianceswap', 'volatilityswap', 'varswap', 'volswap', 'variansswap', 'volatilitetsswap', 'commodityswap', 'råvaruswap', 'asianoption', 'asian', 'cliquet', 'lookback', 'basketoption', 'rainbow', 'quanto', 'exotic', 'exoticoption', 'structuredswap', 'Övrigt OTC-derivat (marknadsvärde)'],
   swaption: ['swaption', 'swaptions', 'payerswaption', 'receiverswaption', 'bermudanswaption'],
-  cap_floor: ['cap', 'floor', 'collar', 'capfloor', 'interestratecap', 'interestratefloor', 'räntetak', 'räntegolv'],
+  cap_floor: ['cap', 'floor', 'collar', 'capfloor', 'interestratecap', 'interestratefloor', 'räntetak', 'räntegolv', 'Räntetak / räntegolv'],
   inflation_swap: ['inflationswap', 'zerocouponinflationswap', 'zciis', 'zcis', 'yoyinflationswap', 'inflationsswap', 'hicpswap', 'cpiswap', 'kpiswap'],
-  exotic_option: ['barrier', 'barrieroption', 'knockinoption', 'knockoutoption', 'digital', 'digitaloption', 'binary', 'binaryoption', 'barriäroption', 'digitaloptioner'],
+  exotic_option: ['barrier', 'barrieroption', 'knockinoption', 'knockoutoption', 'digital', 'digitaloption', 'binary', 'binaryoption', 'barriäroption', 'digitaloptioner', 'Barriär- / digitaloption'],
   sec_lending: ['securitieslending', 'seclending', 'securitiesloan', 'stocklending', 'värdepapperslån', 'aktielån', 'lending', 'slb']
 };
 // A few labels tell more than the type: a warrant is one share per unit, a STIR future is three months
@@ -1155,7 +1163,7 @@ const TYPE_LOOKUP = (() => {
     m.set(normKey(id), id);
     list.forEach(a => m.set(normKey(a), id));
     const d = INSTRUMENTS[id];
-    if (d) { m.set(normKey(d.en), id); m.set(normKey(d.sv), id); }
+    if (d) m.set(normKey(d.en), id);
   }
   return m;
 })();

@@ -1,13 +1,13 @@
-// Presentation data shared by the Asset allocation page and the PDF: class and group labels in
-// the current language, and the allocation tree / overlay rows with colours attached.
-import { L, lang } from './i18n.js';
+// Presentation data shared by the Asset allocation page and the PDF: class and group labels, and
+// the allocation tree / overlay rows with colours attached.
+import { L } from './i18n.js';
 import { ASSET_CLASSES, REGIONS, typeLabel } from './instruments.js';
 import { allocationTree } from './allocation.js';
 import * as charts from './charts.js';
 
 export const classLabel = k => L(ASSET_CLASSES[k] || { en: k });
 export function groupLabel(key) {
-  if (key.startsWith('type:')) return typeLabel(key.slice(5), lang());
+  if (key.startsWith('type:')) return typeLabel(key.slice(5));
   if (REGIONS[key]) return L(REGIONS[key]);
   return key;
 }

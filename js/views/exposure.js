@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, L, lang } from '../i18n.js';
+import { t, L } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtPct, fmtNum, segmented } from '../ui.js';
 import { ASSET_CLASSES, REGIONS, typeLabel } from '../instruments.js';
 import * as charts from '../charts.js';
@@ -15,7 +15,7 @@ export default {
     const classes = [...new Set([...alloc.assetClass, ...alloc.exposureByClass].filter(x => Math.abs(x.weight) >= 0.0005).map(x => x.key))];
     const mvW = k => alloc.assetClass.find(x => x.key === k)?.weight || 0;
     const exW = k => alloc.exposureByClass.find(x => x.key === k)?.weight || 0;
-    const dimLabel = { sector: x => x, region: x => L(REGIONS[x] || { en: x }), country: x => x, type: x => typeLabel(x, lang()), issuer: x => x, strategy: x => x };
+    const dimLabel = { sector: x => x, region: x => L(REGIONS[x] || { en: x }), country: x => x, type: x => typeLabel(x), issuer: x => x, strategy: x => x };
 
     root.innerHTML = `
       ${pageHead(t('nav.exposure'), esc(t('exp.sub')))}

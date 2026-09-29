@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, lang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtPct, fmtNum, fmtDate, empty } from '../ui.js';
 import { typeLabel } from '../instruments.js';
 import { RATING_BUCKETS } from '../analytics.js';
@@ -44,7 +44,7 @@ export default {
         ], Object.entries(fi.ir01ByCcy).sort((x, y) => x[1] - y[1]), { dense: true }), { sub: esc(t('fi.byCcySub')) })}
       </div>
       ${card(t('fi.table'), table([
-        { key: 'n', label: t('col.name'), fmt: x => `${esc(x.name)}<div class="cell-sub">${esc(typeLabel(x.pos.type, lang()))}${x.pos.issuer ? ' · ' + esc(x.pos.issuer) : ''}</div>` },
+        { key: 'n', label: t('col.name'), fmt: x => `${esc(x.name)}<div class="cell-sub">${esc(typeLabel(x.pos.type))}${x.pos.issuer ? ' · ' + esc(x.pos.issuer) : ''}</div>` },
         { key: 'm', label: t('fi.maturityCol'), fmt: x => fmtDate(x.pos.maturity) },
         { key: 'c', label: t('fi.coupon'), align: 'right', fmt: x => x.pos.coupon != null ? fmtNum(x.pos.coupon, 3) : '—' },
         { key: 'r', label: 'Rating', fmt: x => esc(x.pos.rating || '—') },
@@ -56,8 +56,8 @@ export default {
         { key: 'dv', label: 'DV01', align: 'right', fmt: x => fmtMoney(Object.values(x.r.ir01).reduce((s, q) => s + q, 0), '', { compact: true }) }
       ], [...fi.rows, ...v.valid.filter(x => x.r.fi && (x.r.fi.derivative || x.r.fi.fund))].sort((x, y) => (x.r.fi.years ?? 99) - (y.r.fi.years ?? 99)), { dense: true }), { sub: esc(t('fi.tableSub')) })}
     `;
-    charts.render('chMat', charts.barVSpec(fi.maturity.map(m => m.key + (lang() === 'sv' ? ' år' : 'y')), fi.maturity.map(m => m.share), { fmt: 'pct' }));
+    charts.render('chMat', charts.barVSpec(fi.maturity.map(m => m.key + 'y'), fi.maturity.map(m => m.share), { fmt: 'pct' }));
     charts.render('chRat', charts.barVSpec(ratings.map(r => r.key), ratings.map(r => r.share), { fmt: 'pct' }));
-    charts.render('chLad', charts.barVSpec(fi.dv01Ladder.map(m => m.key + (lang() === 'sv' ? ' år' : 'y')), fi.dv01Ladder.map(m => m.value), { diverging: true }));
+    charts.render('chLad', charts.barVSpec(fi.dv01Ladder.map(m => m.key + 'y'), fi.dv01Ladder.map(m => m.value), { diverging: true }));
   }
 };

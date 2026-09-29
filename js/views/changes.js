@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, lang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtPct, fmtNum, fmtMoney, fmtDate, empty, signCls, segmented, selectHtml, toast, confirmDialog } from '../ui.js';
 import { typeLabel } from '../instruments.js';
 import { compareSnapshots, realised } from '../insights.js';
@@ -80,7 +80,7 @@ export default {
         <div class="toolbar wrap">${segmented('chgFilter', [['traded', t('chg.onlyTraded')], ['all', t('chg.all')]], ui.filter)}
           <span class="muted small">${['new', 'added', 'reduced', 'sold'].filter(k => counts[k]).map(k => `${esc(t('chg.st.' + k))}: ${counts[k]}`).join(' · ') || esc(t('chg.noTrades'))}</span></div>
         ${rows.length ? table([
-          { key: 'n', label: t('col.name'), fmt: o => `${esc(o.name)}<div class="cell-sub">${esc(typeLabel(o.type, lang()))}</div>` },
+          { key: 'n', label: t('col.name'), fmt: o => `${esc(o.name)}<div class="cell-sub">${esc(typeLabel(o.type))}</div>` },
           { key: 's', label: t('chg.status'), fmt: o => `<span class="chip ${STATUS_TONE[o.status] ? 'chip-' + STATUS_TONE[o.status] : ''}">${esc(t('chg.st.' + o.status))}</span>` },
           { key: 'q', label: t('chg.qty'), align: 'right', fmt: o => o.status === 'held' ? fmtNum(o.qtyB, 2) : `${o.inA ? fmtNum(o.qtyA, 2) : '—'} → ${o.inB ? fmtNum(o.qtyB, 2) : '—'}` },
           { key: 'w', label: t('col.weight'), align: 'right', fmt: o => `${fmtPct(o.wA, 2)} → <strong>${fmtPct(o.wB, 2)}</strong>` },

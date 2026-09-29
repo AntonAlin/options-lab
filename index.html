@@ -7,9 +7,9 @@
   <meta name="author" content="Anton Ålin">
   <meta name="copyright" content="© 2026 Anton Ålin. All rights reserved.">
   <title>Nexus Portfolio Lab</title>
-  <meta name="description" content="Free portfolio analytics for fund managers: bulk upload holdings from Excel or CSV, 28 instrument types, exposure, VaR, stress tests, duration, liquidity, UCITS limit checks and PDF reports. English and Swedish. Runs entirely in your browser.">
+  <meta name="description" content="Free portfolio analytics for fund managers: bulk upload holdings from Excel or CSV, 27 instrument types, exposure, VaR, stress tests, duration, liquidity, UCITS limit checks and PDF reports. Runs entirely in your browser.">
   <meta property="og:title" content="Nexus Portfolio Lab — free portfolio analytics for fund managers">
-  <meta property="og:description" content="Exposure, VaR, stress tests, fixed income, liquidity and UCITS compliance with one-click PDF export. Free, private, English & Swedish.">
+  <meta property="og:description" content="Exposure, VaR, stress tests, fixed income, liquidity and UCITS compliance with one-click PDF export. Free and private: nothing leaves the browser.">
   <meta property="og:type" content="website">
   <meta name="theme-color" content="#0f1720">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Cpath d='M7 22l7-8 5 4 7-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -26,7 +26,6 @@
         var dark = pref === 'dark' || (pref === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (pref !== 'auto') document.documentElement.dataset.theme = pref;
         document.documentElement.dataset.resolvedTheme = dark ? 'dark' : 'light';
-        if (s.lang === 'sv') document.documentElement.lang = 'sv';
       } catch (e) { /* storage blocked — defaults are fine */ }
     })();
   </script>
@@ -40,11 +39,10 @@
       <header id="topbar"></header>
       <div id="banner" class="banner" hidden></div>
       <main id="main" tabindex="-1">
-        <noscript><p style="padding:24px">Nexus Portfolio Lab needs JavaScript. / Nexus Portfolio Lab kräver JavaScript.</p></noscript>
+        <noscript><p style="padding:24px">Nexus Portfolio Lab needs JavaScript.</p></noscript>
       </main>
       <footer class="disclaimer-bar">
-        <span lang="en">Model estimates for information only — not investment advice. No liability is accepted for decisions based on this tool.</span>
-        <span lang="sv">· Modellberäkningar i informationssyfte — inte investeringsrådgivning. Inget ansvar tas för beslut som fattas utifrån verktyget.</span>
+        <span>Model estimates for information only — not investment advice. No liability is accepted for decisions based on this tool.</span>
       </footer>
     </div>
   </div>

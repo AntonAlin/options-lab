@@ -1,6 +1,6 @@
 // PDF report: jsPDF + AutoTable, charts rendered by Plotly into PNGs in the light print theme.
 // Everything runs in the browser; the file is generated locally and downloaded.
-import { t, L, lang } from './i18n.js';
+import { t, L } from './i18n.js';
 import { fmtMoney, fmtPct, fmtNum, fmtDate } from './ui.js';
 import { ASSET_CLASSES, REGIONS, typeLabel } from './instruments.js';
 import { monthlyReturns, RATING_BUCKETS } from './analytics.js';
@@ -137,7 +137,7 @@ export async function generateReport(p, a, opts) {
     heading(t('nav.holdings'), t('rep.holdingsSub', { n: v.rows.length }));
     const rows = [...v.valid].sort((x1, x2) => (x1.def.group > x2.def.group ? 1 : x1.def.group < x2.def.group ? -1 : x2.r.mv - x1.r.mv));
     tableAt([t('col.name'), t('col.type'), t('col.qty'), t('col.price'), t('col.ccy'), t('col.mv', { base }), t('col.weight'), t('col.exposure')],
-      rows.map(x => [x.name.slice(0, 40), typeLabel(x.pos.type, lang()), fmtNum(x.pos.qty ?? x.pos.buyAmount, 0), isNum(x.pos.price) ? fmtNum(x.pos.price, 2) : (isNum(x.pos.yield) ? fmtPct(x.pos.yield / 100, 2) : ''), x.pos.ccy || '', fmtNum(x.r.mv, 0), fmtPct(x.weight, 2), fmtPct(x.expWeight, 1)]),
+      rows.map(x => [x.name.slice(0, 40), typeLabel(x.pos.type), fmtNum(x.pos.qty ?? x.pos.buyAmount, 0), isNum(x.pos.price) ? fmtNum(x.pos.price, 2) : (isNum(x.pos.yield) ? fmtPct(x.pos.yield / 100, 2) : ''), x.pos.ccy || '', fmtNum(x.r.mv, 0), fmtPct(x.weight, 2), fmtPct(x.expWeight, 1)]),
       { fontSize: 7, columnStyles: { 0: { halign: 'left', cellWidth: 52 }, 1: { halign: 'left' }, 4: { halign: 'left' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' } } });
     font(8.5, 'bold'); ensure(6); txt(`${t('common.total')}: ${fmtMoney(v.nav, base)}`, M, y); y += 6;
   }
@@ -291,7 +291,7 @@ export async function generateReport(p, a, opts) {
       ...(B ? [[t('perf.beta'), fmtNum(perf.beta, 2), ''], [t('perf.te'), fmtPct(perf.trackingError, 2), ''], [t('perf.ir'), fmtNum(perf.infoRatio, 2), '']] : [])
     ], { width: CW * 0.7 });
     const monthly = monthlyReturns(dates, risk.hp.portfolioRet);
-    const mNames = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(2020, i, 1)).toLocaleString(lang() === 'sv' ? 'sv-SE' : 'en-GB', { month: 'short', timeZone: 'UTC' }));
+    const mNames = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(2020, i, 1)).toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' }));
     heading(t('perf.monthly'));
     tableAt(['', ...mNames, t('perf.ytd')], Object.keys(monthly).sort().reverse().map(yr => [yr, ...Array.from({ length: 12 }, (_, i) => isNum(monthly[yr][i + 1]) ? cellV(fmtNum(monthly[yr][i + 1] * 100, 1), monthly[yr][i + 1]) : ''), cellV(fmtNum(monthly[yr].ytd * 100, 1), monthly[yr].ytd)]),
       { fontSize: 6.8, didParseCell: colorPnl([...Array(14).keys()].slice(1)) });
@@ -324,7 +324,7 @@ export async function generateReport(p, a, opts) {
     const P = charts.palette(th);
     const KC = { coupon: 2, redemption: 0, fx_settle: 1, swap: 5, cds_premium: 7, option_expiry: 3, future_expiry: 6 };
     const kinds = Object.keys(KC).filter(k => cf.buckets.some(b => b.byKind[k]));
-    const ml = m => new Date(m + '-01T00:00:00Z').toLocaleDateString(lang() === 'sv' ? 'sv-SE' : 'en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+    const ml = m => new Date(m + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' });
     await chart(charts.stackedBarSpec(cf.buckets.map(b => ml(b.month)), kinds.map(k => ({ name: t('cf.kind.' + k), values: cf.buckets.map(b => b.byKind[k] || 0), color: P.series[KC[k] % 8] })), { th, line: { name: t('cf.projected'), values: cf.buckets.map(b => b.cashAfter) } }), 70);
     tableAt([t('cf.date'), t('cf.event'), t('col.name'), t('col.ccy'), t('cf.amountBase', { base })],
       cf.events.slice(0, 40).map(e => [e.date, t('cf.kind.' + e.kind) + (e.estimate ? ' *' : ''), e.name.slice(0, 40), e.ccy, cellV(fmtNum(e.amountBase, 0), e.cash ? e.amountBase : 0)]),

@@ -51,8 +51,7 @@ export function newPortfolio(o = {}) {
 }
 
 function freshState() {
-  const nav = typeof navigator !== 'undefined' ? navigator.language || '' : '';
-  return { version: 1, settings: { lang: /^(sv|nb|nn|no|da)/i.test(nav) ? 'sv' : 'en', theme: 'auto', autoBackup: 'weekly', lastBackup: '' }, activeId: null, portfolios: {}, templates: [] };
+  return { version: 1, settings: { theme: 'auto', autoBackup: 'weekly', lastBackup: '' }, activeId: null, portfolios: {}, templates: [] };
 }
 
 let state = freshState();

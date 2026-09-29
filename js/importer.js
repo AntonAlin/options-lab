@@ -1,6 +1,6 @@
 // Bulk upload: CSV/TSV/XLSX parsing, Swedish and English number and date formats, header
 // auto-mapping, row validation, holdings and price-history import, and templates.
-import { FIELDS, INSTRUMENTS, allFieldKeys, normKey, resolveType, typePreset, validatePosition, OPTION_LABELS } from './instruments.js';
+import { FIELDS, INSTRUMENTS, allFieldKeys, normKey, resolveType, typePreset, validatePosition, OPTION_LABELS, OPTION_ALIASES } from './instruments.js';
 import { isNum, uid, parseISODate, toISODate } from './util.js';
 
 // ---- text parsing --------------------------------------------------------------------------------
@@ -174,7 +174,6 @@ const ALIAS_INDEX = (() => {
   for (const [key, spec] of Object.entries(FIELDS)) {
     m.set(normKey(key), key);
     m.set(normKey(spec.en), key);
-    m.set(normKey(spec.sv), key);
     (spec.aliases || []).forEach(a => { if (!m.has(normKey(a))) m.set(normKey(a), key); });
   }
   return m;
@@ -226,7 +225,8 @@ export function normaliseSelect(field, raw) {
   for (const o of opts) {
     if (normKey(o) === k) return o;
     const lab = OPTION_LABELS[o];
-    if (lab && (normKey(lab.en) === k || normKey(lab.sv) === k)) return o;
+    if (lab && normKey(lab.en) === k) return o;
+    if ((OPTION_ALIASES[o] || []).some(a => normKey(a) === k)) return o;
   }
   return String(raw).trim();
 }

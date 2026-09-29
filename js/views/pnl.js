@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, lang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtNum, fmtPct, fmtDate, selectHtml, segmented, signCls, confirmDialog, toast, openModal, closeModal, numIn } from '../ui.js';
 import { typeLabel } from '../instruments.js';
 import { PNL_TYPES, TX_SIDES, parseTransactions, transactionsCSVRows, startOfYear } from '../pnl.js';
@@ -42,7 +42,7 @@ export default {
       </div>
       ${pn.covered.length ? card(t('pnl.chart'), '<div id="chPnl" class="chart"></div>', { sub: esc(t('pnl.chartSub', { base })) }) : ''}
       ${card(t('pnl.positions'), table([
-        { key: 'n', label: t('col.name'), fmt: r => `${esc(r.name)}<div class="cell-sub">${esc(typeLabel(r.pos.type, lang()))} · ${esc(r.pos.ccy || '')}${r.covered ? ` · <span title="${esc(t('pnl.source.' + r.source))}">${esc(t('pnl.src.' + r.source))}</span>` : ''}</div>` },
+        { key: 'n', label: t('col.name'), fmt: r => `${esc(r.name)}<div class="cell-sub">${esc(typeLabel(r.pos.type))} · ${esc(r.pos.ccy || '')}${r.covered ? ` · <span title="${esc(t('pnl.source.' + r.source))}">${esc(t('pnl.src.' + r.source))}</span>` : ''}</div>` },
         { key: 'q', label: t('col.qty'), align: 'right', fmt: r => `${fmtNum(r.qty, 0)}${r.mismatch ? `<div class="cell-sub neg">${esc(t('pnl.bookQty', { n: fmtNum(r.bookQty, 0) }))}</div>` : ''}` },
         { key: 'avg', label: t('pnl.avgCost'), align: 'right', fmt: r => r.covered ? fmtNum(r.avgPerUnit, r.avgPerUnit < 10 ? 4 : 2) : '<span class="muted">—</span>' },
         { key: 'px', label: t('col.price'), align: 'right', fmt: r => fmtNum(r.pos.price, r.pos.price < 10 ? 4 : 2) },
@@ -98,7 +98,7 @@ export default {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'add') { txDialog(p, txPositions, null); return; }
       if (act === 'import') { root.querySelector('#txFile').click(); return; }
-      if (act === 'txcsv') { downloadBlob('﻿' + toCSV(transactionsCSVRows(p), lang() === 'sv' ? ';' : ','), 'text/csv;charset=utf-8', `${slug(p.name)}-transactions.csv`); return; }
+      if (act === 'txcsv') { downloadBlob('﻿' + toCSV(transactionsCSVRows(p), ','), 'text/csv;charset=utf-8', `${slug(p.name)}-transactions.csv`); return; }
       if (act === 'dropOrphans') { store.update(pp => { const ids = new Set(pp.positions.map(x => x.id)); pp.transactions = pp.transactions.filter(tx => ids.has(tx.posId)); }, t('pnl.dropOrphans')); return; }
       const editTx = e.target.closest('[data-edittx]')?.dataset.edittx;
       if (editTx) { txDialog(p, txPositions, p.transactions.find(tx => tx.id === editTx)); return; }

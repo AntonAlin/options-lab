@@ -1,6 +1,6 @@
 // Tiny UI toolkit: formatting, KPI tiles, tables, modals, toasts. Plain template strings; the
 // views wire events with delegation so re-rendering is just innerHTML.
-import { t, L, locale, lang } from './i18n.js';
+import { t, L, locale } from './i18n.js';
 import { escapeHtml, isNum } from './util.js';
 
 export { escapeHtml as esc };
@@ -17,12 +17,11 @@ export function fmtNum(x, d = 0) {
   if (!isNum(x)) return '—';
   return numberFormat({ minimumFractionDigits: d, maximumFractionDigits: d }).format(x);
 }
-// 1 234 567 → "1.23m" / "1,23 mn" — for tiles and axis-ish places.
+// 1 234 567 → "1.23m" — for tiles and axis-ish places.
 export function fmtCompact(x, d = 1) {
   if (!isNum(x)) return '—';
   const a = Math.abs(x);
-  const sv = lang() === 'sv';
-  const units = sv ? [[1e9, ' mdr'], [1e6, ' mn'], [1e3, ' tn']] : [[1e9, 'bn'], [1e6, 'm'], [1e3, 'k']];
+  const units = [[1e9, 'bn'], [1e6, 'm'], [1e3, 'k']];
   for (const [v, u] of units) if (a >= v) return fmtNum(x / v, d) + u;
   return fmtNum(x, a < 10 ? 2 : 0);
 }
@@ -33,7 +32,7 @@ export function fmtMoney(x, ccy = '', { compact = false, d = 0 } = {}) {
 }
 export function fmtPct(x, d = 1, { sign = false } = {}) {
   if (!isNum(x)) return '—';
-  const s = fmtNum(x * 100, d) + (lang() === 'sv' ? ' %' : '%');
+  const s = fmtNum(x * 100, d) + '%';
   return sign && x > 0 ? '+' + s : s;
 }
 export function fmtDate(iso) {

@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, L, lang } from '../i18n.js';
+import { t, L } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtNum, fmtPct, segmented, signCls } from '../ui.js';
 import { OPTION_LABELS, typeLabel, DELTA_TOL } from '../instruments.js';
 import * as charts from '../charts.js';
@@ -51,7 +51,7 @@ export default {
       ${card(t('der.table'), `
         <div class="toolbar">${segmented('derFilter', [['all', t('der.f.all')], ['option', t('der.f.option')], ['reported', t('der.f.reported')], ['mismatch', t('der.f.mismatch', { n: db.mismatches })]], ui.filter)}</div>
         ${table([
-          { key: 'n', label: t('col.name'), fmt: r => `${esc(r.name)}<div class="cell-sub">${esc(typeLabel(r.type, lang()))} · ${esc(undLabel(r.und))}${r.type === 'option' ? ' · ' + esc(L(OPTION_LABELS[r.pos.optType] || { en: '' })) : ''}</div>` },
+          { key: 'n', label: t('col.name'), fmt: r => `${esc(r.name)}<div class="cell-sub">${esc(typeLabel(r.type))} · ${esc(undLabel(r.und))}${r.type === 'option' ? ' · ' + esc(L(OPTION_LABELS[r.pos.optType] || { en: '' })) : ''}</div>` },
           { key: 'no', label: t('der.notional'), align: 'right', fmt: r => pair(money(r.modelNotional), r.repNotional != null ? money(r.repNotional) : null) },
           { key: 'd', label: t('der.deltaCol'), align: 'right', fmt: r => r.type !== 'option' ? '<span class="muted">1</span>' : pair(delta(r.modelDelta), (r.repDelta ?? r.impliedDelta) != null ? delta(r.repDelta ?? r.impliedDelta) : null) },
           { key: 'e', label: t('der.deltaExp'), align: 'right', fmt: r => r.type === 'fx_forward' ? '<span class="muted">—</span>' : pair(money(r.modelDeltaExp), r.repDeltaExp != null ? money(r.repDeltaExp) : null) },
@@ -89,7 +89,7 @@ export default {
         const d4 = x => (x == null ? '' : Math.round(x * 10000) / 10000);
         const head = ['name', 'type', 'underlying', 'notional_model_' + base, 'notional_reported_' + base, 'delta_model', 'delta_reported', 'delta_exposure_model_' + base, 'delta_exposure_reported_' + base, 'difference_' + base, 'source', 'check'];
         const body = db.rows.map(r => [r.name, r.type, r.und, r2(r.modelNotional), r2(r.repNotional), r.type === 'option' ? d4(r.modelDelta) : '', r.type === 'option' ? d4(r.repDelta ?? r.impliedDelta) : '', r2(r.modelDeltaExp), r2(r.repDeltaExp), r2(r.diffExp), r.used ? 'reported' : 'model', r.mismatch ? 'yes' : '']);
-        downloadBlob('﻿' + toCSV([head, ...body], lang() === 'sv' ? ';' : ','), 'text/csv;charset=utf-8', `${slug(p.name)}-derivatives.csv`);
+        downloadBlob('﻿' + toCSV([head, ...body], ','), 'text/csv;charset=utf-8', `${slug(p.name)}-derivatives.csv`);
       }
     };
   }

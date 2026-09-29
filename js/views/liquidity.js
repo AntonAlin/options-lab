@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, lang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { esc, card, pageHead, table, kpi, fmtMoney, fmtPct, fmtNum, selectHtml, segmented, numIn } from '../ui.js';
 import { liquidityStress, LST_REDEMPTIONS } from '../insights.js';
 
@@ -32,7 +32,7 @@ export default {
       </div>
       ${card(t('liq.profile'), '<div id="chLiq" class="chart"></div>', { sub: esc(t('liq.profileSub')) })}
       ${card(t('liq.table'), table([
-        { key: 'n', label: t('col.name'), fmt: q => `${esc(q.row.name)}<div class="cell-sub">${esc(typeLabel(q.row.pos.type, lang()))}</div>` },
+        { key: 'n', label: t('col.name'), fmt: q => `${esc(q.row.name)}<div class="cell-sub">${esc(typeLabel(q.row.pos.type))}</div>` },
         { key: 'w', label: t('col.weight'), align: 'right', fmt: q => fmtPct(q.row.weight, 2) },
         { key: 'adv', label: t('liq.adv'), align: 'right', fmt: q => q.row.pos.adv ? fmtNum(q.row.pos.adv, 0) : '—' },
         { key: 'd', label: t('liq.days'), align: 'right', fmt: q => `<strong>${fmtNum(q.days, q.days < 10 && q.days % 1 ? 1 : 0)}</strong>` },

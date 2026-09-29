@@ -65,7 +65,7 @@ test('type resolution handles Swedish and English labels', () => {
 test('every instrument field exists in the catalogue and every type prices its defaults', () => {
   for (const [id, def] of Object.entries(INSTRUMENTS)) {
     for (const f of [...def.fields, ...def.required]) assert.ok(FIELDS[f], `${id}.${f} missing from FIELDS`);
-    assert.ok(def.en && def.sv, `${id} labels`);
+    assert.ok(def.en, `${id} label`);
   }
 });
 
@@ -244,12 +244,6 @@ test('demo portfolio analyses end to end without errors', () => {
   assert.equal(a.stress.length, SCENARIOS.length);
   assert.ok(a.stress.every(s => Number.isFinite(s.total)));
   assert.ok(a.risk.param.varPct > 0.001 && a.risk.param.varPct < 0.05, 'VaR % ' + a.risk.param.varPct);
-});
-
-test('translations: English and Swedish have the same keys', () => {
-  const en = Object.keys(DICT.en).sort(), sv = Object.keys(DICT.sv).sort();
-  assert.deepEqual(en.filter(k => !(k in DICT.sv)), []);
-  assert.deepEqual(sv.filter(k => !(k in DICT.en)), []);
 });
 
 test('every literal t("key") used in the code exists in the dictionary', async () => {
@@ -509,14 +503,14 @@ test('linked file: position rows round-trip through the importer, file kinds by 
   assert.equal(buildContent('csv', { p: null }), null, 'nothing to mirror without a portfolio');
 });
 
-test('methodology page documents every module and both languages', async () => {
+test('methodology page documents every module', async () => {
   const { METHODOLOGY } = await import('../js/methodology.js');
   const { readdirSync } = await import('node:fs');
   const modules = new Set(readdirSync(new URL('../js/', import.meta.url).pathname).filter(f => f.endsWith('.js')));
   for (const s of METHODOLOGY) {
-    assert.ok(s.title.en && s.title.sv && s.items.length, s.id);
+    assert.ok(s.title.en && s.items.length, s.id);
     for (const m of s.module.split('·')) assert.ok(modules.has(m.trim().split(' ')[0]), `${s.id} names an unknown module: ${m}`);
-    for (const it of s.items) assert.ok(it.en && it.sv && it.formula && it.notes && 'en' in it.notes && 'sv' in it.notes, `${s.id}: ${it.en}`);
+    for (const it of s.items) assert.ok(it.en && it.formula && it.notes && 'en' in it.notes, `${s.id}: ${it.en}`);
   }
   assert.ok(METHODOLOGY.some(s => s.id === 'risk') && METHODOLOGY.some(s => s.id === 'fund'));
 });
@@ -633,10 +627,10 @@ test('connected source file: no portfolio column means one portfolio; no date co
   assert.equal(analyseRows(none.sheets[0].rows, { decimal: '.' }).error, 'no_date');
 });
 
-test('user guide: every block exists in English and Swedish, links go to real pages', async () => {
+test('user guide: every block has text, links go to real pages', async () => {
   const { GUIDE } = await import('../js/guide.js');
   const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution'];
-  const both = (o, where) => assert.ok(o && String(o.en || '').trim() && String(o.sv || '').trim(), 'missing translation in ' + where);
+  const both = (o, where) => assert.ok(o && String(o.en || '').trim(), 'missing text in ' + where);
   assert.equal(GUIDE[0].id, 'privacy', 'data privacy comes first');
   assert.equal(new Set(GUIDE.map(s => s.id)).size, GUIDE.length);
   for (const s of GUIDE) {

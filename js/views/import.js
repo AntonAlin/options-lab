@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { t, L, lang } from '../i18n.js';
+import { t, L } from '../i18n.js';
 import { esc, card, pageHead, table, toast, selectHtml, segmented, fmtNum, openModal, closeModal, confirmDialog, privacyCallout } from '../ui.js';
 import { INSTRUMENTS, FIELDS, OPTION_LABELS, allFieldKeys, fieldLabel, typeLabel } from '../instruments.js';
 import {
@@ -11,7 +11,7 @@ import { datedLayout, splitSnapshots, snapshotHistory } from '../sourcefile.js';
 import { MAX_SAVED } from '../snapshots.js';
 import { sourceCardHtml, bindSourceCard } from './source-card.js';
 
-// Import state survives re-renders (language switch etc.) but not a page reload.
+// Import state survives re-renders but not a page reload.
 const FRESH = () => ({
   name: '', parsed: null, sheet: 0, headerRow: 0, mapping: [], decimal: '.', dateFormat: 'auto', defaultType: 'auto',
   transforms: {}, constants: {}, typeMap: {}, skipPattern: '', templateId: '', autoApplied: '',
@@ -72,20 +72,20 @@ function setParsed(name, parsed) {
 
 export function errText(e, type) {
   const [code, arg] = e.code.split(':');
-  const f = fieldLabel(type, e.field, lang());
-  if (code === 'one_of') return t('val.oneOf', { fields: arg.split('|').map(k => fieldLabel(type, k, lang())).join(' / ') });
+  const f = fieldLabel(type, e.field);
+  if (code === 'one_of') return t('val.oneOf', { fields: arg.split('|').map(k => fieldLabel(type, k)).join(' / ') });
   if (code === 'type_guessed') return t('val.typeGuessed', { raw: arg });
   if (code === 'unknown_type' && arg) return t('val.unknownTypeRaw', { raw: arg });
   return t('val.' + code, { field: f });
 }
 
-const fieldName = f => (FIELDS[f] ? FIELDS[f][lang()] || FIELDS[f].en : f);
+const fieldName = f => (FIELDS[f] ? FIELDS[f].en : f);
 
 // Input for a constant value, shaped by the field type.
 function constantInput(field, value) {
   const spec = FIELDS[field];
   const attrs = `data-const="${field}" aria-label="${esc(fieldName(field))}"`;
-  if (field === 'type') return selectHtml(attrs, [['', '—'], ...Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k, lang())])], value || '');
+  if (field === 'type') return selectHtml(attrs, [['', '—'], ...Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k)])], value || '');
   if (spec?.type === 'select') return selectHtml(attrs, [['', '—'], ...(spec.options || []).map(o => [o, L(OPTION_LABELS[o] || { en: o })])], value || '');
   if (spec?.type === 'date') return `<input type="date" ${attrs} value="${esc(value || '')}">`;
   if (spec?.type === 'ccy') return `<input ${attrs} class="upper w-80" maxlength="3" value="${esc(value || '')}" placeholder="SEK">`;
@@ -116,14 +116,14 @@ function mandatoryCard(header, results, D, p) {
   const rows = [
     { key: '__date', label: t('imp.asOf'), types: t('imp.allRows'), status: D ? 'col' : 'const', src: D ? String(header[D.dateCol] ?? '') : '', miss: 0 },
     { key: '__pf', label: t('imp.portfolioCol'), types: t('imp.optional'), status: 'info', src: D && D.pfCol >= 0 ? t('imp.pfFromCol', { col: header[D.pfCol], n: D.groups.length }) : t('imp.pfActive', { name: p.name }), miss: 0 },
-    { key: 'type', label: t('col.type'), types: t('imp.allRows'), status: typeCol ? 'col' : st.defaultType !== 'auto' ? 'const' : 'auto', src: typeCol || (st.defaultType !== 'auto' ? typeLabel(st.defaultType, lang()) : t('imp.autoDetect')), miss: 0 },
+    { key: 'type', label: t('col.type'), types: t('imp.allRows'), status: typeCol ? 'col' : st.defaultType !== 'auto' ? 'const' : 'auto', src: typeCol || (st.defaultType !== 'auto' ? typeLabel(st.defaultType) : t('imp.autoDetect')), miss: 0 },
     ...reqs.map(r => {
       const fields = r.oneOf || [r.field];
       const col = fields.map(colOf).find(Boolean);
       const cf = fields.find(f => st.constants[f] !== undefined && st.constants[f] !== '');
       return {
         key: fields[0], fields, label: fields.map(fieldName).join(` ${t('imp.or')} `),
-        types: r.types.map(x => typeLabel(x, lang())).join(', '),
+        types: r.types.map(x => typeLabel(x)).join(', '),
         status: col ? 'col' : cf ? 'const' : 'missing', src: col || '', miss: missingRows(fields[0])
       };
     })
@@ -140,7 +140,7 @@ function mandatoryCard(header, results, D, p) {
           : r.status === 'auto' ? `<span class="chip chip-warn">${esc(t('imp.autoDetect'))}</span>`
           : r.status === 'info' ? `<span class="small">${esc(r.src)}</span>`
           : `<span class="chip chip-breach">✕ ${esc(t('imp.missing'))}</span>`}</td>
-        <td>${r.key === '__date' ? (D ? `<span class="muted small">—</span>` : `<input type="date" id="asOf" required value="${esc(st.asOf)}" aria-label="${esc(t('imp.asOf'))}">`) : r.key === '__pf' ? '' : r.key === 'type' ? selectHtml('id="typeSel2" aria-label="' + esc(t('col.type')) + '"', [['auto', t('imp.autoDetect')], ...Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k, lang())])], st.defaultType) : constantInput(r.key, st.constants[r.key])}</td>
+        <td>${r.key === '__date' ? (D ? `<span class="muted small">—</span>` : `<input type="date" id="asOf" required value="${esc(st.asOf)}" aria-label="${esc(t('imp.asOf'))}">`) : r.key === '__pf' ? '' : r.key === 'type' ? selectHtml('id="typeSel2" aria-label="' + esc(t('col.type')) + '"', [['auto', t('imp.autoDetect')], ...Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k)])], st.defaultType) : constantInput(r.key, st.constants[r.key])}</td>
       </tr>`).join('')}</tbody>
     </table></div>`, {
     sub: esc(nMissing ? t('imp.mandatorySubMissing', { n: nMissing }) : t('imp.mandatorySubOk')),
@@ -151,9 +151,9 @@ function mandatoryCard(header, results, D, p) {
 function typeMapCard(body) {
   const vals = typeValues(body, st.mapping);
   if (!vals.length) return '';
-  const opts = [['', ''], ...Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k, lang())]), ['__skip', t('imp.skipRows')]];
+  const opts = [['', ''], ...Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k)]), ['__skip', t('imp.skipRows')]];
   return card(t('imp.typeMap'), `<div class="map-grid">${vals.slice(0, 60).map(v => {
-    const o = opts.map(([k, l]) => (k === '' ? ['', `${t('imp.auto')}: ${v.auto ? typeLabel(v.auto, lang()) : '?'}`] : [k, l]));
+    const o = opts.map(([k, l]) => (k === '' ? ['', `${t('imp.auto')}: ${v.auto ? typeLabel(v.auto) : '?'}`] : [k, l]));
     return `<div class="map-row ${st.typeMap[v.value] || v.auto ? 'mapped' : 'unmapped'}">
       <div><div class="map-head">${esc(v.value)}</div><div class="map-sample">${esc(t('imp.nRows', { n: v.count }))}</div></div>
       ${selectHtml(`data-typemap="${esc(v.value)}" aria-label="${esc(v.value)}"`, o, st.typeMap[v.value] || '')}
@@ -250,7 +250,7 @@ export default {
             <button class="btn btn-sm" data-act="tplcsv">${esc(t('imp.tplCsv'))}</button>
           </div>
           <div class="inline-form">
-            ${selectHtml('id="tplType" aria-label="' + esc(t('col.type')) + '"', Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k, lang())]), 'equity')}
+            ${selectHtml('id="tplType" aria-label="' + esc(t('col.type')) + '"', Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k)]), 'equity')}
             <button class="btn btn-sm" data-act="tpltype">${esc(t('imp.tplType'))}</button>
           </div>
           <hr class="sep">
@@ -295,7 +295,7 @@ export default {
           <div class="stat"><span class="big pos">${fmtNum(valid.length)}</span><span>${esc(t('imp.valid'))}</span></div>
           <div class="stat"><span class="big ${invalid ? 'neg' : ''}">${fmtNum(invalid)}</span><span>${esc(t('imp.invalid'))}</span></div>
           ${skipped ? `<div class="stat"><span class="big muted">${fmtNum(skipped)}</span><span>${esc(t('imp.skipped'))}</span></div>` : ''}
-          <div class="stat types">${Object.entries(results.reduce((m, r) => (m[r.pos.type] = (m[r.pos.type] || 0) + 1, m), {})).map(([k, n]) => `<span class="type-pill">${esc(typeLabel(k, lang()))} · ${n}</span>`).join('')}</div>
+          <div class="stat types">${Object.entries(results.reduce((m, r) => (m[r.pos.type] = (m[r.pos.type] || 0) + 1, m), {})).map(([k, n]) => `<span class="type-pill">${esc(typeLabel(k))} · ${n}</span>`).join('')}</div>
         </div>
         <div class="toolbar wrap">
           <span>${esc(t('imp.mode'))}</span>
@@ -306,7 +306,7 @@ export default {
         <p class="muted small">${esc(t('imp.modeHelp.' + st.mode))}</p>
         ${table([
           { key: 'line', label: '#', fmt: r => String(r.line + st.headerRow + 1) },
-          { key: 'type', label: t('col.type'), fmt: r => esc(typeLabel(r.pos.type, lang())) },
+          { key: 'type', label: t('col.type'), fmt: r => esc(typeLabel(r.pos.type)) },
           { key: 'name', label: t('col.name'), fmt: r => esc(r.pos.name || r.pos.ticker || r.pos.isin || r.pos.issuer || '—') },
           { key: 'qty', label: t('col.qty'), align: 'right', fmt: r => fmtNum(r.pos.qty ?? r.pos.buyAmount, 2) },
           { key: 'price', label: t('col.price'), align: 'right', fmt: r => r.pos.price != null ? fmtNum(r.pos.price, 4) : '' },
@@ -494,21 +494,20 @@ async function xlsxTemplate() {
   ws['!cols'] = cols.map(c => ({ wch: Math.max(10, c.length + 2) }));
   XLSX.utils.book_append_sheet(wb, ws, 'Holdings');
   // Instruction sheet: one row per field, which types use it, which require it.
-  const lg = lang();
   const info = [[t('imp.x.field'), t('imp.x.label'), t('imp.x.format'), t('imp.x.required'), t('imp.x.optional')]];
   for (const k of cols) {
-    if (k === 'type') { info.push(['type', FIELDS.type[lg], Object.keys(INSTRUMENTS).join(', '), t('imp.x.all'), '']); continue; }
+    if (k === 'type') { info.push(['type', FIELDS.type.en, Object.keys(INSTRUMENTS).join(', '), t('imp.x.all'), '']); continue; }
     const f = FIELDS[k];
     const req = Object.entries(INSTRUMENTS).filter(([, d]) => d.required.includes(k)).map(([id]) => id);
     const opt = Object.entries(INSTRUMENTS).filter(([, d]) => d.fields.includes(k) && !d.required.includes(k)).map(([id]) => id);
-    info.push([k, f[lg] || f.en, f.options ? f.options.join(' | ') : t('imp.x.fmt.' + f.type), req.join(', '), opt.join(', ')]);
+    info.push([k, f.en, f.options ? f.options.join(' | ') : t('imp.x.fmt.' + f.type), req.join(', '), opt.join(', ')]);
   }
   const ws2 = XLSX.utils.aoa_to_sheet(info);
   ws2['!cols'] = [{ wch: 16 }, { wch: 26 }, { wch: 40 }, { wch: 50 }, { wch: 50 }];
-  XLSX.utils.book_append_sheet(wb, ws2, lg === 'sv' ? 'Instruktioner' : 'Instructions');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Instructions');
   const types = [[t('col.type'), 'id', t('imp.x.required'), t('imp.x.hint')], ...Object.entries(INSTRUMENTS).map(([id, d]) => [L(d), id, d.required.join(', '), L(d.hint)])];
   const ws3 = XLSX.utils.aoa_to_sheet(types);
   ws3['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 50 }, { wch: 100 }];
-  XLSX.utils.book_append_sheet(wb, ws3, lg === 'sv' ? 'Instrumenttyper' : 'Instrument types');
+  XLSX.utils.book_append_sheet(wb, ws3, 'Instrument types');
   XLSX.writeFile(wb, 'holdings-template.xlsx');
 }

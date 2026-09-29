@@ -145,12 +145,6 @@ textarea { width: 100%; resize: vertical; line-height: 1.5; }
 .seg { display: inline-flex; background: var(--surface-3); border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; flex-wrap: wrap; }
 .seg button { border: 0; background: transparent; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12.5px; color: var(--ink-2); }
 .seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font-weight: 600; }
-.lang-seg { align-items: center; }
-.lang-seg button { font-weight: 600; font-size: 12px; padding: 4px 10px; }
-.lang-seg .short { display: none; }
-.lang-globe { display: inline-grid; place-items: center; padding: 0 4px 0 6px; color: var(--muted); }
-.lang-globe svg { width: 15px; height: 15px; }
-@media (max-width: 600px) { .lang-seg .long { display: none; } .lang-seg .short { display: inline; } }
 
 /* ---- page structure ----------------------------------------------------------------------------- */
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
