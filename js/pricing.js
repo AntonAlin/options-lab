@@ -1,6 +1,6 @@
 // Pricing maths: normal distribution, Black-Scholes-Merton / Black-76, plain-vanilla bond
 // analytics and swap annuities. Pure functions, no DOM, covered by tests/pricing.test.mjs.
-import { addMonthsISO, parseISODate, DAY_MS, isNum } from './util.js';
+import { addMonthsISO, parseISODate, DAY_MS, isNum, mulberry32, gaussian } from './util.js';
 
 const SQRT2PI = Math.sqrt(2 * Math.PI);
 
@@ -191,4 +191,171 @@ export function swapAnnuity(valuationDate, maturity, freq, ratePct) {
   let a = 0;
   dates.forEach((_, i) => { a += (1 / f) * Math.pow(g, -(i + w)); });
   return { annuity: a, years: (dates.length - 1 + w) / f };
+}
+
+// ============================================================================================
+//  Rates options, inflation and variance swaps, barrier/digital options, autocalls, amortising
+//  bonds. Flat curves throughout: the inputs are the forward rate, the market breakeven, the
+//  implied vol you have, not a full term structure. Every function is covered by a parity or
+//  known-value test in tests/core.test.mjs.
+// ============================================================================================
+
+// Bachelier (normal) and Black-76 (lognormal) on a forward. Price per unit of annuity / discount.
+export function bachelier(type, F, K, T, sigma) {
+  if (!(T > 0) || !(sigma > 0)) return { price: Math.max(0, type === 'call' ? F - K : K - F), delta: type === 'call' ? (F > K ? 1 : 0) : (F < K ? -1 : 0), vega: 0 };
+  const s = sigma * Math.sqrt(T), d = (F - K) / s;
+  const price = type === 'call' ? (F - K) * normCDF(d) + s * normPDF(d) : (K - F) * normCDF(-d) + s * normPDF(d);
+  return { price, delta: type === 'call' ? normCDF(d) : normCDF(d) - 1, vega: Math.sqrt(T) * normPDF(d) };
+}
+export function black76(type, F, K, T, sigma) {
+  if (!(T > 0) || !(sigma > 0) || !(F > 0) || !(K > 0)) return { price: Math.max(0, type === 'call' ? F - K : K - F), delta: type === 'call' ? (F > K ? 1 : 0) : (F < K ? -1 : 0), vega: 0 };
+  const s = sigma * Math.sqrt(T), d1 = (Math.log(F / K) + 0.5 * s * s) / s, d2 = d1 - s;
+  const price = type === 'call' ? F * normCDF(d1) - K * normCDF(d2) : K * normCDF(-d2) - F * normCDF(-d1);
+  return { price, delta: type === 'call' ? normCDF(d1) : normCDF(d1) - 1, vega: F * Math.sqrt(T) * normPDF(d1) };
+}
+const rateOption = (volType, type, F, K, T, vol) => (volType === 'lognormal' ? black76(type, F, K, T, vol) : bachelier(type, F, K, T, vol));
+
+// European swaption on a swap starting at expiry T and running `tenor` years, paying `freq` a year.
+// Rates as decimals; normal vol in decimals (0.0080 = 80 bp), lognormal vol as a decimal (0.25).
+// Returns per 1 of notional: { pv, annuity, dPVdF (value change per unit move of the forward), vega }.
+export function swaption({ payer = true, F, K, T, tenor, freq = 1, vol, volType = 'normal' }) {
+  const n = Math.max(1, Math.round(tenor * freq)), tau = 1 / freq;
+  let annuity = 0;
+  for (let i = 1; i <= n; i++) annuity += tau * Math.exp(-F * (T + i * tau));
+  const o = rateOption(volType, payer ? 'call' : 'put', F, K, T, vol);
+  const vegaUnit = volType === 'lognormal' ? o.vega : o.vega; // per 1.00 of vol
+  return { pv: annuity * o.price, annuity, dPVdF: annuity * o.delta, vega: annuity * vegaUnit };
+}
+
+// Cap (call on the rate) or floor, from `start` to `start + tenor` years, one caplet per period.
+// The first period's rate is already fixed, so it is left out (market convention).
+export function capFloor({ cap = true, F, K, start = 0, tenor, freq = 4, vol, volType = 'normal' }) {
+  const n = Math.max(1, Math.round(tenor * freq)), tau = 1 / freq;
+  let pv = 0, dPVdF = 0, vega = 0;
+  for (let i = 1; i < n; i++) {
+    const tFix = start + i * tau, df = Math.exp(-F * (tFix + tau));
+    const o = rateOption(volType, cap ? 'call' : 'put', F, K, tFix, vol);
+    pv += tau * df * o.price; dPVdF += tau * df * o.delta; vega += tau * df * o.vega;
+  }
+  return { pv, dPVdF, vega };
+}
+
+// Zero-coupon inflation swap, receiving inflation: PV = N·DF(T)·[(1+b)^T − (1+K)^T].
+export function zcInflationSwap({ receiveInflation = true, T, fixed, breakeven, rate }) {
+  const df = Math.exp(-rate * T), sign = receiveInflation ? 1 : -1;
+  const pv = sign * df * ((1 + breakeven) ** T - (1 + fixed) ** T);
+  const dPVdB = sign * df * T * (1 + breakeven) ** (T - 1);
+  return { pv, dPVdB, dPVdR: -T * pv };
+}
+
+// Variance swap (vols in points, 20 = 20 %): long receives realised variance. Vega notional Nv gives a
+// variance notional of Nv / (2K). `elapsed` = share of the observation period already realised.
+export function varianceSwap({ long = true, vegaNotional, strike, implied, realised = 0, elapsed = 0, T, rate = 0, kind = 'variance' }) {
+  const df = Math.exp(-rate * T), sign = long ? 1 : -1, a = Math.min(1, Math.max(0, elapsed));
+  const expVar = a * realised ** 2 + (1 - a) * implied ** 2;
+  if (kind === 'volatility') {
+    const expVol = Math.sqrt(expVar);
+    return { pv: sign * vegaNotional * (expVol - strike) * df, vega: sign * vegaNotional * (1 - a) * (implied / (expVol || 1)) * df };
+  }
+  const varNotional = vegaNotional / (2 * strike);
+  return { pv: sign * varNotional * (expVar - strike ** 2) * df, vega: sign * varNotional * 2 * implied * (1 - a) * df };
+}
+
+// Barrier options, Reiner-Rubinstein (Haug, The Complete Guide to Option Pricing Formulas, §4.17),
+// no rebate. kind: 'down-and-in' | 'down-and-out' | 'up-and-in' | 'up-and-out'. b = r − q.
+export function barrierOption(type, kind, S, K, H, T, r, q, sigma) {
+  const vanilla = () => bsmPrice(type, S, K, T, r, q, sigma);
+  const down = kind.startsWith('down'), isIn = kind.endsWith('in');
+  if ((down && S <= H) || (!down && S >= H)) return isIn ? vanilla() : 0; // already hit
+  if (!(T > 0)) return Math.max(0, type === 'call' ? S - K : K - S);
+  const b = r - q, sT = sigma * Math.sqrt(T), mu = (b - sigma * sigma / 2) / (sigma * sigma);
+  const phi = type === 'call' ? 1 : -1, eta = down ? 1 : -1;
+  const eb = Math.exp((b - r) * T), er = Math.exp(-r * T);
+  const x1 = Math.log(S / K) / sT + (1 + mu) * sT, x2 = Math.log(S / H) / sT + (1 + mu) * sT;
+  const y1 = Math.log(H * H / (S * K)) / sT + (1 + mu) * sT, y2 = Math.log(H / S) / sT + (1 + mu) * sT;
+  const A = phi * S * eb * normCDF(phi * x1) - phi * K * er * normCDF(phi * x1 - phi * sT);
+  const B = phi * S * eb * normCDF(phi * x2) - phi * K * er * normCDF(phi * x2 - phi * sT);
+  const C = phi * S * eb * (H / S) ** (2 * (mu + 1)) * normCDF(eta * y1) - phi * K * er * (H / S) ** (2 * mu) * normCDF(eta * y1 - eta * sT);
+  const D = phi * S * eb * (H / S) ** (2 * (mu + 1)) * normCDF(eta * y2) - phi * K * er * (H / S) ** (2 * mu) * normCDF(eta * y2 - eta * sT);
+  const hi = K > H;
+  const table = {
+    'call|down-and-in': hi ? C : A - B + D, 'call|up-and-in': hi ? A : B - C + D,
+    'put|down-and-in': hi ? B - C + D : A, 'put|up-and-in': hi ? A - B + D : C,
+    'call|down-and-out': hi ? A - C : B - D, 'call|up-and-out': hi ? 0 : A - B + C - D,
+    'put|down-and-out': hi ? A - B + C - D : 0, 'put|up-and-out': hi ? B - D : A - C
+  };
+  return Math.max(0, table[type + '|' + kind]);
+}
+function bsmPrice(type, S, K, T, r, q, sigma) { return bsm(type, S, K, T, r, q, sigma).price; }
+
+// Cash-or-nothing digital paying `payout` if in the money at expiry.
+export function digitalOption(type, S, K, T, r, q, sigma, payout = 1) {
+  if (!(T > 0)) return (type === 'call' ? S > K : S < K) ? payout : 0;
+  const d2 = (Math.log(S / K) + (r - q - sigma * sigma / 2) * T) / (sigma * Math.sqrt(T));
+  return payout * Math.exp(-r * T) * normCDF(type === 'call' ? d2 : -d2);
+}
+
+// Autocallable note per 100 nominal, Monte Carlo (seeded, antithetic). On each remaining observation
+// date, if the underlying is at or above autocall × initial, it repays 100 plus the coupon for every
+// period since issue and ends. If never called: 100 at maturity if above protection × initial (plus
+// the coupons if above the autocall level), otherwise 100 × final / initial.
+export function autocall({ S, initial, T, obsPerYear = 1, periodsElapsed = 0, autocallLevel = 1, couponPct, protection = 0.6, r, q = 0, sigma, paths = 4000, seed = 7 }) {
+  const n = Math.max(1, Math.round(T * obsPerYear));
+  const dt = T / n, drift = (r - q - sigma * sigma / 2) * dt, sd = sigma * Math.sqrt(dt);
+  const rng = mulberry32(seed);
+  let total = 0;
+  for (let k = 0; k < paths / 2; k++) {
+    const z = Array.from({ length: n }, () => gaussian(rng));
+    for (const sign of [1, -1]) {
+      let s = S, pv = null;
+      for (let i = 1; i <= n; i++) {
+        s *= Math.exp(drift + sd * sign * z[i - 1]);
+        const t = i * dt, periods = periodsElapsed + i;
+        if (i < n && s >= autocallLevel * initial) { pv = (100 + couponPct * periods) * Math.exp(-r * t); break; }
+        if (i === n) {
+          const pay = s >= autocallLevel * initial ? 100 + couponPct * periods : s >= protection * initial ? 100 : 100 * s / initial;
+          pv = pay * Math.exp(-r * T);
+        }
+      }
+      total += pv;
+    }
+  }
+  return total / (2 * Math.floor(paths / 2));
+}
+
+// Amortising bond (ABS, RMBS, CLO): level-pay (annuity) or linear amortisation over the remaining
+// periods, with prepayments at a constant CPR. Prices per 100 of CURRENT face. Returns the same
+// shape as bondAnalytics plus the weighted average life.
+export function amortisingAnalytics({ valuationDate, maturity, couponPct = 0, freq = 12, cpr = 0, cleanPrice, yieldPct, style = 'annuity' }) {
+  const f = Math.max(1, Math.round(freq || 12));
+  const { dates, prev } = couponSchedule(valuationDate, maturity, f);
+  if (!dates.length) return null;
+  const c = (couponPct || 0) / 100 / f, smm = 1 - (1 - Math.min(0.99, Math.max(0, cpr / 100))) ** (1 / f);
+  const val = parseISODate(valuationDate), prevD = parseISODate(prev), nextD = parseISODate(dates[0]);
+  const w = Math.min(1, Math.max(0, ((nextD - val) / DAY_MS) / ((nextD - prevD) / DAY_MS)));
+  const accrued = (couponPct || 0) / f * (1 - w);
+  let bal = 100, walNum = 0;
+  const flows = [];
+  for (let i = 0; i < dates.length && bal > 1e-9; i++) {
+    const left = dates.length - i, interest = bal * c;
+    let sched = style === 'linear' ? bal / left : (c ? bal * c / (1 - (1 + c) ** -left) - interest : bal / left);
+    sched = Math.min(bal, sched);
+    const prepay = (bal - sched) * (i === dates.length - 1 ? 0 : smm);
+    const principal = i === dates.length - 1 ? bal : sched + prepay;
+    bal -= principal;
+    const t = (i + w) / f;
+    walNum += t * principal;
+    flows.push({ t, n: i + w, cf: interest + principal });
+  }
+  const pv = y => { const g = 1 + y / f; let p = 0, dp = 0; for (const fl of flows) { const d = g ** -fl.n; p += fl.cf * d; dp += -fl.n / f * fl.cf * d / g; } return { p, dp }; };
+  let y, dirty;
+  if (isNum(cleanPrice) && cleanPrice > 0) {
+    dirty = cleanPrice + accrued; y = (couponPct || 3) / 100;
+    for (let i = 0; i < 80; i++) { const { p, dp } = pv(y); const step = (p - dirty) / dp; if (!isNum(step)) break; y -= step; if (Math.abs(step) < 1e-12) break; }
+  } else if (isNum(yieldPct)) { y = yieldPct / 100; dirty = pv(y).p; } else return null;
+  const g = 1 + y / f;
+  let p = 0, mac = 0, conv = 0;
+  for (const fl of flows) { const d = g ** -fl.n; p += fl.cf * d; mac += fl.t * fl.cf * d; conv += fl.cf * d * fl.n * (fl.n + 1) / (f * f); }
+  mac /= p;
+  return { ytm: y, dirty: p, clean: p - accrued, accrued, macaulay: mac, modDur: mac / g, convexity: conv / (p * g * g), yearsToMaturity: flows[flows.length - 1].t, wal: walNum / 100 };
 }

@@ -985,11 +985,152 @@ test('instrument coverage: European institutional instruments import and value c
   // American put is worth at least its intrinsic value.
   const am = run(['Name', 'Type', 'Quantity', 'Currency', 'Strike', 'Maturity', 'Underlying price', 'Volatility', 'Option type', 'Multiplier'], ['ABB put', 'Stock option', 10, 'SEK', 700, '2027-09-17', 500, 25, 'put', 100]);
   assert.ok(am.r.mv >= 200000, 'American put ≥ intrinsic: ' + am.r.mv);
-  // OTC MTM-only: swaption and variance swap.
-  const swpt = run(['Name', 'Type', 'Quantity', 'Currency', 'Market value', 'Delta', 'Duration'], ['EUR 5y10y payer', 'Swaption', 20000000, 'EUR', 310000, -0.42, 8.6]);
-  assert.equal(swpt.type, 'otc'); close(swpt.r.mv, 310000 * 11.2, 1e-6);
-  close(run(['Name', 'Type', 'Quantity', 'Currency', 'Market value'], ['Var swap', 'Variance swap', 100000, 'EUR', -50000]).r.vega, 100000 * 11.2, 1e-6);
+  // Swaptions and variance swaps are modelled now; a counterparty MTM still wins for the value.
+  const swpt = run(['Name', 'Type', 'Quantity', 'Currency', 'Market value', 'Strike', 'Maturity', 'Tenor', 'Market rate', 'Volatility'], ['EUR 5y10y payer', 'Swaption', 20000000, 'EUR', 310000, 2.75, '2031-09-28', 10, 2.6, 85]);
+  assert.equal(swpt.type, 'swaption'); close(swpt.r.mv, 310000 * 11.2, 1e-6); assert.ok(swpt.r.ir01.EUR > 0, 'payer gains when rates rise');
+  const vsw = run(['Name', 'Type', 'Quantity', 'Currency', 'Strike', 'Volatility', 'Maturity'], ['Var swap', 'Variance swap', 100000, 'EUR', 20, 20, '2027-09-28']);
+  assert.equal(vsw.type, 'variance_swap'); close(vsw.r.mv, 0, 1); assert.ok(vsw.r.vega > 0);
+  assert.equal(run(['Name', 'Type', 'Quantity', 'Currency', 'Market value'], ['Asian', 'Asian option', 1000000, 'EUR', 5000]).type, 'otc');
   // An unknown type is not valued at all.
   const unk = run(H, ['Mystery', 'Snowflake swap', 1000, 100, 'SEK']);
   assert.equal(unk.type, 'unknown'); assert.equal(unk.r, null);
+});
+
+test('pricing: rate options, inflation and variance swaps obey parity and limits', async () => {
+  const m = await import('../js/pricing.js');
+  // Put-call parity for Bachelier and Black-76.
+  const bc = m.bachelier('call', 0.025, 0.02, 2, 0.009), bp = m.bachelier('put', 0.025, 0.02, 2, 0.009);
+  close(bc.price - bp.price, 0.005, 1e-12);
+  const lc = m.black76('call', 0.03, 0.025, 1.5, 0.3), lp = m.black76('put', 0.03, 0.025, 1.5, 0.3);
+  close(lc.price - lp.price, 0.005, 1e-12);
+  // Payer − receiver swaption = annuity × (F − K); same for cap − floor per period.
+  const pay = m.swaption({ payer: true, F: 0.027, K: 0.025, T: 5, tenor: 10, freq: 1, vol: 0.008 });
+  const rec = m.swaption({ payer: false, F: 0.027, K: 0.025, T: 5, tenor: 10, freq: 1, vol: 0.008 });
+  close(pay.pv - rec.pv, pay.annuity * 0.002, 1e-12);
+  assert.ok(pay.dPVdF > 0 && rec.dPVdF < 0);
+  const cap = m.capFloor({ cap: true, F: 0.03, K: 0.03, tenor: 5, freq: 4, vol: 0.009 });
+  const flr = m.capFloor({ cap: false, F: 0.03, K: 0.03, tenor: 5, freq: 4, vol: 0.009 });
+  close(cap.pv, flr.pv, 1e-12, 'at-the-money cap = floor');
+  // Inflation swap at the market breakeven is worth nothing; variance swap at inception too.
+  close(m.zcInflationSwap({ T: 10, fixed: 0.022, breakeven: 0.022, rate: 0.025 }).pv, 0, 1e-15);
+  const vs = m.varianceSwap({ vegaNotional: 100000, strike: 20, implied: 20, T: 1 });
+  close(vs.pv, 0, 1e-9);
+  const up = m.varianceSwap({ vegaNotional: 100000, strike: 20, implied: 20.01, T: 1 });
+  close((up.pv - vs.pv) / 0.01, vs.vega, 100, 'vega = dPV/dσ');
+  close(m.varianceSwap({ vegaNotional: 100000, strike: 20, implied: 21, T: 1 }).pv, 100000 / 40 * (441 - 400), 1e-6);
+});
+
+test('pricing: barrier in + out = vanilla; digitals; autocall limits; amortising bonds', async () => {
+  const m = await import('../js/pricing.js');
+  const [S, T, r, q, v] = [100, 0.75, 0.03, 0.01, 0.25];
+  for (const type of ['call', 'put']) for (const [K, H, dir] of [[100, 90, 'down'], [80, 90, 'down'], [100, 115, 'up'], [120, 115, 'up']]) {
+    const vanilla = m.bsm(type, S, K, T, r, q, v).price;
+    const sum = m.barrierOption(type, dir + '-and-in', S, K, H, T, r, q, v) + m.barrierOption(type, dir + '-and-out', S, K, H, T, r, q, v);
+    close(sum, vanilla, 1e-9, `${type} ${dir} K=${K} H=${H}`);
+  }
+  close(m.barrierOption('call', 'down-and-out', S, 100, 1, T, r, q, v), m.bsm('call', S, 100, T, r, q, v).price, 1e-6, 'far barrier = vanilla');
+  assert.equal(m.barrierOption('call', 'down-and-out', 85, 100, 90, T, r, q, v), 0, 'knocked out');
+  close(m.digitalOption('call', S, 105, T, r, q, v) + m.digitalOption('put', S, 105, T, r, q, v), Math.exp(-r * T), 1e-12);
+  // Autocall: never called, no protection, no coupon → a forward on the underlying.
+  const fwdLike = m.autocall({ S: 100, initial: 100, T: 2, autocallLevel: 99, couponPct: 0, protection: 99, r: 0.03, q: 0.01, sigma: 0.2, paths: 20000 });
+  close(fwdLike, 100 * Math.exp(-0.01 * 2), 1.5);
+  // Full protection (protection 0) always repays 100.
+  close(m.autocall({ S: 100, initial: 100, T: 2, autocallLevel: 99, couponPct: 0, protection: 0, r: 0.03, sigma: 0.2 }), 100 * Math.exp(-0.06), 1e-9);
+  // Always called at the first observation.
+  close(m.autocall({ S: 100, initial: 100, T: 3, autocallLevel: 0, couponPct: 8, r: 0.03, sigma: 0.2 }), 108 * Math.exp(-0.03), 1e-9);
+  // Amortising: prepayments shorten the life and the duration; price ↔ yield round-trips.
+  const slow = m.amortisingAnalytics({ valuationDate: '2026-09-28', maturity: '2046-09-28', couponPct: 4, freq: 12, cpr: 0, yieldPct: 4 });
+  const fast = m.amortisingAnalytics({ valuationDate: '2026-09-28', maturity: '2046-09-28', couponPct: 4, freq: 12, cpr: 15, yieldPct: 4 });
+  assert.ok(fast.wal < slow.wal && fast.modDur < slow.modDur && slow.wal < 20);
+  close(m.amortisingAnalytics({ valuationDate: '2026-09-28', maturity: '2046-09-28', couponPct: 4, freq: 12, cpr: 15, cleanPrice: fast.clean }).ytm, 0.04, 1e-9);
+});
+
+test('collateral: repo and securities lending count after haircut toward the counterparty limit', () => {
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  const cash = { id: 'c', type: 'cash', name: 'Cash', qty: 100000000, ccy: 'SEK', issuer: 'Bank A' };
+  const repo = { id: 'r', type: 'repo', name: 'Reverse repo', qty: 10000000, ccy: 'SEK', issuer: 'Dealer X', collateralValue: 10000000, haircut: 2 };
+  const sl = { id: 's', type: 'sec_lending', name: 'Loan', qty: 8000000, ccy: 'SEK', issuer: 'Borrower Y', collateralValue: 7000000, haircut: 0 };
+  const v = valuePortfolio({ ...p, positions: [cash, repo, sl] });
+  const rr = v.valid.find(x => x.pos.id === 'r').r, sr = v.valid.find(x => x.pos.id === 's').r;
+  close(rr.cptyExposure, 200000, 1e-6, 'lent 10m − 10m × 98 %'); assert.ok(rr.warnings.includes('under_collateralised'));
+  close(sr.mv, 0, 1e-9, 'lent securities stay in the holdings'); close(sr.cptyExposure, 1000000, 1e-6);
+  const rule = compliance(v).rules.find(r => r.id === 'otcCounterparty');
+  close(rule.value, 1000000 / v.nav * 100, 1e-6, 'largest counterparty is the borrower');
+  const bare = valuePortfolio({ ...p, positions: [cash, { ...repo, collateralValue: undefined }] }).valid.find(x => x.pos.id === 'r').r;
+  close(bare.cptyExposure, 10000000, 1e-6); assert.ok(bare.warnings.includes('collateral_missing'));
+});
+
+test('certificates: knock-out exposure and stop-loss, autocall and capital protected deltas', () => {
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  const val = pos => valuePortfolio({ ...p, positions: [{ id: 'x', ccy: 'SEK', qty: 1000, price: 50, name: 'Cert', type: 'certificate', ...pos }] }).rows[0];
+  const mini = val({ certType: 'knock_out', optType: 'call', underlyingPrice: 300, strike: 250, barrier: 260, multiplier: 1 });
+  close(mini.r.eqDelta, 1000 * 300, 1e-6, 'full underlying per certificate'); close(mini.r.mv, 50000, 1e-9);
+  const hit = val({ certType: 'knock_out', optType: 'call', underlyingPrice: 255, strike: 250, barrier: 260, multiplier: 1 });
+  close(hit.r.eqDelta, 0, 1e-9); assert.ok(hit.r.warnings.includes('knocked_out'));
+  const short = val({ certType: 'knock_out', optType: 'put', underlyingPrice: 300, strike: 350, barrier: 340 });
+  close(short.r.eqDelta, -300000, 1e-6);
+  const ac = val({ certType: 'autocall', price: 98, underlyingPrice: 100, strike: 100, vol: 25, maturity: '2029-09-28', autocallLevel: 100, protectionLevel: 60, coupon: 7, freq: '1' });
+  assert.ok(ac.r.eqDelta > 0 && ac.r.eqDelta < 1000 * 98, 'autocall delta between 0 and notional: ' + ac.r.eqDelta);
+  assert.ok(ac.r.model.price > 70 && ac.r.model.price < 110);
+  const cp = val({ certType: 'protected', price: 100, underlyingPrice: 100, strike: 100, vol: 20, maturity: '2031-09-28', leverage: 0.8 });
+  assert.ok(cp.r.eqDelta > 0 && cp.r.eqDelta < 1000 * 100 * 0.8);
+  assert.ok(cp.r.model.price > 100 * Math.exp(-0.025 * 5));
+});
+
+test('ABS amortise with CPR: shorter WAL and duration than the same bond held to maturity', () => {
+  const p = newPortfolio({ baseCcy: 'EUR', valDate: '2026-09-28' });
+  const H = ['Name', 'Type', 'Quantity', 'Price', 'Currency', 'Maturity', 'Coupon', 'Issuer', 'CPR', 'Pool factor'];
+  const [res] = rowsToPositions([['Green Lion RMBS', 'RMBS', 10000000, 100, 'EUR', '2056-09-28', 3.5, 'ING', 8, 0.6]], autoMapping(H), { decimal: '.' });
+  assert.equal(res.pos.structure, 'amortising');
+  const x = valuePortfolio({ ...p, positions: [{ id: 'a', ...res.pos }] }).rows[0];
+  close(x.r.mv / 6000000, 1, 0.02, 'outstanding = nominal × pool factor');
+  assert.equal(x.r.fi.workout, 'wal'); assert.ok(x.r.fi.wal > 3 && x.r.fi.wal < 12, 'WAL ' + x.r.fi.wal);
+  const bullet = valuePortfolio({ ...p, positions: [{ id: 'b', type: 'corp_bond', name: 'Bullet', qty: 6000000, price: 100, ccy: 'EUR', maturity: '2056-09-28', coupon: 3.5, issuer: 'ING' }] }).rows[0];
+  assert.ok(x.r.fi.modDur < bullet.r.fi.modDur / 2);
+  const noCpr = valuePortfolio({ ...p, positions: [{ id: 'a', ...res.pos, cpr: undefined }] }).rows[0];
+  assert.ok(noCpr.r.warnings.includes('cpr_missing'));
+});
+
+test('inflation: linkers and inflation swaps load a breakeven factor that the model and stress use', () => {
+  const p = newPortfolio({ baseCcy: 'EUR', valDate: '2026-09-28' });
+  const il = { id: 'il', type: 'inflation_linked', name: 'OATei', qty: 10000000, price: 100, ccy: 'EUR', maturity: '2036-07-25', coupon: 0.1, issuer: 'France', indexRatio: 1.2 };
+  const zc = { id: 'zc', type: 'inflation_swap', name: 'ZC', qty: 10000000, ccy: 'EUR', direction: 'pay', fixedRate: 2.2, breakeven: 2.2, maturity: '2036-09-28' };
+  const v = valuePortfolio({ ...p, positions: [il, zc] });
+  const [a, b] = ['il', 'zc'].map(id => v.valid.find(x => x.pos.id === id).r);
+  assert.ok(a.inf01.EUR > 0, 'linker gains when breakeven widens'); assert.ok(b.inf01.EUR < 0, 'paying inflation loses');
+  close(b.mv, 0, 1, 'at-market swap is worth zero');
+  const fm = factorModel(v);
+  assert.ok(fm.factors.some(f => f.id === 'INF:EUR' && f.group === 'inflation'));
+  const up = runStress(valuePortfolio({ ...p, positions: [il] }), [{ id: 't', eq: 0, rates: 0, cs: 0, fxAll: 0, cmd: 0, vol: 0, infl: 50 }])[0];
+  close(up.total, a.inf01.EUR * 50, Math.abs(a.inf01.EUR), 'stress = inf01 × bp');
+});
+
+test('rate options and barriers: cap/floor sign, knocked-out barrier', () => {
+  const p = newPortfolio({ baseCcy: 'EUR', valDate: '2026-09-28' });
+  const val = pos => valuePortfolio({ ...p, positions: [{ id: 'x', ccy: 'EUR', name: 'X', ...pos }] }).rows[0].r;
+  const cap = val({ type: 'cap_floor', capFloor: 'cap', qty: 50000000, strike: 3, maturity: '2031-09-28', marketRate: 2.5, vol: 90 });
+  const floor = val({ type: 'cap_floor', capFloor: 'floor', qty: 50000000, strike: 2, maturity: '2031-09-28', marketRate: 2.5, vol: 90 });
+  assert.ok(cap.mv > 0 && cap.ir01.EUR > 0, 'long cap gains when rates rise'); assert.ok(floor.ir01.EUR < 0);
+  assert.ok(cap.model.vega > 0, 'rate vega reported on the position'); assert.equal(cap.vega, 0, 'not on the equity vol factor');
+  const doc = val({ type: 'exotic_option', exoticKind: 'barrier', optType: 'call', barrierType: 'down-and-out', barrier: 80, strike: 100, qty: 100, underlyingPrice: 78, vol: 25, maturity: '2027-09-28' });
+  assert.ok(doc.warnings.includes('knocked_out')); close(doc.mv, 0, 1e-9);
+  const live = val({ type: 'exotic_option', exoticKind: 'barrier', optType: 'call', barrierType: 'down-and-out', barrier: 80, strike: 100, qty: 100, underlyingPrice: 100, vol: 25, maturity: '2027-09-28' });
+  assert.ok(live.mv > 0 && live.eqDelta > 0);
+});
+
+test('modelled OTC types still take a counterparty-MTM-only row, flagged, instead of rejecting it', () => {
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  const run = (header, row) => {
+    const [res] = rowsToPositions([row], autoMapping(header), { decimal: '.' });
+    return { res, x: valuePortfolio({ ...p, positions: [{ id: 'x', ...res.pos }] }).rows[0] };
+  };
+  const sw = run(['Name', 'Type', 'Quantity', 'Currency', 'Market value', 'Delta', 'Duration'], ['EUR 5y10y payer', 'Swaption', 20000000, 'EUR', 310000, -0.42, 8.6]);
+  assert.equal(sw.res.pos.type, 'swaption'); assert.deepEqual(validatePosition(sw.res.pos), []);
+  close(sw.x.r.mv, 310000 * 11.2, 1e-6); assert.ok(sw.x.r.warnings.includes('model_inputs_missing'));
+  const vs = run(['Name', 'Type', 'Quantity', 'Currency', 'Market value'], ['SX5E var swap', 'Variance swap', 100000, 'EUR', -50000]);
+  close(vs.x.r.vega, 100000 * 11.2, 1e-6);
+  const inf = run(['Name', 'Type', 'Quantity', 'Currency', 'Market value', 'Duration', 'Direction'], ['HICPx 10y', 'Inflation swap', 10000000, 'EUR', 20000, 9.5, 'pay']);
+  assert.ok(inf.x.r.inf01.EUR < 0, 'paying inflation loses when breakeven rises'); assert.deepEqual(inf.x.r.ir01, {});
+  // Without an MTM the pricing inputs are required.
+  assert.ok(validatePosition({ type: 'swaption', qty: 1e6, ccy: 'EUR', payerReceiver: 'payer' }).some(e => e.field === 'strike'));
 });

@@ -171,14 +171,15 @@ export function currencyExposure(v) {
 // portfolio's capital-market assumptions (editable in Settings).
 export function factorModel(v) {
   const c = { ...DEFAULT_CMA, ...(v.p.cma || {}) };
-  const rateCcys = new Set(), fxCcys = new Set();
-  v.valid.forEach(x => { Object.keys(x.r.ir01).forEach(k => rateCcys.add(k)); Object.keys(x.r.fx).forEach(k => fxCcys.add(k)); });
+  const rateCcys = new Set(), fxCcys = new Set(), infCcys = new Set();
+  v.valid.forEach(x => { Object.keys(x.r.ir01).forEach(k => rateCcys.add(k)); Object.keys(x.r.fx).forEach(k => fxCcys.add(k)); Object.keys(x.r.inf01 || {}).forEach(k => infCcys.add(k)); });
   const factors = [
     { id: 'EQ', group: 'equity', vol: c.equityVol / 100 },
     { id: 'CS', group: 'credit', vol: c.creditVolBp },
     { id: 'CMD', group: 'commodity', vol: c.commodityVol / 100 },
     { id: 'VOL', group: 'volatility', vol: c.volOfVolPts },
     ...[...rateCcys].sort().map(k => ({ id: 'IR:' + k, group: 'rates', vol: c.ratesVolBp, ccy: k })),
+    ...[...infCcys].sort().map(k => ({ id: 'INF:' + k, group: 'inflation', vol: c.inflationVolBp, ccy: k })),
     ...[...fxCcys].sort().map(k => ({ id: 'FX:' + k, group: 'currency', vol: c.fxVol / 100, ccy: k }))
   ];
   const n = factors.length;
@@ -196,6 +197,10 @@ export function factorModel(v) {
       case 'currency|currency': return c.corrFxFx;
       case 'commodity|currency': return c.corrCmdFx;
       case 'credit|volatility': return 0.5;
+      // Breakeven inflation moves with nominal rates of the same currency, less with others.
+      case 'inflation|rates': return a.ccy === b.ccy ? c.corrRatesInfl : c.corrRatesInfl * c.corrRatesRates;
+      case 'inflation|inflation': return c.corrRatesRates;
+      case 'commodity|inflation': return c.corrCmdInfl;
       case 'commodity|credit': return -0.2;
       default: return 0;
     }
@@ -207,7 +212,7 @@ export function factorModel(v) {
       case 'CS': return x.r.cs01;
       case 'CMD': return x.r.cmDelta;
       case 'VOL': return x.r.vega;
-      default: return f.group === 'rates' ? (x.r.ir01[f.ccy] || 0) : (x.r.fx[f.ccy] || 0);
+      default: return f.group === 'rates' ? (x.r.ir01[f.ccy] || 0) : f.group === 'inflation' ? ((x.r.inf01 || {})[f.ccy] || 0) : (x.r.fx[f.ccy] || 0);
     }
   });
   const S = v.valid.map(sensOf);
@@ -478,24 +483,26 @@ export function monthlyReturns(dates, ret) {
 // i.e. the base currency weakens). These are stylised calibrations of well-known episodes, not a
 // replay of history — the page says so.
 export const SCENARIOS = [
-  { id: 'gfc2008', en: 'Global financial crisis (autumn 2008)', sv: 'Finanskrisen (hösten 2008)', eq: -0.35, rates: -150, cs: 300, fxAll: 0.15, cmd: -0.40, vol: 30 },
-  { id: 'euro2011', en: 'Euro debt crisis (2011)', sv: 'Eurokrisen (2011)', eq: -0.22, rates: -100, cs: 180, fxAll: 0.05, cmd: -0.15, vol: 20 },
-  { id: 'covid2020', en: 'Covid crash (Feb–Mar 2020)', sv: 'Coronakraschen (feb–mar 2020)', eq: -0.30, rates: -80, cs: 200, fxAll: 0.08, cmd: -0.30, vol: 40 },
-  { id: 'rates2022', en: 'Inflation & rate shock (2022)', sv: 'Inflations- och räntechocken (2022)', eq: -0.20, rates: 250, cs: 120, fxAll: 0.12, cmd: 0.20, vol: 10 },
+  { id: 'gfc2008', en: 'Global financial crisis (autumn 2008)', sv: 'Finanskrisen (hösten 2008)', eq: -0.35, rates: -150, cs: 300, fxAll: 0.15, cmd: -0.40, vol: 30, infl: -150 },
+  { id: 'euro2011', en: 'Euro debt crisis (2011)', sv: 'Eurokrisen (2011)', eq: -0.22, rates: -100, cs: 180, fxAll: 0.05, cmd: -0.15, vol: 20, infl: -40 },
+  { id: 'covid2020', en: 'Covid crash (Feb–Mar 2020)', sv: 'Coronakraschen (feb–mar 2020)', eq: -0.30, rates: -80, cs: 200, fxAll: 0.08, cmd: -0.30, vol: 40, infl: -90 },
+  { id: 'rates2022', en: 'Inflation & rate shock (2022)', sv: 'Inflations- och räntechocken (2022)', eq: -0.20, rates: 250, cs: 120, fxAll: 0.12, cmd: 0.20, vol: 10, infl: 60 },
   { id: 'eq10', en: 'Equities −10 %', sv: 'Aktier −10 %', eq: -0.10, rates: 0, cs: 0, fxAll: 0, cmd: 0, vol: 5 },
   { id: 'eq20up', en: 'Equities +15 %', sv: 'Aktier +15 %', eq: 0.15, rates: 0, cs: -30, fxAll: 0, cmd: 0, vol: -4 },
   { id: 'rup100', en: 'Rates +100 bp parallel', sv: 'Räntor +100 bp parallellt', eq: 0, rates: 100, cs: 0, fxAll: 0, cmd: 0, vol: 0 },
   { id: 'rdn100', en: 'Rates −100 bp parallel', sv: 'Räntor −100 bp parallellt', eq: 0, rates: -100, cs: 0, fxAll: 0, cmd: 0, vol: 0 },
   { id: 'cs100', en: 'Credit spreads +100 bp', sv: 'Kreditspreadar +100 bp', eq: 0, rates: 0, cs: 100, fxAll: 0, cmd: 0, vol: 0 },
   { id: 'basestrong', en: 'Base currency +10 %', sv: 'Basvalutan +10 %', eq: 0, rates: 0, cs: 0, fxAll: -0.0909, cmd: 0, vol: 0 },
-  { id: 'stagflation', en: 'Stagflation', sv: 'Stagflation', eq: -0.15, rates: 150, cs: 150, fxAll: 0.03, cmd: 0.25, vol: 12 }
+  { id: 'stagflation', en: 'Stagflation', sv: 'Stagflation', eq: -0.15, rates: 150, cs: 150, fxAll: 0.03, cmd: 0.25, vol: 12, infl: 100 }
 ];
 
 export function stressPosition(x, s, ctx) {
-  if (x.def.stressPnl) return x.def.stressPnl(x.pos, ctx, s);
+  // A type's own revaluation wins; null means it has nothing better than the sensitivities.
+  if (x.def.stressPnl) { const v = x.def.stressPnl(x.pos, ctx, s); if (v != null) return v; }
   const r = x.r;
   let pnl = r.eqDelta * r.beta * (s.eq || 0) + r.cmDelta * (s.cmd || 0) + r.vega * (s.vol || 0) + 0.5 * r.gamma * (s.eq || 0) ** 2;
   for (const [c, v] of Object.entries(r.ir01)) pnl += v * (s.ratesBy?.[c] ?? s.rates ?? 0);
+  for (const v of Object.values(r.inf01 || {})) pnl += v * (s.infl || 0);
   pnl += r.cs01 * (s.cs || 0);
   if (r.fi && r.fi.convexity && !r.fi.derivative) {
     const dy = ((s.ratesBy?.[x.pos.ccy] ?? s.rates ?? 0) + (r.fi.spreadDur ? (s.cs || 0) : 0)) / 1e4;
@@ -593,8 +600,13 @@ export function compliance(v, liq = liquidity(v)) {
 
   const cpty = new Map();
   // OTC: forwards and swaps, and options with a counterparty in the issuer field (listed options clear).
-  v.valid.filter(x => (['fx_forward', 'irs', 'cds', 'equity_swap', 'ccs', 'otc'].includes(x.pos.type) || (x.pos.type === 'option' && x.pos.issuer)) && x.r.mv > 0)
-    .forEach(x => { const k = x.pos.issuer || '—'; cpty.set(k, (cpty.get(k) || 0) + x.r.mv); });
+  // OTC derivatives at positive market value, plus securities lending and repos at their exposure
+  // after collateral (UCITS art. 52 applies the counterparty limit to efficient portfolio management too).
+  const OTC = ['fx_forward', 'irs', 'cds', 'equity_swap', 'ccs', 'otc', 'swaption', 'cap_floor', 'inflation_swap', 'variance_swap', 'exotic_option'];
+  v.valid.forEach(x => {
+    const exp = isNum(x.r.cptyExposure) ? x.r.cptyExposure : (OTC.includes(x.pos.type) || (x.pos.type === 'option' && x.pos.issuer)) ? Math.max(0, x.r.mv) : 0;
+    if (exp > 0) { const k = x.pos.issuer || '—'; cpty.set(k, (cpty.get(k) || 0) + exp); }
+  });
   const cl = [...cpty.entries()].map(([k, e]) => ({ name: k, value: pct(e) })).sort((a, b) => b.value - a.value);
   add('otcCounterparty', cl[0]?.value || 0, 'max', cl.slice(0, 5));
 

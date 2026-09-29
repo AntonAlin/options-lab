@@ -338,7 +338,7 @@ const en = {
   'welcome.lead': 'Upload your holdings from Excel or your custodian, and get exposure, VaR, stress tests, duration, liquidity and UCITS limit checks in seconds. Export a board-ready PDF.',
   'welcome.demo': 'Explore the demo fund', 'welcome.new': 'Start an empty portfolio', 'welcome.import': 'Upload holdings',
   'welcome.note': "No account, no installation, no server. Your portfolio data never leaves your computer — it is read, calculated and stored in your browser and in files your organisation controls.",
-  'feature.instruments': '22 instrument types', 'feature.instruments.body': 'From equities, bonds and funds to futures, options, swaps, CDS, CFDs, repos, linkers, convertibles and structured products — what European institutions trade.',
+  'feature.instruments': '28 instrument types', 'feature.instruments.body': 'From equities, bonds and funds to futures, options, swaps, CDS, CFDs, repos, linkers, convertibles and structured products — what European institutions trade.',
   'feature.upload': 'Bulk upload', 'feature.upload.body': 'CSV or Excel in English or Swedish formats. Columns are mapped automatically, every row is validated, and daily price updates match on ISIN.',
   'feature.risk': 'Risk you can explain', 'feature.risk.body': 'Parametric factor VaR and historical VaR side by side, risk contribution by factor and position, and full-revaluation stress scenarios.',
   'feature.compliance': 'UCITS limit checks', 'feature.compliance.body': '5/10/40, issuer, deposit, fund, counterparty, commitment and liquidity limits — all editable.',
@@ -489,7 +489,7 @@ const en = {
   'stress.byClass': 'By asset class', 'stress.worstPos': 'Biggest movers', 'stress.custom': 'Build your own scenario', 'stress.customSub': 'Drag the sliders — results update instantly.',
   'stress.eq': 'Equities', 'stress.rates': 'Interest rates', 'stress.cs': 'Credit spreads', 'stress.fx': 'Foreign currencies vs base', 'stress.cmd': 'Commodities', 'stress.vol': 'Implied volatility',
   'stress.eqShort': 'Equities', 'stress.ratesShort': 'Rates', 'stress.csShort': 'Spreads', 'stress.cmdShort': 'Commodities',
-  'stress.method': 'Method: bonds are revalued with duration and convexity, equities with beta, currency positions with their net FX exposure (hedges included), and options are fully repriced with Black-Scholes. Correlated second-order effects (e.g. spread moves within a sector) are not modelled.',
+  'stress.method': 'Method: bonds are revalued with duration and convexity, equities with beta, currency positions with their net FX exposure (hedges included), inflation-linked positions and inflation swaps with their breakeven sensitivity, and options — equity, swaptions, caps/floors, barriers and digitals — are fully repriced at the shocked levels. Correlated second-order effects (e.g. spread moves within a sector) are not modelled.',
 
   'liq.sub': 'How quickly the assets could be turned into cash without moving the market.',
   'liq.1d': '1 day', 'liq.1y': '1 year', 'liq.nd': '{n} days', 'liq.stressedVal': 'Stressed: {p}', 'liq.illiquid': 'Illiquid (> 90 days)',
@@ -1015,8 +1015,19 @@ const en = {
   'warn.amortising': "Amortising (ABS/MBS/CLO) treated as repaid at legal maturity — enter the weighted average life as maturity for a better duration",
   'warn.delta_assumed': "No equity delta given — 0.5 assumed",
   'warn.leverage_missing': "No leverage given — 1 assumed (add a Leverage column, or use a name like “BULL OMX X5”)",
-  'warn.greeks_missing': "Valued at its market price; without strike, expiry, spot and volatility the delta is unknown and the exposure is the market value"
-
+  'warn.greeks_missing': "Valued at its market price; without strike, expiry, spot and volatility the delta is unknown and the exposure is the market value",
+  'warn.model_inputs_missing': "Pricing inputs missing — valued at the counterparty MTM, risk from the delta, duration or vega given",
+  'warn.cpr_missing': "Amortising bond without prepayment speed (CPR) — scheduled amortisation only",
+  'warn.knocked_out': "Barrier hit — knocked out, valued at residual/market price",
+  'warn.knocked_in': "Barrier hit — knocked in, now valued as a vanilla option",
+  'warn.under_collateralised': "Collateral after haircut is below the exposure",
+  'warn.collateral_missing': "No collateral value given — full amount treated as counterparty exposure",
+  'warn.realised_missing': "Variance swap in progress without realised volatility — implied used for the elapsed part",
+  'factor.inflation': "Inflation",
+  'cma.inflationVolBp': "Breakeven inflation vol",
+  'cma.corrRatesInfl': "Corr. rates / inflation",
+  'cma.corrCmdInfl': "Corr. commodities / inflation",
+  'stress.infl': "Breakeven inflation",
 };
 
 const sv = {
@@ -1344,7 +1355,7 @@ const sv = {
   'welcome.lead': 'Ladda upp innehaven från Excel eller depåbanken och få exponering, VaR, stresstester, duration, likviditet och UCITS-kontroller på några sekunder. Exportera en PDF redo för styrelsen.',
   'welcome.demo': 'Utforska demofonden', 'welcome.new': 'Starta en tom portfölj', 'welcome.import': 'Ladda upp innehav',
   'welcome.note': "Inget konto, ingen installation, ingen server. Din portföljdata lämnar aldrig datorn — den läses, beräknas och sparas i webbläsaren och i filer som organisationen själv kontrollerar.",
-  'feature.instruments': '22 instrumenttyper', 'feature.instruments.body': 'Från aktier, obligationer och fonder till terminer, optioner, swappar, CDS, CFD:er, repor, realränteobligationer, konvertibler och strukturerade produkter — det europeiska institutioner handlar.',
+  'feature.instruments': '28 instrumenttyper', 'feature.instruments.body': 'Från aktier, obligationer och fonder till terminer, optioner, swappar, CDS, CFD:er, repor, realränteobligationer, konvertibler och strukturerade produkter — det europeiska institutioner handlar.',
   'feature.upload': 'Massuppladdning', 'feature.upload.body': 'CSV eller Excel i svenskt eller engelskt format. Kolumnerna mappas automatiskt, varje rad valideras och dagliga kursuppdateringar matchas på ISIN.',
   'feature.risk': 'Risk som går att förklara', 'feature.risk.body': 'Parametrisk faktor-VaR och historisk VaR sida vid sida, riskbidrag per faktor och innehav, samt stresscenarier med fullständig omvärdering.',
   'feature.compliance': 'UCITS-kontroller', 'feature.compliance.body': '5/10/40, emittent-, insättnings-, fond-, motparts-, åtagande- och likviditetsgränser — alla justerbara.',
@@ -1495,7 +1506,7 @@ const sv = {
   'stress.byClass': 'Per tillgångsslag', 'stress.worstPos': 'Största rörelserna', 'stress.custom': 'Bygg ett eget scenario', 'stress.customSub': 'Dra i reglagen — resultatet uppdateras direkt.',
   'stress.eq': 'Aktier', 'stress.rates': 'Räntor', 'stress.cs': 'Kreditspreadar', 'stress.fx': 'Utländsk valuta mot basvaluta', 'stress.cmd': 'Råvaror', 'stress.vol': 'Implicit volatilitet',
   'stress.eqShort': 'Aktier', 'stress.ratesShort': 'Räntor', 'stress.csShort': 'Spreadar', 'stress.cmdShort': 'Råvaror',
-  'stress.method': 'Metod: obligationer omvärderas med duration och konvexitet, aktier med beta, valutapositioner med sin nettoexponering (inklusive säkringar) och optioner prissätts om fullt ut med Black-Scholes. Korrelerade andra ordningens effekter (t.ex. spreadrörelser inom en sektor) modelleras inte.',
+  'stress.method': 'Metod: obligationer omvärderas med duration och konvexitet, aktier med beta, valutapositioner med sin nettoexponering (inklusive säkringar), realränteinnehav och inflationsswappar med sin break-even-känslighet, och optioner — aktieoptioner, swaptioner, räntetak/-golv, barriär- och digitaloptioner — prissätts om fullt ut vid de chockade nivåerna. Korrelerade andra ordningens effekter (t.ex. spreadrörelser inom en sektor) modelleras inte.',
 
   'liq.sub': 'Hur snabbt tillgångarna kan omsättas till kontanter utan att påverka marknaden.',
   'liq.1d': '1 dag', 'liq.1y': '1 år', 'liq.nd': '{n} dagar', 'liq.stressedVal': 'Stressat: {p}', 'liq.illiquid': 'Illikvitt (> 90 dagar)',
@@ -2021,8 +2032,19 @@ const sv = {
   'warn.amortising': "Amorterande (ABS/MBS/CLO) behandlas som återbetald vid förfall — ange den vägda genomsnittliga löptiden som förfall för bättre duration",
   'warn.delta_assumed': "Inget aktiedelta angivet — 0,5 antaget",
   'warn.leverage_missing': "Ingen hävstång angiven — 1 antagen (lägg till en kolumn Hävstång, eller ett namn som ”BULL OMX X5”)",
-  'warn.greeks_missing': "Värderad till marknadskurs; utan lösenpris, förfall, spot och volatilitet är deltat okänt och exponeringen är marknadsvärdet"
-
+  'warn.greeks_missing': "Värderad till marknadskurs; utan lösenpris, förfall, spot och volatilitet är deltat okänt och exponeringen är marknadsvärdet",
+  'warn.model_inputs_missing': "Prissättningsdata saknas — värderas till motpartens marknadsvärde, risk från angivet delta, duration eller vega",
+  'warn.cpr_missing': "Amorterande obligation utan förtidsinlösentakt (CPR) — endast planerad amortering",
+  'warn.knocked_out': "Barriären nådd — utslagen, värderas till restvärde/marknadspris",
+  'warn.knocked_in': "Barriären nådd — inknackad, värderas nu som vanlig option",
+  'warn.under_collateralised': "Säkerheten efter haircut understiger exponeringen",
+  'warn.collateral_missing': "Inget säkerhetsvärde angivet — hela beloppet räknas som motpartsexponering",
+  'warn.realised_missing': "Pågående varianswap utan realiserad volatilitet — implicit används för förfluten tid",
+  'factor.inflation': "Inflation",
+  'cma.inflationVolBp': "Vol breakeven-inflation",
+  'cma.corrRatesInfl': "Korr. räntor / inflation",
+  'cma.corrCmdInfl': "Korr. råvaror / inflation",
+  'stress.infl': "Breakeven-inflation",
 };
 
 export const DICT = { en, sv };

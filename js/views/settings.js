@@ -11,7 +11,7 @@ import { parseEcbRates, ECB_PAGE } from '../fxfile.js';
 
 const CMA_FIELDS = [
   ['equityVol', '%'], ['equitySpecificVol', '%'], ['ratesVolBp', 'bp'], ['creditVolBp', 'bp'], ['fxVol', '%'], ['commodityVol', '%'], ['volOfVolPts', 'pts'],
-  ['corrEqRates', 'ρ'], ['corrEqCredit', 'ρ'], ['corrEqFx', 'ρ'], ['corrEqCmd', 'ρ'], ['corrEqVol', 'ρ'], ['corrRatesCredit', 'ρ'], ['corrRatesRates', 'ρ'], ['corrFxFx', 'ρ'], ['corrCmdFx', 'ρ']
+  ['corrEqRates', 'ρ'], ['corrEqCredit', 'ρ'], ['corrEqFx', 'ρ'], ['corrEqCmd', 'ρ'], ['corrEqVol', 'ρ'], ['corrRatesCredit', 'ρ'], ['corrRatesRates', 'ρ'], ['corrFxFx', 'ρ'], ['corrCmdFx', 'ρ'], ['inflationVolBp', 'bp'], ['corrRatesInfl', 'ρ'], ['corrCmdInfl', 'ρ']
 ];
 
 export default {

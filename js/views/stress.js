@@ -5,7 +5,7 @@ import { ASSET_CLASSES, typeLabel } from '../instruments.js';
 import { runStress } from '../analytics.js';
 import * as charts from '../charts.js';
 
-const ui = { sel: null, custom: { eq: -15, rates: 50, cs: 75, fxAll: 5, cmd: -10, vol: 8 } };
+const ui = { sel: null, custom: { eq: -15, rates: 50, cs: 75, fxAll: 5, cmd: -10, vol: 8, infl: 0 } };
 
 const SHOCKS = [
   ['eq', 'stress.eq', '%', -60, 60, 1],
@@ -13,7 +13,8 @@ const SHOCKS = [
   ['cs', 'stress.cs', 'bp', -200, 600, 5],
   ['fxAll', 'stress.fx', '%', -30, 30, 0.5],
   ['cmd', 'stress.cmd', '%', -60, 60, 1],
-  ['vol', 'stress.vol', 'pts', -20, 60, 1]
+  ['vol', 'stress.vol', 'pts', -20, 60, 1],
+  ['infl', 'stress.infl', 'bp', -150, 150, 5]
 ];
 
 export default {
@@ -25,7 +26,7 @@ export default {
     const sorted = [...stress].sort((x, y) => x.total - y.total);
     if (!ui.sel || !stress.some(s => s.scenario.id === ui.sel)) ui.sel = sorted[0]?.scenario.id;
     const sel = stress.find(s => s.scenario.id === ui.sel);
-    const scen = s => ({ id: 'custom', en: 'Custom', sv: 'Eget', eq: s.eq / 100, rates: s.rates, cs: s.cs, fxAll: s.fxAll / 100, cmd: s.cmd / 100, vol: s.vol });
+    const scen = s => ({ id: 'custom', en: 'Custom', sv: 'Eget', eq: s.eq / 100, rates: s.rates, cs: s.cs, fxAll: s.fxAll / 100, cmd: s.cmd / 100, vol: s.vol, infl: s.infl });
     const custom = runStress(v, [scen(ui.custom)])[0];
     const shockText = s => [
       s.eq ? `${t('stress.eqShort')} ${fmtPct(s.eq, 0, { sign: true })}` : '', s.rates ? `${t('stress.ratesShort')} ${fmtNum(s.rates, 0)} bp` : '',

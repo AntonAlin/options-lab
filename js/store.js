@@ -14,7 +14,9 @@ export const DEFAULT_CMA = {
   // Annualised, used by the parametric (factor) risk model when there is no price history.
   equityVol: 16, equitySpecificVol: 25, ratesVolBp: 90, creditVolBp: 70, fxVol: 9, commodityVol: 22, volOfVolPts: 6,
   corrEqRates: 0.2, corrEqCredit: -0.6, corrEqFx: -0.3, corrEqCmd: 0.3, corrEqVol: -0.7, corrRatesCredit: -0.2,
-  corrRatesRates: 0.75, corrFxFx: 0.55, corrCmdFx: -0.1
+  corrRatesRates: 0.75, corrFxFx: 0.55, corrCmdFx: -0.1,
+  // Breakeven inflation: its own factor per currency, partly moving with nominal rates and commodities.
+  inflationVolBp: 45, corrRatesInfl: 0.45, corrCmdInfl: 0.35
 };
 
 export const DEFAULT_RISK = { confidence: 0.99, horizonDays: 1, riskFree: 2.0, participation: 20, method: 'auto', rhp: 5, crm: 1, sriSource: '', cfMonths: 12, useReported: true, allocDim: 'auto' };

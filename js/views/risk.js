@@ -102,5 +102,6 @@ function factorName(f) {
   const [kind, ccy] = f.id.split(':');
   if (kind === 'IR') return t('factor.rates') + ' ' + ccy;
   if (kind === 'FX') return ccy;
+  if (kind === 'INF') return t('factor.inflation') + ' ' + ccy;
   return t('factor.' + f.group);
 }
