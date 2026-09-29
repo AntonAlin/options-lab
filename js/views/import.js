@@ -4,16 +4,18 @@ import { esc, card, pageHead, table, toast, selectHtml, segmented, fmtNum, openM
 import { INSTRUMENTS, FIELDS, OPTION_LABELS, allFieldKeys, fieldLabel, typeLabel } from '../instruments.js';
 import {
   readFile, parseText, findHeaderRow, autoMapping, rowsToPositions, mergePositions, templateCSV, templateColumns, TEMPLATE_EXAMPLES, XLSX_URL,
-  typeValues, mandatoryFields, buildTemplate, applyTemplateMapping, detectTemplate, validateTemplate, DATE_FORMATS
+  typeValues, mandatoryFields, buildTemplate, applyTemplateMapping, detectTemplate, validateTemplate, DATE_FORMATS, mergeHistory
 } from '../importer.js';
-import { downloadBlob, loadScript, slug } from '../util.js';
+import { downloadBlob, loadScript, slug, todayISO } from '../util.js';
+import { datedLayout, splitSnapshots, snapshotHistory } from '../sourcefile.js';
+import { MAX_SAVED } from '../snapshots.js';
 import { sourceCardHtml, bindSourceCard } from './source-card.js';
 
 // Import state survives re-renders (language switch etc.) but not a page reload.
 const FRESH = () => ({
   name: '', parsed: null, sheet: 0, headerRow: 0, mapping: [], decimal: '.', dateFormat: 'auto', defaultType: 'auto',
   transforms: {}, constants: {}, typeMap: {}, skipPattern: '', templateId: '', autoApplied: '',
-  onlyErrors: false, includeInvalid: false
+  onlyErrors: false, includeInvalid: false, date: '', asOf: ''
 });
 const st = { ...FRESH(), mode: 'append' };
 function reset() { Object.assign(st, FRESH()); }
@@ -25,6 +27,18 @@ function currentRows() {
   const rows = st.parsed?.sheets[st.sheet]?.rows || [];
   return { header: (rows[st.headerRow] || []).map(h => (h instanceof Date ? h.toISOString().slice(0, 10) : h)), body: rows.slice(st.headerRow + 1) };
 }
+
+// A dated file: date column (mandatory in a holdings file — either in the file or set below) and an
+// optional portfolio column. Every row is one holding of one portfolio on one date.
+function datedInfo() {
+  const rows = st.parsed?.sheets[st.sheet]?.rows || [];
+  const lay = datedLayout(rows, st.headerRow);
+  if (lay.dateCol < 0) return null;
+  const { groups, skipped } = splitSnapshots(rows, lay);
+  const dates = [...new Set(groups.flatMap(g => g.dates.map(d => d.date)))].sort();
+  return dates.length ? { ...lay, groups, dates, skipped } : null;
+}
+const parseOpts = () => ({ decimal: st.decimal, defaultType: st.defaultType, constants: st.constants, transforms: st.transforms, typeMap: st.typeMap, skipPattern: st.skipPattern, dateFormat: st.dateFormat });
 
 function applyTemplate(tpl) {
   const { header } = currentRows();
@@ -77,7 +91,21 @@ function constantInput(field, value) {
   return `<input ${attrs} value="${esc(value ?? '')}" placeholder="${esc(t('imp.constantPh'))}">`;
 }
 
-function mandatoryCard(header, results) {
+// What a dated file contains and where each portfolio in it will go.
+function datedCard(D, p) {
+  const byName = name => store.listPortfolios().find(x => x.name.trim().toLowerCase() === name.trim().toLowerCase());
+  const targets = D.groups.map(g => {
+    const target = g.key ? byName(g.key) : p;
+    return `<li><strong>${esc(g.key || p.name)}</strong> <span class="muted small">· ${esc(t('imp.datedDates', { n: g.dates.length }))} · ${esc(target ? t('imp.datedInto', { name: target.name }) : t('imp.datedNew'))}</span></li>`;
+  }).join('');
+  return card(t('imp.datedTitle'), `
+    <p>${esc(t('imp.datedBody', { n: D.dates.length, a: D.dates[0], b: D.dates[D.dates.length - 1], p: D.groups.length }))}</p>
+    <div class="toolbar wrap"><label class="inline"><strong>${esc(t('imp.datedPick'))}</strong> ${selectHtml('id="impDate"', [...D.dates].reverse().map(d => [d, d === D.dates[D.dates.length - 1] ? t('imp.datedLatest', { d }) : d]), st.date)}</label></div>
+    <ul class="guide-list">${targets}</ul>
+    <p class="muted small">${esc(t('imp.datedHelp'))}${D.skipped ? ' ' + esc(t('src.skipped', { n: D.skipped })) : ''}</p>`, { sub: esc(t('imp.datedSub')), cls: 'card-info' });
+}
+
+function mandatoryCard(header, results, D, p) {
   const types = [...new Set(results.map(r => r.pos.type))];
   if (!types.length && st.defaultType !== 'auto') types.push(st.defaultType);
   const reqs = mandatoryFields(types);
@@ -85,6 +113,8 @@ function mandatoryCard(header, results) {
   const missingRows = f => results.filter(r => r.errors.some(e => e.field === f && (e.code === 'required' || e.code.startsWith('one_of')))).length;
   const typeCol = colOf('type');
   const rows = [
+    { key: '__date', label: t('imp.asOf'), types: t('imp.allRows'), status: D ? 'col' : 'const', src: D ? String(header[D.dateCol] ?? '') : '', miss: 0 },
+    { key: '__pf', label: t('imp.portfolioCol'), types: t('imp.optional'), status: 'info', src: D && D.pfCol >= 0 ? t('imp.pfFromCol', { col: header[D.pfCol], n: D.groups.length }) : t('imp.pfActive', { name: p.name }), miss: 0 },
     { key: 'type', label: t('col.type'), types: t('imp.allRows'), status: typeCol ? 'col' : st.defaultType !== 'auto' ? 'const' : 'auto', src: typeCol || (st.defaultType !== 'auto' ? typeLabel(st.defaultType, lang()) : t('imp.autoDetect')), miss: 0 },
     ...reqs.map(r => {
       const fields = r.oneOf || [r.field];
@@ -107,8 +137,9 @@ function mandatoryCard(header, results) {
         <td>${r.status === 'col' ? `<span class="chip chip-ok">✓ ${esc(t('imp.fromColumn'))}</span> <span class="small">${esc(r.src)}</span>${r.miss ? `<div class="small warn-text">${esc(t('imp.rowsEmpty', { n: r.miss }))}</div>` : ''}`
           : r.status === 'const' ? `<span class="chip chip-ok">✓ ${esc(t('imp.fromConstant'))}</span>`
           : r.status === 'auto' ? `<span class="chip chip-warn">${esc(t('imp.autoDetect'))}</span>`
+          : r.status === 'info' ? `<span class="small">${esc(r.src)}</span>`
           : `<span class="chip chip-breach">✕ ${esc(t('imp.missing'))}</span>`}</td>
-        <td>${r.key === 'type' ? selectHtml('id="typeSel2" aria-label="' + esc(t('col.type')) + '"', [['auto', t('imp.autoDetect')], ...Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k, lang())])], st.defaultType) : constantInput(r.key, st.constants[r.key])}</td>
+        <td>${r.key === '__date' ? (D ? `<span class="muted small">—</span>` : `<input type="date" id="asOf" required value="${esc(st.asOf)}" aria-label="${esc(t('imp.asOf'))}">`) : r.key === '__pf' ? '' : r.key === 'type' ? selectHtml('id="typeSel2" aria-label="' + esc(t('col.type')) + '"', [['auto', t('imp.autoDetect')], ...Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k, lang())])], st.defaultType) : constantInput(r.key, st.constants[r.key])}</td>
       </tr>`).join('')}</tbody>
     </table></div>`, {
     sub: esc(nMissing ? t('imp.mandatorySubMissing', { n: nMissing }) : t('imp.mandatorySubOk')),
@@ -175,11 +206,17 @@ export default {
   render(root, app) {
     const p = store.active();
     const hasFile = !!st.parsed;
-    const { header, body } = currentRows();
-    const results = hasFile ? rowsToPositions(body, st.mapping, {
-      decimal: st.decimal, defaultType: st.defaultType, constants: st.constants, transforms: st.transforms,
-      typeMap: st.typeMap, skipPattern: st.skipPattern, dateFormat: st.dateFormat
-    }) : [];
+    const D = hasFile ? datedInfo() : null;
+    if (D) {
+      if (!D.dates.includes(st.date)) st.date = D.dates[D.dates.length - 1];
+      st.mapping[D.dateCol] = '';
+      if (D.pfCol >= 0) st.mapping[D.pfCol] = '';
+    }
+    if (!st.asOf) st.asOf = p.valDate || todayISO();
+    const { header, body: allRows } = currentRows();
+    // A dated file previews and imports one date; the others become history.
+    const body = D ? D.groups.flatMap(g => g.dates.find(d => d.date === st.date)?.rows || []) : allRows;
+    const results = hasFile ? rowsToPositions(body, st.mapping, parseOpts()) : [];
     const skipped = hasFile ? body.length - results.length : 0;
     const valid = results.filter(r => !r.errors.some(e => !e.code.startsWith('type_guessed')));
     const invalid = results.length - valid.length;
@@ -247,8 +284,9 @@ export default {
           </div>`;
         }).join('')}</div>
       `)}
+      ${D ? datedCard(D, p) : ''}
       <div class="grid-2">
-        ${mandatoryCard(header, results)}
+        ${mandatoryCard(header, results, D, p)}
         ${typeMapCard(body) || card(t('imp.typeMap'), `<p class="muted small">${esc(t('imp.typeMapNone'))}</p>`)}
       </div>
       ${card(t('imp.step3'), `
@@ -276,7 +314,7 @@ export default {
         ], st.onlyErrors ? results.filter(r => r.errors.length) : results, { dense: true, maxRows: 200 })}
         ${results.length > 200 ? `<p class="muted small">${esc(t('imp.previewCap'))}</p>` : ''}
         <div class="btn-row end">
-          <button class="btn btn-primary btn-lg" data-act="import" ${!(st.includeInvalid ? results.length : valid.length) ? 'disabled' : ''}>${esc(t('imp.doImport', { n: st.includeInvalid ? results.length : valid.length, pf: p.name }))}</button>
+          <button class="btn btn-primary btn-lg" data-act="import" ${!(st.includeInvalid ? results.length : valid.length) ? 'disabled' : ''}>${D ? esc(t('imp.doImportDated', { n: D.groups.length, k: D.dates.length })) : esc(t('imp.doImport', { n: st.includeInvalid ? results.length : valid.length, pf: p.name }))}</button>
         </div>
       `)}` : ''}
     `;
@@ -304,6 +342,8 @@ export default {
     on('#dateSel', 'change', e => { st.dateFormat = e.target.value; touched(); });
     on('#skipIn', 'change', e => { st.skipPattern = e.target.value; touched(); });
     on('#typeSel2', 'change', e => { st.defaultType = e.target.value; touched(); });
+    on('#impDate', 'change', e => { st.date = e.target.value; app.rerender(); });
+    on('#asOf', 'change', e => { st.asOf = e.target.value || todayISO(); app.rerender(); });
     on('#onlyErr', 'change', e => { st.onlyErrors = e.target.checked; app.rerender(); });
     on('#inclInv', 'change', e => { st.includeInvalid = e.target.checked; app.rerender(); });
     on('#tplSel', 'change', e => {
@@ -374,11 +414,21 @@ export default {
       if (act === 'tplcsv') downloadBlob('﻿' + templateCSV(), 'text/csv;charset=utf-8', 'holdings-template.csv');
       if (act === 'tpltype') { const ty = root.querySelector('#tplType').value; downloadBlob('﻿' + templateCSV(ty), 'text/csv;charset=utf-8', `template-${ty}.csv`); }
       if (act === 'tplxlsx') xlsxTemplate();
+      if (act === 'import' && D) { await importDated(D, p, app); return; }
       if (act === 'import') {
         const chosen = (st.includeInvalid ? results : valid).map(r => r.pos);
         if (st.mode === 'replace' && p.positions.length && !(await confirmDialog(t('imp.replaceConfirm', { n: p.positions.length }), { danger: true, ok: t('imp.replace') }))) return;
         let res;
-        store.update(pp => { res = mergePositions(pp.positions, chosen, st.mode); pp.positions = res.positions; }, t('nav.import'));
+        // The date is mandatory: the holdings are as of st.asOf, and each import is kept as a snapshot
+        // of that date so Changes & track record builds up without a connected file.
+        const asOf = st.asOf || todayISO();
+        store.update(pp => {
+          res = mergePositions(pp.positions, chosen, st.mode); pp.positions = res.positions;
+          pp.valDate = asOf === todayISO() ? '' : asOf;
+          const list = (Array.isArray(pp.snapshots) ? pp.snapshots : []).filter(s => s.date !== asOf);
+          list.push({ date: asOf, positions: JSON.parse(JSON.stringify(pp.positions)), savedAt: new Date().toISOString() });
+          pp.snapshots = list.sort((a, b) => a.date.localeCompare(b.date)).slice(-MAX_SAVED);
+        }, t('nav.import'));
         toast(t('imp.done', { added: res.added, updated: res.updated }), { action: () => store.undo(), actionLabel: t('common.undo') });
         const keepMode = st.mode;
         reset(); st.mode = keepMode;
@@ -388,6 +438,49 @@ export default {
     return bindSourceCard(root);
   }
 };
+
+// Import a dated file: per portfolio in the file, the holdings of the chosen date (or its latest
+// before it) go into that portfolio by the chosen mode; every date is kept as a snapshot and the
+// prices across dates join the price history. Portfolios not in the workspace are created.
+async function importDated(D, p, app) {
+  const opts = parseOpts();
+  const keep = r => st.includeInvalid || !r.errors.some(e => !e.code.startsWith('type_guessed'));
+  const holdings = rows => rowsToPositions(rows, st.mapping, opts).filter(keep).map(r => r.pos);
+  const byName = name => store.listPortfolios().find(x => x.name.trim().toLowerCase() === name.trim().toLowerCase());
+  const plan = D.groups.map(g => ({ g, target: g.key ? byName(g.key) : p }));
+  const replacing = plan.filter(x => x.target?.positions.length).length;
+  if (st.mode === 'replace' && replacing && !(await confirmDialog(t('imp.replaceConfirmMany', { n: replacing }), { danger: true, ok: t('imp.replace') }))) return;
+  let added = 0, updated = 0, created = 0, first = null;
+  const now = new Date().toISOString();
+  for (const { g, target } of plan) {
+    let pf = target;
+    if (!pf) {
+      pf = store.newPortfolio({ name: g.key, baseCcy: p.baseCcy, manager: p.manager, fundType: p.fundType, fxEur: p.fxEur, fxSource: p.fxSource, fxDate: p.fxDate });
+      store.upsertPortfolio(pf);
+      created++;
+    }
+    first ||= pf.id;
+    const use = [...g.dates].reverse().find(d => d.date <= st.date) || g.dates[0];
+    const chosen = holdings(use.rows);
+    const hist = snapshotHistory(g, st.mapping, opts);
+    store.mutatePortfolio(pf.id, pp => {
+      const res = mergePositions(pp.positions, chosen, st.mode);
+      pp.positions = res.positions; added += res.added; updated += res.updated;
+      pp.valDate = use.date;
+      const list = (Array.isArray(pp.snapshots) ? pp.snapshots : []).filter(s => !g.dates.some(d => d.date === s.date));
+      g.dates.forEach(d => list.push({ date: d.date, positions: d === use ? JSON.parse(JSON.stringify(pp.positions)) : holdings(d.rows), savedAt: now }));
+      pp.snapshots = list.sort((a, b) => a.date.localeCompare(b.date)).slice(-MAX_SAVED);
+      if (hist) pp.history = mergeHistory(pp.history, hist);
+    });
+  }
+  // The empty placeholder the welcome page creates is not needed when the file names its portfolios.
+  if (!plan.some(x => x.target === p) && !p.positions.length && !(p.snapshots || []).length) store.deletePortfolio(p.id);
+  toast(t('imp.doneDated', { p: plan.length, c: created, d: D.dates.length, added, updated }), { ms: 6000 });
+  const keepMode = st.mode;
+  reset(); st.mode = keepMode;
+  if (first) store.setActive(first);
+  app.navigate(D.dates.length > 1 ? 'changes' : 'holdings');
+}
 
 async function xlsxTemplate() {
   try {

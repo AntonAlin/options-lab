@@ -7,6 +7,7 @@ import { downloadBackup, backupAge } from '../backup.js';
 import * as filelink from '../filelink.js';
 import { lang } from '../i18n.js';
 import { sourceCardHtml, bindSourceCard } from './source-card.js';
+import { parseEcbRates, ECB_PAGE } from '../fxfile.js';
 
 const CMA_FIELDS = [
   ['equityVol', '%'], ['equitySpecificVol', '%'], ['ratesVolBp', 'bp'], ['creditVolBp', 'bp'], ['fxVol', '%'], ['commodityVol', '%'], ['volOfVolPts', 'pts'],
@@ -41,7 +42,8 @@ export default {
         <p class="muted small">${esc(t('set.fxBody', { base: p.baseCcy }))} ${p.fxSource === 'ecb' ? esc(t('set.fxEcb', { d: fmtDate(p.fxDate) })) : p.fxSource === 'fallback' ? `<strong class="warn-text">${esc(t('set.fxFallback'))}</strong>` : p.fxSource === 'manual' ? esc(t('set.fxManual')) : ''}</p>
         <div class="fx-grid">${store.CURRENCIES.filter(c => c !== p.baseCcy).sort((a, b) => (usedCcys.includes(b) - usedCcys.includes(a)) || a.localeCompare(b)).map(c => `
           <label class="${usedCcys.includes(c) ? 'used' : ''}"><span>1 ${c} =</span><input data-fx="${c}" inputmode="decimal" value="${fx(c) != null ? +fx(c).toPrecision(6) : ''}"><span>${esc(p.baseCcy)}</span></label>`).join('')}</div>
-        <div class="btn-row"><button class="btn" data-act="ecb">${esc(t('set.fetchEcb'))}</button></div>`, { sub: esc(t('set.fxSub')) }) : ''}
+        <div class="btn-row"><button class="btn" data-act="ecb">${esc(t('set.fetchEcb'))}</button><input type="file" id="ecbFile" accept=".csv,.xml,text/csv,text/xml" hidden><a class="btn btn-sm" href="${ECB_PAGE}" target="_blank" rel="noopener noreferrer">${esc(t('set.ecbLink'))} ↗</a></div>
+        <p class="muted small">${esc(t('set.ecbHelp'))}</p>`, { sub: esc(t('set.fxSub')) }) : ''}
       ${p ? card(t('set.cma'), `
         <p class="muted small">${esc(t('set.cmaBody'))}</p>
         <div class="cma-grid">${CMA_FIELDS.map(([k, unit]) => `<label><span>${esc(t('cma.' + k))}</span><span class="with-unit"><input data-cma="${k}" inputmode="decimal" value="${p.cma[k]}"><em>${unit}</em></span></label>`).join('')}</div>
@@ -85,6 +87,7 @@ export default {
       const x = numIn(e.target.value);
       if (x != null) store.update(pp => { pp.cma[e.target.dataset.cma] = x; }, t('set.cma'));
     }));
+    root.querySelector('#ecbFile')?.addEventListener('change', e => { const f = e.target.files[0]; if (f) importEcb(f); e.target.value = ''; });
     root.querySelector('#restoreFile').addEventListener('change', async e => {
       const f = e.target.files[0];
       if (!f) return;
@@ -98,7 +101,7 @@ export default {
       const seg = e.target.closest('[data-seg]');
       if (seg) { store.setSetting(seg.dataset.seg, seg.dataset.value); return; }
       const act = e.target.closest('[data-act]')?.dataset.act;
-      if (act === 'ecb') fetchEcb();
+      if (act === 'ecb') root.querySelector('#ecbFile').click();
       if (act === 'cmaReset') store.update(pp => { pp.cma = { ...store.DEFAULT_CMA }; }, t('set.cma'));
       if (act === 'backup') { downloadBackup(); toast(t('backup.done')); }
       if (act?.startsWith('file:')) fileAction(act.slice(5), root);
@@ -170,19 +173,12 @@ async function fileAction(act, root) {
   }
 }
 
-// ECB reference rates via the free Frankfurter API (no key, CORS enabled). Rates are EUR-based,
-// which is exactly how they are stored.
-async function fetchEcb() {
+// ECB reference rates from the ECB's own file: no request leaves the browser.
+async function importEcb(file) {
   try {
-    const res = await fetch('https://api.frankfurter.app/latest?from=EUR');
-    if (!res.ok) throw new Error(res.status);
-    const j = await res.json();
-    store.update(pp => {
-      pp.fxEur = { ...pp.fxEur, ...j.rates, EUR: 1 };
-      pp.fxSource = 'ecb';
-      pp.fxDate = j.date;
-    }, t('set.fx'));
-    toast(t('set.ecbDone', { d: j.date }));
+    const { date, rates } = parseEcbRates(await file.text());
+    store.update(pp => { pp.fxEur = { ...pp.fxEur, ...rates }; pp.fxSource = 'ecb'; pp.fxDate = date; }, t('set.fx'));
+    toast(t('set.ecbDone', { d: date }));
   } catch (e) {
     toast(t('set.ecbError'), { tone: 'warn', ms: 7000 });
   }

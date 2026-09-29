@@ -583,7 +583,8 @@ export function compliance(v, liq = liquidity(v)) {
   add('commitment', pct(v.derivCommit), 'max', deriv.slice(0, 8));
 
   const cpty = new Map();
-  v.valid.filter(x => ['fx_forward', 'irs', 'cds'].includes(x.pos.type) && x.r.mv > 0)
+  // OTC: forwards and swaps, and options with a counterparty in the issuer field (listed options clear).
+  v.valid.filter(x => (['fx_forward', 'irs', 'cds'].includes(x.pos.type) || (x.pos.type === 'option' && x.pos.issuer)) && x.r.mv > 0)
     .forEach(x => { const k = x.pos.issuer || '—'; cpty.set(k, (cpty.get(k) || 0) + x.r.mv); });
   const cl = [...cpty.entries()].map(([k, e]) => ({ name: k, value: pct(e) })).sort((a, b) => b.value - a.value);
   add('otcCounterparty', cl[0]?.value || 0, 'max', cl.slice(0, 5));

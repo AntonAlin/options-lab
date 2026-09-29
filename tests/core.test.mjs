@@ -866,3 +866,53 @@ test('insights: a position closed and reported with quantity 0 is priced from th
   const r = realised(p, [s('2026-01-01', 0, 1, 10000, [e(100, 10)]), s('2026-02-01', 0, 1, 9000, [e(200, 10)]), s('2026-03-01', 0, 1, 10000, [e(100, 10)])]);
   close(r.turnover, 1000 / 11000, 1e-12);
 });
+
+test('derivatives: market value by kind — margined future, option premium or reported value, OTC flags', async () => {
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  const val = pos => valuePortfolio({ ...p, positions: [{ id: 'x', ...pos }] }).rows[0];
+  // Future: small unsettled margin counts; a "market value" that is really the notional does not.
+  const fut = { type: 'future', name: 'OMXS30', qty: -10, price: 2500, multiplier: 100, ccy: 'SEK', underlyingClass: 'equity' };
+  close(val({ ...fut, mtm: 12000 }).r.mv, 12000, 1e-9);
+  const bad = val({ ...fut, mtm: -2500000 });
+  close(bad.r.mv, 0, 1e-9); close(bad.r.net, -2500000, 1e-6);
+  assert.ok(bad.warnings.includes('mtm_is_notional'));
+  // Option: the file's market value beats the premium, which beats the model; written = negative.
+  const opt = { type: 'option', name: 'Call', qty: -5, optType: 'call', strike: 100, maturity: '2027-03-19', underlyingPrice: 100, vol: 20, multiplier: 100, ccy: 'SEK' };
+  close(val({ ...opt, price: 8 }).r.mv, -5 * 100 * 8, 1e-9);
+  close(val({ ...opt, price: 8, mtm: -4100 }).r.mv, -4100, 1e-9);
+  assert.ok(val(opt).warnings.includes('model_value'));
+  // OTC: spot-valued forward and model-valued swap say so; with MTM they do not.
+  const fwd = { type: 'fx_forward', buyCcy: 'SEK', buyAmount: 11000000, sellCcy: 'EUR', sellAmount: 1000000, maturity: '2027-09-28' };
+  assert.ok(val(fwd).warnings.includes('fwd_spot_value'));
+  assert.ok(!val({ ...fwd, mtm: -150000, ccy: 'SEK' }).warnings.includes('fwd_spot_value'));
+  const irs = { type: 'irs', name: 'IRS', qty: 10000000, ccy: 'SEK', direction: 'pay', fixedRate: 2.5, marketRate: 2.3, maturity: '2031-09-28' };
+  assert.ok(val(irs).warnings.includes('model_value'));
+  // An option with a counterparty is OTC and counts toward the counterparty limit.
+  const withOtc = { ...p, positions: [{ id: 'o', ...opt, qty: 5, price: 8, issuer: 'Bank X' }, { id: 'c', type: 'cash', name: 'Cash', qty: 36000, ccy: 'SEK' }] };
+  const comp = compliance(valuePortfolio(withOtc));
+  close(comp.rules.find(r => r.id === 'otcCounterparty').value, 4000 / 40000 * 100, 1e-9);
+});
+
+test('ECB reference rate files: CSV (daily and history) and XML', async () => {
+  const { parseEcbRates } = await import('../js/fxfile.js');
+  const csv = 'Date, USD, JPY, BGN, CZK, DKK, GBP, SEK, \n26 September 2026, 1.1234, 165.12, 1.9558, 24.5, 7.4601, 0.8512, 11.052, \n';
+  const a = parseEcbRates(csv);
+  assert.equal(a.date, '2026-09-26'); close(a.rates.SEK, 11.052, 1e-12); assert.equal(a.rates.EUR, 1);
+  const hist = 'Date,USD,JPY,BGN,CZK,DKK,SEK,N/A\n2026-09-26,1.1234,165.12,1.9558,24.5,7.4601,11.052,N/A\n2026-09-25,1.12,165,1.9558,24.4,7.46,11.0,N/A\n';
+  assert.equal(parseEcbRates(hist).date, '2026-09-26');
+  const xml = `<?xml version="1.0"?><gesmes:Envelope><Cube><Cube time='2026-09-26'><Cube currency='USD' rate='1.1234'/><Cube currency='JPY' rate='165.12'/><Cube currency='SEK' rate='11.052'/><Cube currency='NOK' rate='11.7'/><Cube currency='GBP' rate='0.8512'/></Cube></Cube></gesmes:Envelope>`;
+  const x = parseEcbRates(xml);
+  assert.equal(x.date, '2026-09-26'); close(x.rates.NOK, 11.7, 1e-12);
+  assert.throws(() => parseEcbRates('Name,Price\nA,1'));
+});
+
+test('dated files: a maturity column is never taken as the snapshot date; bulk upload finds date and portfolio', async () => {
+  const { detectLayout, datedLayout } = await import('../js/sourcefile.js');
+  const bonds = parseText('Name,ISIN,Quantity,Price,Currency,Maturity\nSGB 1060,SE0004517290,1000000,101,SEK,2028-05-12\nSGB 1061,SE0004869071,1000000,99,SEK,2029-11-12\n', 'b.csv').sheets[0].rows;
+  assert.equal(detectLayout(bonds).error, 'no_date');
+  assert.equal(datedLayout(bonds, 0).dateCol, -1);
+  const dated = parseText('Name,Datum,Fond,Antal,Kurs,Valuta,Förfallodag\nSGB,2026-08-31,A,1,101,SEK,2028-05-12\nSGB,2026-09-30,A,1,101,SEK,2028-05-12\n', 'd.csv').sheets[0].rows;
+  const L = datedLayout(dated, 0);
+  assert.equal(L.dateCol, 1); assert.equal(L.pfCol, 2);
+  assert.equal(detectLayout(dated).dateCol, 1, 'a column headed Datum counts even when it is not first');
+});

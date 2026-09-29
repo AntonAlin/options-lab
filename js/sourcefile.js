@@ -7,7 +7,7 @@
 // Reading uses the File System Access API (Chrome and Edge on desktop). The handle is kept in
 // IndexedDB; after a browser restart one click re-grants read access.
 import * as store from './store.js';
-import { readFile, autoMapping, rowsToPositions, detectTemplate, applyTemplateMapping, parseDate, parseNumber, mergeHistory } from './importer.js';
+import { readFile, autoMapping, rowsToPositions, detectTemplate, applyTemplateMapping, parseDate, parseNumber, mergeHistory, guessField } from './importer.js';
 import { normKey } from './instruments.js';
 import { posKey as key } from './insights.js';
 import { loadScript, uid, isNum } from './util.js';
@@ -29,24 +29,42 @@ const PF_ALIASES = new Set(['portfolio', 'portfolioname', 'portfolioid', 'portfo
   'depå', 'depa', 'depot', 'depånummer', 'mandate', 'mandat', 'mandatename', 'client', 'kund', 'clientname', 'kundnamn']);
 export const isPortfolioHeader = h => PF_ALIASES.has(normKey(h));
 
+// Headers that name the date a row applies to. A column whose header is a position field (Maturity,
+// Förfallodag, …) is never the snapshot date, however date-like its cells are.
+const DATE_HEADERS = new Set(['date', 'datum', 'dag', 'day', 'asof', 'asofdate', 'asat', 'valuationdate', 'valdate', 'värderingsdag', 'värderingsdatum',
+  'varderingsdag', 'reportdate', 'reportingdate', 'rapportdatum', 'positiondate', 'positionsdatum', 'holdingsdate', 'navdate', 'navdatum', 'businessdate', 'affärsdag', 'tradedate']);
+const isDateHeader = h => DATE_HEADERS.has(normKey(h));
+const dateRatio = (rows, c) => { const cells = rows.map(r => r[c]).filter(x => String(x ?? '').trim() !== ''); return cells.length ? cells.filter(x => cellDate(x)).length / cells.length : 0; };
+const headerText = h => (h instanceof Date ? h.toISOString().slice(0, 10) : String(h ?? '').trim());
+
 // Where the header row, the date column and (optionally) the portfolio column are. The date is the
-// first column by convention, but a file whose first column is something else still works as long
-// as one column is mostly dates.
+// first column by convention; another column counts only if its header says it is the date.
 export function detectLayout(rows) {
   const width = Math.max(0, ...rows.slice(0, 50).map(r => r.length));
   const sample = rows.slice(0, 200);
-  let dateCol = -1;
-  const ratio = c => { const cells = sample.map(r => r[c]).filter(x => String(x ?? '').trim() !== ''); return cells.length ? cells.filter(x => cellDate(x)).length / cells.length : 0; };
-  if (ratio(0) >= 0.5) dateCol = 0;
-  else {
-    let best = 0.5;
-    for (let c = 1; c < width; c++) { const r = ratio(c); if (r > best) { best = r; dateCol = c; } }
-  }
-  if (dateCol < 0) return { error: 'no_date' };
-  const first = rows.findIndex(r => cellDate(r[dateCol]));
-  if (first < 1) return { error: 'no_header' };
-  const headerRow = first - 1;
-  const header = rows[headerRow].map(h => (h instanceof Date ? h.toISOString().slice(0, 10) : String(h ?? '').trim()));
+  const headerFor = c => rows.findIndex(r => cellDate(r[c])) - 1;
+  const ok = c => {
+    if (dateRatio(sample, c) < 0.5) return false;
+    const hr = headerFor(c);
+    if (hr < 0) return false;
+    const h = headerText(rows[hr][c]);
+    return c === 0 ? !guessField(h) || isDateHeader(h) : isDateHeader(h);
+  };
+  let dateCol = ok(0) ? 0 : -1;
+  for (let c = 1; c < width && dateCol < 0; c++) if (ok(c)) dateCol = c;
+  if (dateCol < 0) return { error: dateRatio(sample, 0) >= 0.5 && headerFor(0) < 0 ? 'no_header' : 'no_date' };
+  const headerRow = headerFor(dateCol);
+  const header = rows[headerRow].map(headerText);
+  const pfCol = header.findIndex((h, c) => c !== dateCol && isPortfolioHeader(h));
+  return { headerRow, header, dateCol, pfCol };
+}
+
+// Same, for a file whose header row is already known (bulk upload): { dateCol, pfCol }, -1 if absent.
+export function datedLayout(rows, headerRow) {
+  const header = (rows[headerRow] || []).map(headerText);
+  const body = rows.slice(headerRow + 1, headerRow + 201);
+  let dateCol = header.findIndex((h, c) => isDateHeader(h) && dateRatio(body, c) >= 0.5);
+  if (dateCol < 0 && dateRatio(body, 0) >= 0.5 && !guessField(header[0])) dateCol = 0;
   const pfCol = header.findIndex((h, c) => c !== dateCol && isPortfolioHeader(h));
   return { headerRow, header, dateCol, pfCol };
 }

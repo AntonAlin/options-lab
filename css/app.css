@@ -494,3 +494,4 @@ a.privacy-note:hover span { text-decoration: underline; }
 .bh-axis { display: flex; justify-content: space-between; }
 .w-110 { width: 110px; }
 @media (max-width: 720px) { .bh-row { grid-template-columns: 1fr; gap: 3px; } }
+.card-info { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }

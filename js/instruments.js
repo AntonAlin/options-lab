@@ -95,7 +95,7 @@ export const FIELDS = {
   fixedRate:   { type: 'number', en: 'Fixed rate %', sv: 'Fast ränta %', aliases: ['fixedrate', 'swaprate', 'fastränta', 'contractrate'] },
   marketRate:  { type: 'number', en: 'Market rate %', sv: 'Marknadsränta %', aliases: ['marketrate', 'currentrate', 'parrate', 'marknadsränta'] },
   marketSpread:{ type: 'number', en: 'Market spread (bp)', sv: 'Marknadsspread (bp)', aliases: ['marketspread', 'currentspread', 'marknadsspread'] },
-  mtm:         { type: 'number', en: 'Market value override', sv: 'Marknadsvärde (manuellt)', aliases: ['mtm', 'marketvalue', 'mv', 'fairvalue', 'marknadsvärde', 'värde', 'npv'] },
+  mtm:         { type: 'number', en: 'Market value override', sv: 'Marknadsvärde (manuellt)', aliases: ['mtm', 'marketvalue', 'mv', 'fairvalue', 'marknadsvärde', 'värde', 'npv', 'verkligtvärde', 'marketvaluelocal', 'marknadsvärdelokal', 'premiumvalue'] },
   subClass:    { type: 'select', en: 'Look-through class', sv: 'Genomlyst tillgångsslag', options: ['equity', 'fixed_income', 'money_market', 'mixed', 'alternative', 'commodity'], aliases: ['assetclass', 'fundtype', 'category', 'tillgångsklass', 'fondtyp', 'kategori'] },
   equityShare: { type: 'number', en: 'Equity share %', sv: 'Aktieandel %', aliases: ['equityshare', 'equityweight', 'aktieandel'] },
   altType:     { type: 'select', en: 'Alternative type', sv: 'Alternativ typ', options: ['private_equity', 'real_estate', 'hedge_fund', 'infrastructure', 'private_credit', 'crypto', 'other'], aliases: ['alttype', 'subtype', 'strategy', 'strategi', 'undertyp'] },
@@ -297,7 +297,11 @@ export const INSTRUMENTS = {
       // The broker's number wins when there is one: it knows the contract spec, we only guess it.
       const repNotional = isNum(p.reportedNotional) ? dirSign(p.qty) * Math.abs(p.reportedNotional) * fx : null;
       const notional = repNotional != null && ctx.useReported !== false ? repNotional : modelNotional;
-      const mv = num(p.mtm) * fx;
+      // Daily margined: market value is only the unsettled variation margin, a day's move at most.
+      // Many custody and PMS files put the notional in their "market value" column; counting that
+      // would add the whole exposure to NAV, so anything above a quarter of the notional is ignored.
+      let mv = num(p.mtm) * fx;
+      if (isNum(p.mtm) && Math.abs(mv) > 0.25 * Math.abs(modelNotional) && modelNotional) { mv = 0; r.warnings.push('mtm_is_notional'); }
       const cls = p.underlyingClass || 'equity';
       r.deriv = derivInfo({ notional, modelNotional, repNotional, delta: 1, modelDelta: 1, deltaExp: notional, modelDeltaExp: modelNotional, repDeltaExp: repNotional, used: repNotional != null && ctx.useReported !== false });
       if (r.deriv.mismatch) r.warnings.push('reported_mismatch');
@@ -319,12 +323,12 @@ export const INSTRUMENTS = {
   },
 
   option: {
-    en: 'Listed option', sv: 'Option', group: 'derivatives', icon: 'OPT',
-    hint: { en: 'Priced with Black-Scholes-Merton (Black-76 when the underlying is rates or commodity). Leave price empty to use the model value. Delta-adjusted notional counts as exposure.', sv: 'Prissätts med Black-Scholes-Merton (Black-76 för ränte- och råvaruunderliggande). Lämna kurs tom för modellvärde. Deltajusterat nominellt belopp räknas som exponering.' },
-    fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'costPrice', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'divYield', 'beta', 'duration', 'buyCcy', 'reportedNotional', 'reportedDelta', 'reportedDeltaExposure', 'strategy', 'notes'],
+    en: 'Option', sv: 'Option', group: 'derivatives', icon: 'OPT',
+    hint: { en: 'Priced with Black-Scholes-Merton (Black-76 when the underlying is rates or commodity). Leave price empty to use the model value. Delta-adjusted notional counts as exposure. Listed or OTC: for an OTC option put the counterparty in Issuer, and it counts toward the OTC counterparty limit. A market value from your file overrides premium and model.', sv: 'Prissätts med Black-Scholes-Merton (Black-76 för ränte- och råvaruunderliggande). Lämna kurs tom för modellvärde. Deltajusterat nominellt belopp räknas som exponering. Noterad eller OTC: för en OTC-option anger du motparten som emittent, så räknas den mot gränsen för OTC-motparter. Ett marknadsvärde från filen går före premie och modell.' },
+    fields: [...COMMON, 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'price', 'costPrice', 'multiplier', 'ccy', 'underlyingClass', 'rate', 'divYield', 'beta', 'duration', 'buyCcy', 'reportedNotional', 'reportedDelta', 'reportedDeltaExposure', 'strategy', 'notes', 'mtm'],
     required: ['name', 'qty', 'optType', 'strike', 'maturity', 'underlyingPrice', 'vol', 'multiplier', 'ccy'],
     defaults: { multiplier: 100, optType: 'call', underlyingClass: 'equity', rate: 2.5, vol: 20, beta: 1 },
-    labels: { qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)', sv: 'Utdelningsyield % (valuta: utländsk ränta)' }, buyCcy: { en: 'Underlying currency (FX options; put = short it)', sv: 'Underliggande valuta (valutaoptioner; put = kort)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
+    labels: { issuer: { en: 'Counterparty (OTC only)', sv: 'Motpart (endast OTC)' }, mtm: { en: 'Market value (overrides premium)', sv: 'Marknadsvärde (går före premien)' }, qty: { en: 'Contracts (negative = written)', sv: 'Kontrakt (negativt = utfärdat)' }, divYield: { en: 'Dividend yield % (FX: foreign rate)', sv: 'Utdelningsyield % (valuta: utländsk ränta)' }, buyCcy: { en: 'Underlying currency (FX options; put = short it)', sv: 'Underliggande valuta (valutaoptioner; put = kort)' }, duration: { en: 'Underlying duration (rate options)', sv: 'Underliggande duration (ränteoptioner)' }, price: { en: 'Premium (optional)', sv: 'Premie (valfritt)' } },
     risk(p, ctx) {
       const r = blank(ctx.base);
       const fx = fxOrWarn(p, ctx, r);
@@ -336,7 +340,9 @@ export const INSTRUMENTS = {
       const g = bsm(p.optType, S, num(p.strike), T, rr, q, sig);
       const units = num(p.qty) * num(p.multiplier, 1);
       const unitPrice = isNum(p.price) ? p.price : g.price;
-      const mv = units * unitPrice * fx;
+      // An option has a real market value (the premium). The file's own figure wins, then the
+      // quoted premium, then the model.
+      const mv = isNum(p.mtm) ? p.mtm * fx : units * unitPrice * fx;
       // Model first, then let the custodian/broker file override. Magnitudes come from the file,
       // signs from the position itself (long/short × call/put) — files disagree on sign conventions
       // far more often than on size.
@@ -362,6 +368,7 @@ export const INSTRUMENTS = {
       else if (cls === 'fx') { addFx(r, p.buyCcy, deltaNotional, ctx.base); addFx(r, p.ccy, -deltaNotional, ctx.base); }
       addFx(r, p.ccy, mv, ctx.base);
       if (T <= 0) r.warnings.push('expired');
+      if (!isNum(p.mtm) && !isNum(p.price)) r.warnings.push('model_value');
       if (r.deriv.mismatch) r.warnings.push('reported_mismatch');
       return r;
     },
@@ -400,7 +407,10 @@ export const INSTRUMENTS = {
       const r = blank(ctx.base);
       const fb = fxOrWarn(p, ctx, r, p.buyCcy), fs = fxOrWarn(p, ctx, r, p.sellCcy);
       const buy = num(p.buyAmount) * fb, sell = num(p.sellAmount) * fs;
+      // Without the counterparty's MTM this is buy leg − sell leg at spot: the forward points are
+      // missing, which for a long-dated hedge between currencies with different rates is material.
       const mv = isNum(p.mtm) ? p.mtm * fxOrWarn(p, ctx, r, p.ccy || ctx.base) : buy - sell;
+      if (!isNum(p.mtm)) r.warnings.push('fwd_spot_value');
       Object.assign(r, { mv, exposure: Math.max(Math.abs(buy), Math.abs(sell)), net: 0, assetClass: 'currency', liqDays: 1 });
       r.deriv = derivInfo({ notional: buy, modelNotional: buy, delta: 1, modelDelta: 1, deltaExp: 0, modelDeltaExp: 0 });
       addFx(r, p.buyCcy, buy, ctx.base);
@@ -426,6 +436,7 @@ export const INSTRUMENTS = {
       const sign = p.direction === 'pay' ? -1 : 1;
       const est = sign * N * (num(p.fixedRate) - num(p.marketRate)) / 100 * annuity;
       const mv = isNum(p.mtm) ? p.mtm * fx : est;
+      if (!isNum(p.mtm)) r.warnings.push('model_value');
       Object.assign(r, {
         mv, exposure: Math.abs(N), net: sign * N, assetClass: 'fixed_income', liqDays: 1,
         deriv: derivInfo({ notional: sign * N, modelNotional: sign * N, delta: 1, modelDelta: 1, deltaExp: sign * N, modelDeltaExp: sign * N }),
@@ -454,6 +465,7 @@ export const INSTRUMENTS = {
       const sign = p.protection === 'buy' ? 1 : -1; // buyer gains when spreads widen
       const est = sign * N * (mkt - cpn) * 1e-4 * annuity;
       const mv = isNum(p.mtm) ? p.mtm * fx : est;
+      if (!isNum(p.mtm)) r.warnings.push('model_value');
       Object.assign(r, {
         mv, exposure: Math.abs(N), net: -sign * N, assetClass: 'fixed_income', liqDays: 2,
         deriv: derivInfo({ notional: -sign * N, modelNotional: -sign * N, delta: 1, modelDelta: 1, deltaExp: -sign * N, modelDeltaExp: -sign * N }),
