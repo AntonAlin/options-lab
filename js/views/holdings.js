@@ -180,7 +180,8 @@ function readForm(form, type) {
   return pos;
 }
 
-function openForm(existing) {
+// `onSave(pos)` makes the form hand the validated position back instead of saving it (Pre-trade uses it).
+export function openForm(existing, { onSave = null } = {}) {
   const p = store.active();
   let type = existing.type;
   const isNew = !existing.id;
@@ -201,7 +202,7 @@ function openForm(existing) {
     <div class="modal-foot">
       <span class="muted small"><span class="req">*</span> ${esc(t('hold.required'))}</span>
       <button class="btn" data-close>${esc(t('common.cancel'))}</button>
-      ${isNew ? `<button class="btn" data-save="again">${esc(t('hold.saveAddAnother'))}</button>` : ''}
+      ${isNew && !onSave ? `<button class="btn" data-save="again">${esc(t('hold.saveAddAnother'))}</button>` : ''}
       <button class="btn btn-primary" data-save="close">${esc(t('common.save'))}</button>
     </div>`;
 
@@ -249,6 +250,7 @@ function openForm(existing) {
         form.querySelector('.invalid input, .invalid select')?.focus();
         return;
       }
+      if (onSave) { pos.id = existing.id || uid(); closeModal(); onSave(pos); return; }
       if (isNew) {
         pos.id = uid();
         store.update(pp => pp.positions.push(pos), t('hold.add'));

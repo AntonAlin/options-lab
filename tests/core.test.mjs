@@ -705,7 +705,7 @@ test('connected source file: no portfolio column means one portfolio; no date co
 
 test('user guide: every block exists in English and Swedish, links go to real pages', async () => {
   const { GUIDE } = await import('../js/guide.js');
-  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'risk-class', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide'];
+  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'risk-class', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution'];
   const both = (o, where) => assert.ok(o && String(o.en || '').trim() && String(o.sv || '').trim(), 'missing translation in ' + where);
   assert.equal(GUIDE[0].id, 'privacy', 'data privacy comes first');
   assert.equal(new Set(GUIDE.map(s => s.id)).size, GUIDE.length);
@@ -726,4 +726,111 @@ test('methodology module links point at files that exist in js/', async () => {
   for (const s of METHODOLOGY) for (const m of s.module.match(/[\w-]+\.js/g)) {
     assert.ok(existsSync(new URL('../js/' + m, import.meta.url)), `${s.id}: js/${m} does not exist`);
   }
+});
+
+test('insights: holdings-based period return, price vs trading effect, flows and turnover', async () => {
+  const { period, realised } = await import('../js/insights.js');
+  const p = newPortfolio({ baseCcy: 'SEK' });
+  p.history = { dates: ['2026-01-01', '2026-01-02'], series: { SEB0001: [20, 22] } };
+  const a = { date: '2026-01-01', positions: [
+    { id: 'a', type: 'equity', name: 'A', isin: 'SEA0001', qty: 100, price: 10, ccy: 'SEK' },
+    { id: 'b', type: 'equity', name: 'B', isin: 'SEB0001', qty: 50, price: 20, ccy: 'SEK' },
+    { id: 'c', type: 'cash', name: 'Cash', qty: 1000, ccy: 'SEK' }] };
+  // B sold at 22, C bought for 50 out of cash: self-financed, so no flows.
+  const b = { date: '2026-01-02', positions: [
+    { id: 'a2', type: 'equity', name: 'A', isin: 'SEA0001', qty: 100, price: 11, ccy: 'SEK' },
+    { id: 'n', type: 'equity', name: 'C', isin: 'SEC0001', qty: 10, price: 5, ccy: 'SEK' },
+    { id: 'c2', type: 'cash', name: 'Cash', qty: 2050, ccy: 'SEK' }] };
+  const q = period(p, a, b);
+  close(q.v0.nav, 3000, 1e-9); close(q.v1.nav, 3200, 1e-9); close(q.vB.nav, 3200, 1e-9);
+  close(q.ret, 3200 / 3000 - 1, 1e-12);
+  close(q.flows, 0, 1e-9, 'self-financed trades are not flows');
+  close(q.rows.reduce((s, o) => s + o.contrib, 0), q.ret, 1e-12, 'contributions add up');
+  assert.equal(q.rows.find(o => o.name === 'B').status, 'sold');
+  assert.equal(q.rows.find(o => o.name === 'C').status, 'new');
+  close(q.turnover, 50 / 3100, 1e-12);
+  assert.equal(q.unpriced.length, 0, 'B was priced from the history');
+  // A subscription of 500 shows up as a flow, not as return.
+  const b2 = { ...b, positions: b.positions.map(x => x.type === 'cash' ? { ...x, qty: 2550 } : x) };
+  const q2 = period(p, a, b2);
+  close(q2.ret, q.ret, 1e-12); close(q2.flows, 500, 1e-9);
+  const r = realised(p, [a, b2]);
+  close(r.total, q.ret, 1e-12); close(r.flows, 500, 1e-9);
+});
+
+test('insights: breach history tells passive (market) from active (trade) breaches', async () => {
+  const { breachHistory } = await import('../js/insights.js');
+  const p = newPortfolio({ baseCcy: 'SEK' });
+  const pos = (id, px, q) => ({ id, type: 'equity', name: id, isin: 'SE' + id, qty: q, price: px, ccy: 'SEK' });
+  const cash = q => ({ id: 'cash', type: 'cash', name: 'Cash', qty: q, ccy: 'SEK' });
+  const s = [
+    { date: '2026-01-01', positions: [pos('X', 95, 1), pos('Y', 50, 1), cash(855)] },   // X 9.5 %
+    { date: '2026-01-02', positions: [pos('X', 120, 1), pos('Y', 50, 1), cash(855)] },  // price only → X 11.6 %: passive
+    { date: '2026-01-05', positions: [pos('X', 90, 1), pos('Y', 50, 1), cash(860)] },   // back under
+    { date: '2026-01-06', positions: [pos('X', 90, 1), pos('Y', 50, 3), cash(760)] }    // bought Y → 15 %: active
+  ];
+  const h = breachHistory(p, s);
+  const ep = h.episodes.filter(e => e.id === 'issuerMax').sort((a, b) => a.start.localeCompare(b.start));
+  assert.equal(ep.length, 2);
+  assert.deepEqual(ep.map(e => [e.start, e.cause, e.ongoing]), [['2026-01-02', 'passive', false], ['2026-01-06', 'active', true]]);
+});
+
+test('insights: what-if hits the target weight and books the cash', async () => {
+  const { whatIf } = await import('../js/insights.js');
+  const p = newPortfolio({ baseCcy: 'SEK' });
+  p.positions = [{ id: 'e', type: 'equity', name: 'E', isin: 'SEE', qty: 100, price: 10, ccy: 'SEK' }, { id: 'c', type: 'cash', name: 'Cash', qty: 9000, ccy: 'SEK' }];
+  const w = whatIf(p, [{ id: 'e', mode: 'weight', value: 0.25 }]);
+  close(w.after.nav, w.before.nav, 1e-6, 'a cash-funded trade leaves NAV unchanged');
+  const e = w.after.v.valid.find(x => x.pos.id === 'e');
+  close(e.weight, 0.25, 1e-9);
+  close(w.cashNeeded, 1500, 1e-9);
+  assert.ok(w.after.varPct > w.before.varPct, 'more equity, more risk');
+  const n = whatIf(p, [{ pos: { type: 'equity', name: 'New', qty: 10, price: 100, ccy: 'SEK' } }]);
+  close(n.cashNeeded, 1000, 1e-9);
+  assert.equal(n.after.n, 3);
+});
+
+test('insights: Brinson-Fachler matches the textbook example and reconciles', async () => {
+  const { brinson } = await import('../js/insights.js');
+  const b = brinson([{ segment: 'Equity', weight: 0.6, ret: 0.10 }, { segment: 'Bonds', weight: 0.4, ret: 0.04 }],
+                    [{ segment: 'equity', weight: 50, ret: 0.08 }, { segment: 'Bonds', weight: 50, ret: 0.05 }]);
+  close(b.Rp, 0.076, 1e-12); close(b.Rb, 0.065, 1e-12);
+  close(b.allocation, 0.003, 1e-12); close(b.selection, 0.005, 1e-12); close(b.interaction, 0.003, 1e-12);
+  close(b.allocation + b.selection + b.interaction, b.active, 1e-12);
+  const eq = b.rows.find(r => r.segment === 'Equity');
+  close(eq.allocation, 0.0015, 1e-12); close(eq.selection, 0.01, 1e-12); close(eq.interaction, 0.002, 1e-12);
+  // A segment only one side holds still reconciles.
+  const c = brinson([{ segment: 'A', weight: 1, ret: 0.05 }], [{ segment: 'A', weight: 0.7, ret: 0.03 }, { segment: 'B', weight: 0.3, ret: -0.02 }]);
+  close(c.allocation + c.selection + c.interaction, c.active, 1e-12);
+});
+
+test('insights: liquidity stress test coverage, waterfall and vertical slice', async () => {
+  const { liquidityStress } = await import('../js/insights.js');
+  const p = newPortfolio({ baseCcy: 'SEK' });
+  p.positions = [
+    { id: 'c', type: 'cash', name: 'Cash', qty: 100, ccy: 'SEK' },
+    { id: 'e', type: 'equity', name: 'E', isin: 'SEE', qty: 60, price: 10, ccy: 'SEK' },
+    { id: 'x', type: 'alternative', name: 'PE fund', qty: 1, price: 300, ccy: 'SEK', altType: 'private_equity' }];
+  const r = liquidityStress(p, { redemptions: [0.1, 0.3, 0.8], horizon: 7, stressed: false });
+  close(r.nav, 1000, 1e-9);
+  close(r.maxRedemption, (100 + 600 + 300 * 7 / 180) / 1000, 1e-9);
+  const [s10, s30, s80] = r.scenarios;
+  assert.ok(s10.pass && s30.pass && !s80.pass);
+  close(s30.coverage, r.liquid / 300, 1e-12);
+  // Waterfall sells cash first, then equity: the PE fund's share rises to 300 / 700.
+  close(s30.waterfall.nav, 700, 1e-6);
+  close(s30.waterfall.cash, 0, 1e-9);
+  close(s30.vertical.nav, 700, 1e-6);
+  close(s30.vertical.cash, 0.1, 1e-9, 'vertical slice keeps the mix');
+  assert.ok(s80.shortfall > 0);
+});
+
+test('insights: benchmark table parsing (Swedish headers, decimal comma, % returns)', async () => {
+  const { parseBenchmark } = await import('../js/insights.js');
+  const { normKey } = await import('../js/instruments.js');
+  const { sheets, decimal } = parseText('Sektor;Vikt;Avkastning\nIndustri;35,5;2,1\nFinans;64,5;-0,8\nSumma;100;0,5\n', 'b.csv');
+  const r = parseBenchmark(sheets[0].rows, { decimal, parseNumber, normKey });
+  assert.equal(r.rows.length, 2);
+  assert.ok(r.percent);
+  close(r.rows[0].weight, 35.5, 1e-12); close(r.rows[0].ret, 0.021, 1e-12); close(r.rows[1].ret, -0.008, 1e-12);
 });

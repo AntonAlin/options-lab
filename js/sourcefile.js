@@ -9,6 +9,7 @@
 import * as store from './store.js';
 import { readFile, autoMapping, rowsToPositions, detectTemplate, applyTemplateMapping, parseDate, parseNumber, mergeHistory } from './importer.js';
 import { normKey } from './instruments.js';
+import { posKey as key } from './insights.js';
 import { loadScript, uid, isNum } from './util.js';
 
 // ---- pure helpers (also used by the tests) -----------------------------------------------------------
@@ -90,7 +91,7 @@ export function snapshotPositions(rows, mapping, opts) {
   return rowsToPositions(rows, mapping, opts).map(r => r.pos);
 }
 
-const posKey = x => (x.isin && 'i:' + String(x.isin).toUpperCase()) || (x.ticker && 't:' + String(x.ticker).toUpperCase() + '|' + x.type) || (x.name && 'n:' + String(x.name).toLowerCase() + '|' + x.type) || '';
+const posKey = x => { const k = key(x); return k.startsWith('x:') ? '' : k; };
 
 // Keep position ids stable across refreshes so selections and transaction links survive.
 export function carryIds(prev, next) {
@@ -175,6 +176,18 @@ let timer = null;
 
 // The portfolios fed by the connected file.
 export const sourced = () => (rec ? store.listPortfolios().filter(p => p.source && p.source.file === rec.id) : []);
+// Holdings on every date in the file for one portfolio: [{ date, positions }], oldest first.
+// Built on demand and cached until the file (or the mapping) changes.
+let snapCache = { parsed: null, map: new Map() };
+export function snapshotsFor(p) {
+  if (!parsed || !p?.source?.file || !rec || p.source.file !== rec.id) return null;
+  if (snapCache.parsed !== parsed) snapCache = { parsed, map: new Map() };
+  if (snapCache.map.has(p.source.key)) return snapCache.map.get(p.source.key);
+  const g = parsed.groups.find(x => x.key === p.source.key);
+  const out = g ? g.dates.map(d => ({ date: d.date, positions: snapshotPositions(d.rows, parsed.mapping, parsed.opts) })) : null;
+  snapCache.map.set(p.source.key, out);
+  return out;
+}
 export const datesFor = p => (parsed && p?.source ? parsed.groups.find(g => g.key === p.source.key)?.dates.map(d => d.date) || [] : p?.source?.dates || []);
 
 // ---- connect / disconnect --------------------------------------------------------------------------------

@@ -72,11 +72,12 @@ export const METHODOLOGY = [
     ]
   },
   {
-    id: 'liquidity', module: 'analytics.js (liquidity)',
+    id: 'liquidity', module: 'analytics.js (liquidity) · insights.js (liquidityStress)',
     title: { en: 'Liquidity', sv: 'Likviditet' },
     items: [
       { en: 'Days to liquidate', sv: 'Dagar att avveckla', formula: 'days = ⌈ |quantity| / (ADV × participation) ⌉   when ADV is given\notherwise the instrument\'s liquidity field, else a default per type (equity 2, ETF 1, bonds 3, alternatives 180 …)', notes: { en: 'Stressed profile: half the participation rate and 1.5 × the type-based days.', sv: 'Stressad profil: halva deltagandegraden och 1,5 × typbaserade dagar.' }, params: 'participation %, adv, liquidityDays' },
-      { en: 'Liquidity profile', sv: 'Likviditetsprofil', formula: 'liquid within h days = Σ MV_i × min(1, h / days_i)', notes: { en: 'Pro-rata: a position that needs 10 days is 70 % sold by day 7. Illiquid = more than 90 days.', sv: 'Pro rata: ett innehav som behöver 10 dagar är sålt till 70 % efter 7 dagar. Illikvitt = mer än 90 dagar.' } }
+      { en: 'Liquidity profile', sv: 'Likviditetsprofil', formula: 'liquid within h days = Σ MV_i × min(1, h / days_i)', notes: { en: 'Pro-rata: a position that needs 10 days is 70 % sold by day 7. Illiquid = more than 90 days.', sv: 'Pro rata: ett innehav som behöver 10 dagar är sålt till 70 % efter 7 dagar. Illikvitt = mer än 90 dagar.' } },
+      { en: 'Liquidity stress test (ESMA)', sv: 'Likviditetsstresstest (ESMA)', formula: 'sellable(h) = Σ MV_i · min(1, h / days_i)\ncoverage = sellable(h) / (R × NAV)   — met when ≥ 1\nwaterfall: sell in order of days_i until R × NAV;   vertical: every asset × (1 − R)', notes: { en: 'Follows ESMA\'s Guidelines on liquidity stress testing in UCITS and AIFs (redemption shock, coverage ratio, effect on the remaining investors). Derivatives are not sold, so commitment rises as NAV falls; limits are re-checked on the portfolio left behind. Market impact of the sales is not modelled.', sv: 'Följer ESMA:s riktlinjer för likviditetsstresstester i UCITS och AIF (inlösenchock, täckningsgrad, effekt på kvarvarande andelsägare). Derivat säljs inte, så åtagandet stiger när NAV faller; reglerna kontrolleras på portföljen som blir kvar. Kurspåverkan av försäljningarna modelleras inte.' }, params: 'redemption shock, horizon, normal/stressed' }
     ]
   },
   {
@@ -85,6 +86,30 @@ export const METHODOLOGY = [
     items: [
       { en: 'Issuer limits (UCITS-style)', sv: 'Emittentgränser (UCITS-stil)', formula: 'issuer exposure = Σ MV of equities, corporate bonds, FRNs, non-government money market, alternatives, commodities + notional of sold CDS\nmax issuer ≤ 10 %;  Σ issuers above 5 % ≤ 40 %;  government issuer ≤ 35 %;  bank deposits ≤ 20 %;  single fund ≤ 20 %', notes: { en: 'Status: breach above the limit, warning above 90 % of it (below 110 % for minimum rules). Group-of-issuer aggregation, look-through and collateral netting are not applied.', sv: 'Status: brott över gränsen, varning över 90 % av den (under 110 % för minimiregler). Koncernaggregering, genomlysning och säkerhetsnettning tillämpas inte.' }, params: 'limits (on/off and value per rule)' },
       { en: 'Other rules', sv: 'Övriga regler', formula: 'commitment ≤ 100 %;  OTC counterparty (positive MTM of forwards, swaps, CDS) ≤ 10 %;  optional: single position, sector, high yield, 7-day liquidity ≥, cash ≥, illiquid ≤', notes: { en: '', sv: '' } }
+    ]
+  },
+  {
+    id: 'oversight', module: 'insights.js · snapshots.js',
+    title: { en: 'Changes, track record and limit history', sv: 'Förändringar, historik och regelhistorik' },
+    intro: { en: 'Built on the holdings on each date: the dates in a connected file, or snapshots you save. Every date is valued with today\'s FX table and settings.', sv: 'Bygger på innehaven per datum: datumen i en kopplad fil, eller ögonblicksbilder du sparar. Varje datum värderas med dagens valutatabell och inställningar.' },
+    items: [
+      { en: 'Holdings-based return', sv: 'Innehavsbaserad avkastning', formula: 'r(A→B) = V(holdings_A at prices_B) / V(holdings_A at prices_A) − 1\ntrack record = Π (1 + r_t) − 1  over consecutive snapshots', notes: { en: 'What the holdings on the first date earned, so subscriptions, redemptions and intra-period trades do not distort it. A holding sold before date B is priced from the price history (last price on or before B) or, failing that, at its old price and flagged. Returns for spans under a year are not annualised (GIPS).', sv: 'Vad innehaven på första datumet tjänade, så teckningar, inlösen och affärer under perioden påverkar inte. Ett innehav som sålts före datum B prissätts från kurshistoriken (senaste kurs på eller före B) eller, om den saknas, till sin gamla kurs och flaggas. Avkastning för perioder kortare än ett år anges inte i årstakt (GIPS).' }, params: 'snapshots, price history, FX table' },
+      { en: 'Price and trading effect, flows, turnover', sv: 'Pris- och affärseffekt, flöden, omsättning', formula: 'price effect_i = MV_i(A holdings, B prices) − MV_i(A)\ntrade effect_i = MV_i(B) − MV_i(A holdings, B prices)\nnet flows ≈ NAV_B − V(holdings_A at prices_B)\nturnover = min(Σ buys, Σ sells) / average NAV   (cash and derivatives excluded)', notes: { en: 'Trades between securities and cash cancel in the flow estimate, so what remains is money in or out, fees and distributions paid. Contribution per holding = price effect / NAV_A; summed arithmetically over periods.', sv: 'Affärer mellan värdepapper och kassa tar ut varandra i flödesuppskattningen, så det som återstår är pengar in eller ut, avgifter och utbetalda utdelningar. Bidrag per innehav = priseffekt / NAV_A; summeras aritmetiskt över perioderna.' } },
+      { en: 'Active vs passive limit breaches', sv: 'Aktiva och passiva regelbrott', formula: 'for each date t:  check(holdings_t)  and  check(holdings_{t−1} at prices_t)\nbreach starts at t:  passive if the second check also breaches, else active', notes: { en: 'Passive: the unchanged portfolio would have breached anyway (market moves, or flows). Active: the trades did it. UCITS art. 57(2): a passive breach is remedied as a priority objective, taking due account of unitholders\' interests; an active breach at once. Today\'s limits are applied to every date.', sv: 'Passivt: den oförändrade portföljen hade brutit ändå (kursrörelser eller flöden). Aktivt: affärerna orsakade det. UCITS art. 57.2: ett passivt brott rättas med förtur med hänsyn till andelsägarnas intressen; ett aktivt omedelbart. Dagens regler tillämpas på alla datum.' } }
+    ]
+  },
+  {
+    id: 'pretrade', module: 'insights.js (whatIf, applyTrades)',
+    title: { en: 'Pre-trade what-if', sv: 'Pre-trade-analys' },
+    items: [
+      { en: 'Applying trades', sv: 'Affärer', formula: 'target weight w:  q_new = w × NAV / (MV / q)\nchange Δq:  q_new = q + Δq;   new quantity:  q_new = value\ncash_new = cash − Σ ΔMV / FX_cash', notes: { en: 'All size fields scale together (quantity, legs, MTM, reported figures). Trades are at current prices without costs or market impact; the before/after figures use the parametric model so they are comparable.', sv: 'Alla storleksfält skalas tillsammans (antal, ben, MTM, rapporterade värden). Affärerna görs till aktuella kurser utan kostnader eller marknadspåverkan; före/efter-siffrorna använder den parametriska modellen så att de är jämförbara.' }, params: 'holdings, cash account' }
+    ]
+  },
+  {
+    id: 'attribution', module: 'insights.js (brinson, portfolioSegments)',
+    title: { en: 'Performance attribution', sv: 'Avkastningsattribution' },
+    items: [
+      { en: 'Brinson-Fachler', sv: 'Brinson-Fachler', formula: 'allocation_i  = (wp_i − wb_i) · (Rb_i − Rb)\nselection_i   = wb_i · (Rp_i − Rb_i)\ninteraction_i = (wp_i − wb_i) · (Rp_i − Rb_i)\nΣ_i (allocation + selection + interaction) = Rp − Rb', notes: { en: 'Single period, market-value weights at the start. Portfolio side from two snapshots (holdings-based) or, without snapshots, today\'s holdings over the price history. A segment only the portfolio holds takes Rb_i = Rb (its effect is interaction); one only the benchmark holds takes Rp_i = Rb_i (its effect is allocation). Segments under 0.1 % of NAV go to a residual so totals reconcile.', sv: 'En period, marknadsvärdesvikter vid start. Portföljsidan från två ögonblicksbilder (innehavsbaserad) eller, utan dem, dagens innehav över kurshistoriken. Ett segment bara portföljen har får Rb_i = Rb (effekten blir samspel); ett bara index har får Rp_i = Rb_i (effekten blir allokering). Segment under 0,1 % av NAV läggs i en rest så att summorna stämmer.' }, params: 'benchmark weight and return per segment' }
     ]
   },
   {

@@ -143,6 +143,39 @@ export const GUIDE = [
     ]
   },
   {
+    id: 'oversight',
+    title: { en: 'Daily oversight: changes, pre-trade and attribution', sv: 'Daglig uppföljning: förändringar, pre-trade och attribution' },
+    blocks: [
+      { p: { en: 'These pages work on holdings over time. A connected file gives one snapshot per date automatically; for other portfolios, click “Save holdings as snapshot” on Changes & track record each day you update the holdings (the latest 90 are kept).', sv: 'De här sidorna arbetar med innehav över tid. En kopplad fil ger automatiskt en ögonblicksbild per datum; för andra portföljer klickar du på ”Spara innehaven som ögonblicksbild” på Förändringar & historik varje dag du uppdaterar innehaven (de senaste 90 sparas).' } },
+      { h: { en: 'Changes & track record — the morning check', sv: 'Förändringar & historik — morgonkollen' } },
+      { list: [
+        { en: 'Pick two dates (default: the latest two). You see the holdings-based return, the NAV change, estimated net flows (subscriptions minus redemptions) and turnover.', sv: 'Välj två datum (förval: de två senaste). Du ser innehavsbaserad avkastning, NAV-förändring, uppskattade nettoflöden (teckningar minus inlösen) och omsättning.' },
+        { en: 'Key figures side by side: VaR, duration, equity delta, liquidity, largest issuer, limit breaches — with the change coloured red where it got worse.', sv: 'Nyckeltal sida vid sida: VaR, duration, aktiedelta, likviditet, största emittent, regelbrott — med förändringen i rött där det blivit sämre.' },
+        { en: 'Limits that changed status, and the holdings that were bought or sold, with each move split into price effect and trade effect.', sv: 'Regler som ändrat status, och innehaven som köpts eller sålts, med varje förändring uppdelad i priseffekt och affärseffekt.' },
+        { en: 'Track record: the fund\'s own chained return across every date, with volatility, drawdown, turnover and the largest contributors and detractors.', sv: 'Historik: fondens egen länkade avkastning över alla datum, med volatilitet, drawdown, omsättning och de största positiva och negativa bidragen.' }
+      ] },
+      { h: { en: 'Pre-trade — before you place the order', sv: 'Pre-trade — innan du lägger ordern' } },
+      { steps: [
+        { en: 'Add a trade on a holding (target weight, change in quantity or new quantity) or a new instrument.', sv: 'Lägg till en affär i ett innehav (målvikt, förändring i antal eller nytt antal) eller ett nytt instrument.' },
+        { en: 'Choose which cash account pays for it.', sv: 'Välj vilket kassakonto som betalar.' },
+        { en: 'Read the impact: risk, duration, liquidity, largest issuer and every limit before and after. A limit the trade would breach shows in red — that is an active breach you would be creating.', sv: 'Läs effekten: risk, duration, likviditet, största emittent och varje regel före och efter. En regel som affären skulle bryta visas i rött — det vore ett aktivt brott du själv orsakar.' },
+        { en: 'Apply the trades to the holdings if you want (undo is one click). For a portfolio fed by a connected file, put the trades in the file instead.', sv: 'Genomför affärerna i innehaven om du vill (ångra är ett klick). För en portfölj från en kopplad fil lägger du in affärerna i filen i stället.' }
+      ] },
+      { h: { en: 'Attribution — explaining the result', sv: 'Attribution — att förklara resultatet' } },
+      { steps: [
+        { en: 'Choose the segments: asset class, sector, region, country or currency.', sv: 'Välj segment: tillgångsslag, sektor, region, land eller valuta.' },
+        { en: 'Paste or upload the benchmark\'s weight and return per segment for the period (the index factsheet has them). “Download template” gives a file with your portfolio\'s segments filled in.', sv: 'Klistra in eller ladda upp indexets vikt och avkastning per segment för perioden (indexets faktablad har dem). ”Ladda ner mall” ger en fil med portföljens segment ifyllda.' },
+        { en: 'Pick the same period. The page splits the active return into allocation, selection and interaction per segment.', sv: 'Välj samma period. Sidan delar upp den aktiva avkastningen i allokering, selektion och samspel per segment.' }
+      ] },
+      { h: { en: 'Limit history and liquidity stress test', sv: 'Regelhistorik och likviditetsstresstest' } },
+      { list: [
+        { en: 'Compliance → Limit history shows every limit on every date and classes each breach as active (a trade caused it — correct at once) or passive (the market did — correct as a priority, in the unitholders\' interest). Useful evidence for the depositary and the board.', sv: 'Placeringsregler → Regelhistorik visar varje regel på varje datum och klassar varje brott som aktivt (en affär orsakade det — rättas omedelbart) eller passivt (marknaden orsakade det — rättas med förtur, i andelsägarnas intresse). Bra underlag för förvaringsinstitut och styrelse.' },
+        { en: 'Liquidity → Liquidity stress test runs redemption shocks of 5–30 % (and your own) against what can be sold in the horizon, and shows the fund left for the remaining investors when the most liquid assets are sold first — in line with ESMA\'s guidelines.', sv: 'Likviditet → Likviditetsstresstest kör inlösenchocker på 5–30 % (och en egen) mot det som kan säljas inom horisonten, och visar fonden som blir kvar för övriga andelsägare när det likvidaste säljs först — i linje med ESMA:s riktlinjer.' }
+      ] },
+      { link: 'changes', label: { en: 'Go to Changes & track record', sv: 'Till Förändringar & historik' } }
+    ]
+  },
+  {
     id: 'analytics',
     title: { en: 'Analytics, page by page', sv: 'Analys, sida för sida' },
     blocks: [
@@ -202,6 +235,8 @@ export const GUIDE = [
         { en: 'My edits on Holdings disappeared — the portfolio comes from a connected file, which replaces holdings on every change. Edit the file.', sv: 'Mina ändringar i Innehav försvann — portföljen kommer från en kopplad fil som ersätter innehaven vid varje ändring. Ändra i filen.' },
         { en: 'A position is valued at zero — its currency has no FX rate, or a required field is missing (see the error on the row).', sv: 'Ett innehav värderas till noll — valutan saknar kurs, eller ett obligatoriskt fält saknas (se felet på raden).' },
         { en: 'Performance and historical VaR are empty — load price history, or connect a file with at least two dates.', sv: 'Avkastning och historisk VaR är tomma — läs in kurshistorik, eller koppla en fil med minst två datum.' },
+        { en: 'Changes & track record says it needs two dates — connect a file with several dates, or save a snapshot today and another on a later valuation date.', sv: 'Förändringar & historik säger att det behövs två datum — koppla en fil med flera datum, eller spara en ögonblicksbild i dag och en till på ett senare värderingsdatum.' },
+        { en: 'Attribution shows a segment as “not in benchmark” — the names differ. Use the names shown in the table, or download the template.', sv: 'Attribution visar ett segment som ”ej i index” — namnen skiljer sig åt. Använd namnen som visas i tabellen, eller ladda ner mallen.' },
         { en: 'The same file cannot be both connected (read) and linked (save) as CSV/Excel — the platform would read its own output. Use different files.', sv: 'Samma fil kan inte både vara kopplad källfil (läsa) och kopplad fil (spara) som CSV/Excel — plattformen skulle läsa sin egen utdata. Använd olika filer.' }
       ] }
     ]
