@@ -312,39 +312,7 @@ export function heatmapSpec(labels, matrix, { th = currentTheme(), height = null
   };
 }
 
-// Binned by hand so gains and losses get their own colour, like the Options Lab P/L histogram.
-// 3D risk–return map: one marker per position. points: [{ name, x, y, z, size, color, text }].
-// Sizes are scaled to a 6–34 px range so a tiny holding stays visible and a big one does not eat
-// the scene. The camera starts at a three-quarter view; users can rotate, zoom and hover.
-export function scatter3dSpec(points, { th = currentTheme(), labels = { x: 'x', y: 'y', z: 'z' }, height = 520, fmt = { x: '.1%', y: '.1%', z: '.2%' } } = {}) {
-  const P = THEMES[th];
-  const maxS = Math.max(1e-9, ...points.map(p => Math.abs(p.size || 0)));
-  const ax = (title, tf) => ({ title: { text: title, font: { size: 11, color: P.ink2 } }, tickfont: { color: P.muted, size: 10 }, tickformat: tf, gridcolor: P.axis, zerolinecolor: P.ink2, zerolinewidth: 1.5, backgroundcolor: 'rgba(0,0,0,0)', showbackground: false, spikecolor: P.muted });
-  const groups = [...new Set(points.map(p => p.group || ''))];
-  const data = groups.map(g => {
-    const pts = points.filter(p => (p.group || '') === g);
-    return {
-      type: 'scatter3d', mode: 'markers+text', name: g,
-      x: pts.map(p => p.x), y: pts.map(p => p.y), z: pts.map(p => p.z),
-      text: pts.map(p => p.name), textposition: 'top center', textfont: { size: 9, color: P.ink2 },
-      customdata: pts.map(p => p.text || ''),
-      marker: { size: pts.map(p => 6 + 28 * Math.sqrt(Math.abs(p.size || 0) / maxS)), color: rgba(pts[0].color || P.series[0], 0.85), line: { color: pts[0].color || P.series[0], width: 1 }, sizemode: 'diameter' },
-      hovertemplate: `<b>%{text}</b><br>${labels.x}: %{x:${fmt.x}}<br>${labels.y}: %{y:${fmt.y}}<br>${labels.z}: %{z:${fmt.z}}<br>%{customdata}<extra>${g}</extra>`
-    };
-  });
-  return {
-    data,
-    layout: baseLayout(th, {
-      height, margin: { l: 0, r: 0, t: 0, b: 0 }, showlegend: groups.length > 1,
-      legend: { orientation: 'h', y: 0, x: 0, yanchor: 'top', font: { color: P.ink2, size: 11 } },
-      scene: {
-        xaxis: ax(labels.x, fmt.x), yaxis: ax(labels.y, fmt.y), zaxis: ax(labels.z, fmt.z),
-        camera: { eye: { x: 1.55, y: -1.55, z: 0.9 } }, aspectmode: 'cube', dragmode: 'orbit'
-      }
-    })
-  };
-}
-
+// Binned by hand so gains and losses get their own colour.
 export function histogramSpec(values, { th = currentTheme(), height = 260, markers = [], bins = 50 } = {}) {
   const P = THEMES[th];
   const v = values.filter(isNum);

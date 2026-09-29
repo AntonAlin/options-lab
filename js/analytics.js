@@ -342,23 +342,6 @@ export function historicalPnl(v) {
   };
 }
 
-// Per-position return, volatility and risk contribution over the last `window` observations of
-// the back-cast — the three axes of the performance map. Weight and market value size the marker.
-export function positionPerformance(hp, v, window = 252) {
-  if (!hp) return [];
-  const n = hp.dates.length, from = Math.max(1, n - window);
-  const port = hp.portfolioPnl.slice(from).map(x => num(x));
-  const sdPort = stdev(port);
-  return hp.covered.filter(c => c.key !== 'FX' && c.exposure).map(c => {
-    const pnl = c.pnl.slice(from).map(x => num(x));
-    const rets = pnl.map(x => x / c.exposure);
-    const total = rets.reduce((g, r) => g * (1 + r), 1) - 1;
-    const vol = stdev(rets) * Math.sqrt(252);
-    const contrib = sdPort ? covariance(pnl, port) / sdPort * Math.sqrt(252) : 0;
-    return { row: c.row, name: c.row.name, cls: c.row.r.assetClass, ret: total, retAnn: rets.length >= 20 ? Math.pow(1 + total, 252 / rets.length) - 1 : total, vol, contrib, contribPct: v.nav ? contrib / v.nav : 0, weight: c.row.weight, exposureW: v.nav ? c.exposure / v.nav : 0, obs: rets.length };
-  });
-}
-
 export function perfStats(ret, { rf = 0, periodsPerYear = 252, bench = null } = {}) {
   const r = ret.filter(isNum);
   if (r.length < 5) return null;

@@ -556,8 +556,7 @@ test('cost basis: average-cost book with fees, short through zero, FX effect and
   assert.deepEqual(r.unmatched.map(u => u.reason), ['no_position']);
 });
 
-test('risk by asset class adds up to the portfolio volatility, and the performance map has a point per covered position', async () => {
-  const { positionPerformance } = await import('../js/analytics.js');
+test('risk by asset class adds up to the portfolio volatility', async () => {
   const { sum } = await import('../js/util.js');
   const p = buildDemo('2026-09-28');
   const a = fullAnalysis(p);
@@ -569,9 +568,6 @@ test('risk by asset class adds up to the portfolio volatility, and the performan
   assert.ok(P.byAssetClass.find(c => c.key === 'currency'), 'currency is its own bucket');
   const H = a.risk.hist;
   close(sum(H.byAssetClass.map(c => c.total)), H.sigmaAnnual, 1e-6 * H.sigmaAnnual);
-  const pts = positionPerformance(a.risk.hp, a.v, 252);
-  assert.equal(pts.length, a.risk.hp.covered.filter(c => c.key !== 'FX').length);
-  assert.ok(pts.every(q => Number.isFinite(q.ret) && Number.isFinite(q.vol) && Number.isFinite(q.contribPct)));
 });
 
 test('connected source file: dates in the first column split snapshots and portfolios', async () => {
