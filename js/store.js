@@ -84,8 +84,7 @@ export function upgradePortfolio(p) {
   p.fund = { classes: [], liabilities: 0, receivables: 0, feeFrom: '', ...(p.fund || {}) };
   p.allocTargets = p.allocTargets && typeof p.allocTargets === 'object' ? p.allocTargets : {};
   p.transactions = Array.isArray(p.transactions) ? p.transactions : [];
-  const nc = p.navControl || {};
-  p.navControl = { adminNav: Array.isArray(nc.adminNav) ? nc.adminNav : [], adminHoldings: nc.adminHoldings && typeof nc.adminHoldings === 'object' ? nc.adminHoldings : {}, files: nc.files || {}, cfg: { ...(nc.cfg || {}) }, log: Array.isArray(nc.log) ? nc.log : [] };
+  delete p.navControl;
   const lim = JSON.parse(JSON.stringify(DEFAULT_LIMITS));
   for (const [k, v] of Object.entries(p.limits || {})) if (lim[k]) lim[k] = { ...lim[k], ...v };
   p.limits = lim;

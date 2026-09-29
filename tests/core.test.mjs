@@ -661,7 +661,7 @@ test('connected source file: no portfolio column means one portfolio; no date co
 
 test('user guide: every block exists in English and Swedish, links go to real pages', async () => {
   const { GUIDE } = await import('../js/guide.js');
-  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'risk-class', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution', 'navcontrol'];
+  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'risk-class', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution'];
   const both = (o, where) => assert.ok(o && String(o.en || '').trim() && String(o.sv || '').trim(), 'missing translation in ' + where);
   assert.equal(GUIDE[0].id, 'privacy', 'data privacy comes first');
   assert.equal(new Set(GUIDE.map(s => s.id)).size, GUIDE.length);
@@ -1089,78 +1089,7 @@ test('modelled OTC types still take a counterparty-MTM-only row, flagged, instea
   assert.ok(validatePosition({ type: 'swaption', qty: 1e6, ccy: 'EUR', payerReceiver: 'payer' }).some(e => e.field === 'strike'));
 });
 
-test('NAV control: admin files parse; holdings, NAV and fee reconciliation explain the gap', async () => {
-  const nc = await import('../js/navcontrol.js');
-  const { navPerUnit } = await import('../js/fund.js');
-  const p = newPortfolio({ name: 'Fund A', baseCcy: 'SEK', valDate: '2026-09-28' });
-  p.positions = [
-    { id: '1', type: 'equity', name: 'Volvo B', isin: 'SE0000115446', qty: 10000, price: 250, ccy: 'SEK' },
-    { id: '2', type: 'equity', name: 'SAP', isin: 'DE0007164600', qty: 1000, price: 200, ccy: 'EUR' },
-    { id: '3', type: 'equity', name: 'Ericsson B', isin: 'SE0000108656', qty: 5000, price: 80, ccy: 'SEK' },
-    { id: 'c', type: 'cash', name: 'Cash SEK', qty: 1000000, ccy: 'SEK' }
-  ];
-  p.fund = { classes: [{ id: 'a', name: 'A SEK', ccy: 'SEK', units: 50000, lastNav: 100, feePct: 1 }], liabilities: 0, receivables: 0, feeFrom: '2026-08-29' };
-  const v = valuePortfolio(p);
-  // Administrator: Volvo 9 000 (quantity break), SAP at 202 (price break), no Ericsson, an extra bond, cash 990 000.
-  const H = ['Date', 'Portfolio', 'ISIN', 'Name', 'Quantity', 'Price', 'Currency', 'Market value'];
-  const hold = nc.parseAdminHoldings([H,
-    ['2026-09-28', 'Fund A', 'SE0000115446', 'Volvo B', 9000, 250, 'SEK', 2250000],
-    ['2026-09-28', 'Fund A', 'DE0007164600', 'SAP', 1000, 202, 'EUR', 202000],
-    ['2026-09-28', 'Fund A', 'SE0000242455', 'Swedbank bond', 100000, 101, 'SEK', 101000],
-    ['2026-09-28', 'Fund A', '', 'Cash SEK SEB', 990000, '', 'SEK', 990000],
-    ['2026-09-28', 'Fund B', 'SE0000115446', 'Volvo B', 1, 250, 'SEK', 250]]);
-  assert.equal(hold.error, '');
-  const items = nc.forPortfolio(hold.byDate['2026-09-28'], p);
-  assert.equal(items.length, 4, 'other portfolio filtered out');
-  const hr = nc.reconcileHoldings(v, items);
-  const st = Object.fromEntries(hr.rows.map(r => [r.name, r.status]));
-  assert.equal(st['Volvo B'], 'qty'); assert.equal(st['SAP'], 'price'); assert.equal(st['Ericsson B'], 'missing_admin'); assert.equal(st['Swedbank bond'], 'missing_own');
-  close(hr.effects.qty, 250000, 1e-6); close(hr.effects.price, -2 * 1000 * 11.2, 1e-6); close(hr.effects.missingAdmin, 400000, 1e-6); close(hr.effects.missingOwn, -101000, 1e-6);
-  close(hr.cash[0].diffBase, 10000, 1e-6);
-  // Admin NAV: their total = their holdings less their fee.
-  const nav = navPerUnit(v, p.fund);
-  const admAssets = 2250000 + 202000 * 11.2 + 101000 + 990000;
-  const admFee = 2000;
-  const an = nc.parseAdminNav([['NAV date', 'Share class', 'NAV per unit', 'Units', 'Management fee'], ['2026-09-28', 'A SEK', String((admAssets - admFee) / 50000).replace('.', ','), 50000, admFee]]);
-  assert.equal(an.error, ''); assert.equal(an.rows.length, 1);
-  const rec = nc.reconcileNav(nav, an.rows, v, hr);
-  assert.ok(rec.ok); assert.equal(rec.classes[0].status, 'break');
-  close(sum(rec.bridge.map(b => b[1])), rec.diff, 1e-6, 'bridge adds up');
-  close(rec.bridge.find(b => b[0] === 'residual')[1], 0, 1e-6, 'fully explained by holdings and fees');
-  assert.equal(rec.classes[0].feeStatus, 'break');
-  // Break log: new items open, a break that disappears is resolved automatically.
-  const breaks = nc.collectBreaks({ navRec: rec, hold: hr, prices: [] });
-  let { log } = nc.syncLog([], '2026-09-28', breaks, ['nav', 'units', 'fee', 'holding', 'cash', 'price'], 't1');
-  assert.ok(log.length >= 6 && log.every(e => e.status === 'open'));
-  log[0].comment = 'checked';
-  ({ log } = nc.syncLog(log, '2026-09-28', breaks.slice(1), ['nav', 'units', 'fee', 'holding', 'cash', 'price'], 't2'));
-  const gone = log.find(e => e.id.includes(breaks[0].ref) && e.kind === breaks[0].kind);
-  assert.equal(gone.status, 'resolved'); assert.ok(gone.auto);
-});
 const sum = a => a.reduce((x, y) => x + y, 0);
-
-test('NAV control: stale prices, outsized moves, performance fee over the high-water mark', async () => {
-  const nc = await import('../js/navcontrol.js');
-  const { navPerUnit } = await import('../js/fund.js');
-  const pos = [
-    { type: 'corp_bond', name: 'Stale bond', isin: 'X1', price: 99.5, qty: 1, ccy: 'SEK' },
-    { type: 'equity', name: 'Jumper', isin: 'X2', price: 130, qty: 1, ccy: 'SEK' },
-    { type: 'equity', name: 'Normal', isin: 'X3', price: 101, qty: 1, ccy: 'SEK' },
-    { type: 'equity', name: 'No price', isin: 'X4', qty: 1, ccy: 'SEK' }
-  ];
-  const snap = (date, b, j, n) => ({ date, positions: [{ ...pos[0], price: b }, { ...pos[1], price: j }, { ...pos[2], price: n }] });
-  const out = nc.priceChecks(pos, '2026-09-28', [snap('2026-09-25', 99.5, 100, 100), snap('2026-09-21', 99.5, 99, 99)]);
-  const kinds = Object.fromEntries(out.map(o => [o.name, o.kind]));
-  assert.equal(kinds['Stale bond'], 'stale'); assert.equal(kinds['Jumper'], 'move'); assert.equal(kinds['Normal'], undefined); assert.equal(kinds['No price'], 'missing');
-  // Monthly snapshots: a 15 % month in an equity is not an outlier.
-  assert.equal(nc.priceChecks([pos[1]], '2026-09-28', [{ date: '2026-08-28', positions: [{ ...pos[1], price: 113 }] }]).length, 0);
-  // Performance fee: 20 % above a HWM of 100, NAV 110 before it → 2 per unit.
-  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28', positions: [{ id: 'c', type: 'cash', name: 'Cash', qty: 11000000, ccy: 'SEK' }] });
-  const nav = navPerUnit(valuePortfolio(p), { classes: [{ id: 'a', name: 'A', ccy: 'SEK', units: 100000, lastNav: 100, feePct: 0, perfFeePct: 20, hurdlePct: 0, hwm: 100 }], feeFrom: '2026-09-28' });
-  close(nav.classes[0].navPerUnit, 108, 1e-9); close(nav.accruedPerf, 200000, 1e-6);
-  const withHurdle = navPerUnit(valuePortfolio(p), { classes: [{ id: 'a', name: 'A', ccy: 'SEK', units: 100000, lastNav: 100, feePct: 0, perfFeePct: 20, hurdlePct: 5, hwm: 100 }], feeFrom: '2026-09-28', perfFrom: '2025-09-28' });
-  close(withHurdle.classes[0].navPerUnit, 110 - 0.2 * (110 - 105), 1e-9);
-});
 
 test('market data: ECB files parse and validate; curve discounts EUR positions; fx by valuation date', async () => {
   const fs = await import('node:fs');
