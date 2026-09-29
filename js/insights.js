@@ -42,7 +42,9 @@ export function reprice(prev, next, { history = null, date = '' } = {}) {
     const b = (queue.get(posKey(a)) || []).shift();
     const sa = sizeOf(a), sb = b ? sizeOf(b) : null;
     if (b && isNum(sa) && isNum(sb) && sb !== 0) return { ...scalePosition(b, sa / sb), id: a.id };
-    if (a.type === 'cash') return a;
+    // Closed out but still reported (quantity 0): the row carries the closing price.
+    if (b && isNum(sb) && sb === 0 && (isNum(b.price) || isNum(b.mtm))) { const out = { ...b, id: a.id }; for (const f of QTY_FIELDS) { if (isNum(a[f])) out[f] = a[f]; else delete out[f]; } return out; }
+    if (a.type === 'cash' || sa === 0) return a; // nothing held, nothing to price
     const key = history ? seriesKeyFor(a, history) : null;
     const px = key ? priceAt(history, key, date) : null;
     if (isNum(px)) return { ...a, price: px };
@@ -56,35 +58,39 @@ export function reprice(prev, next, { history = null, date = '' } = {}) {
 // v0: holdings at A; v1: holdings at A priced at B; vB: holdings at B.
 //   return   = v1 / v0 − 1                  (holdings-based: what the A portfolio earned)
 //   price effect per holding = mv1 − mv0;  trading effect = mvB − mv1
-//   flows    ≈ NAV_B − v1                  (trades between securities and cash net out, so what
+//   flows    ≈ NAV_B − v1 − futures P&L    (trades between securities and cash net out, so what
 //                                           is left is subscriptions/redemptions, fees, dividends paid out)
+// Futures are margined daily: their market value stays ~0 and the gain or loss lands in cash. Their
+// price effect is therefore the change in signed notional, and it is taken out of the flows.
 //   turnover = min(Σ buys, Σ sells) / average NAV
 export function period(p, a, b) {
   const pa = atSnapshot(p, a), pb = atSnapshot(p, b);
   const rp = reprice(a.positions, b.positions, { history: p.history, date: b.date });
   const v0 = valuePortfolio(pa), v1 = valuePortfolio({ ...pb, positions: rp.positions }), vB = valuePortfolio(pb);
   const rows = new Map();
-  const at = (x, k) => { const key = posKey(x.pos); const o = rows.get(key) || rows.set(key, { key, name: x.name, type: x.pos.type, row: x, qtyA: 0, qtyB: 0, mv0: 0, mv1: 0, mvB: 0, inA: false, inB: false }).get(key); return o; };
-  v0.valid.forEach(x => { const o = at(x); o.mv0 += x.r.mv; o.qtyA += num(sizeOf(x.pos)); o.inA = true; });
-  v1.valid.forEach(x => { at(x).mv1 += x.r.mv; });
+  const at = (x, k) => { const key = posKey(x.pos); const o = rows.get(key) || rows.set(key, { key, name: x.name, type: x.pos.type, row: x, qtyA: 0, qtyB: 0, mv0: 0, mv1: 0, mvB: 0, vm: 0, inA: false, inB: false }).get(key); return o; };
+  const margined = x => x.pos.type === 'future';
+  v0.valid.forEach(x => { const o = at(x); o.mv0 += x.r.mv; o.qtyA += num(sizeOf(x.pos)); o.inA = true; if (margined(x)) o.vm -= x.r.net; });
+  v1.valid.forEach(x => { const o = at(x); o.mv1 += x.r.mv; if (margined(x)) o.vm += x.r.net; });
   vB.valid.forEach(x => { const o = at(x); o.mvB += x.r.mv; o.qtyB += num(sizeOf(x.pos)); o.inB = true; o.row = x; o.name = x.name; });
   const nav0 = v0.nav, list = [...rows.values()];
   list.forEach(o => {
-    o.priceEffect = o.mv1 - o.mv0;
+    o.priceEffect = o.mv1 - o.mv0 + o.vm;
     o.tradeEffect = o.mvB - o.mv1;
     o.contrib = nav0 ? o.priceEffect / nav0 : 0;
     o.wA = nav0 ? o.mv0 / nav0 : 0;
     o.wB = vB.nav ? o.mvB / vB.nav : 0;
-    o.status = !o.inA ? 'new' : !o.inB ? 'sold' : Math.abs(o.qtyB - o.qtyA) > 1e-9 * Math.max(1, Math.abs(o.qtyA)) ? (o.qtyB > o.qtyA ? 'added' : 'reduced') : 'held';
+    o.status = !o.inA ? 'new' : !o.inB || Math.abs(o.qtyB) < 1e-12 ? 'sold' : Math.abs(o.qtyB - o.qtyA) > 1e-9 * Math.max(1, Math.abs(o.qtyA)) ? (o.qtyB > o.qtyA ? 'added' : 'reduced') : 'held';
   });
   // Cash moves with every trade; counting it as bought/sold would double the turnover.
   const traded = list.filter(o => o.row?.r.assetClass !== 'cash' && o.row?.def.group !== 'derivatives');
   const buys = sum(traded.map(o => Math.max(0, o.tradeEffect))), sells = sum(traded.map(o => Math.max(0, -o.tradeEffect)));
   const avgNav = (nav0 + vB.nav) / 2;
+  const vm = sum(list.map(o => o.vm));
   return {
     from: a.date, to: b.date, v0, v1, vB, rows: list,
-    ret: nav0 ? v1.nav / nav0 - 1 : NaN,
-    flows: vB.nav - v1.nav, buys, sells, turnover: avgNav ? Math.min(buys, sells) / avgNav : 0,
+    ret: nav0 ? (v1.nav + vm) / nav0 - 1 : NaN,
+    flows: vB.nav - v1.nav - vm, variationMargin: vm, buys, sells, turnover: avgNav ? Math.min(buys, sells) / avgNav : 0,
     unpriced: rp.unpriced
   };
 }
@@ -119,8 +125,11 @@ export function realised(p, snaps, { rf = num(p.risk?.riskFree, 2) / 100 } = {})
   return {
     dates: snaps.map(s => s.date), nav: [periods[0].v0.nav, ...periods.map(q => q.vB.nav)], index: idx,
     ret, periods, bench, stats, total, periodsPerYear: ppy,
-    flows: sum(periods.map(q => q.flows)), turnover: sum(periods.map(q => q.turnover)),
-    turnoverAnnual: sum(periods.map(q => q.turnover)) * 365.25 / Math.max(1, days(snaps[0].date, snaps[snaps.length - 1].date)),
+    // Turnover over the whole window, min(Σ buys, Σ sells) / average NAV: taking the minimum per
+    // period would read a month of only buying and a month of only selling as no turnover at all.
+    flows: sum(periods.map(q => q.flows)),
+    turnover: mean([periods[0].v0.nav, ...periods.map(q => q.vB.nav)]) ? Math.min(sum(periods.map(q => q.buys)), sum(periods.map(q => q.sells))) / mean([periods[0].v0.nav, ...periods.map(q => q.vB.nav)]) : 0,
+    get turnoverAnnual() { return this.turnover * 365.25 / Math.max(1, days(snaps[0].date, snaps[snaps.length - 1].date)); },
     byHolding: [...byKey.values()].sort((x, y) => y.contrib - x.contrib),
     unpriced: [...new Set(periods.flatMap(q => q.unpriced.map(x => x.name || x.isin || x.ticker)))]
   };

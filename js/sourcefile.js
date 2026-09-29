@@ -274,7 +274,8 @@ function syncPortfolio(id, g) {
   // Cheap fingerprint of what this portfolio would show; skip the write (and the re-render) if unchanged.
   const sig = date + '|' + dates.length + '|' + JSON.stringify(snap.rows).length + '|' + hash(JSON.stringify(snap.rows)) + '|' + hash(JSON.stringify(parsed.mapping));
   if (p.source.sig === sig && !p.source.missing) return;
-  const positions = carryIds(p.positions, snapshotPositions(snap.rows, parsed.mapping, parsed.opts));
+  // Rows reported with quantity 0 (closed that day) price the close in the history, but are not holdings.
+  const positions = carryIds(p.positions, snapshotPositions(snap.rows, parsed.mapping, parsed.opts).filter(x => x.type === 'cash' || !(x.qty === 0 || (x.qty == null && x.buyAmount === 0))));
   const hist = snapshotHistory(g, parsed.mapping, parsed.opts);
   store.mutatePortfolio(id, pp => {
     pp.positions = positions;

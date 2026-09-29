@@ -834,3 +834,35 @@ test('insights: benchmark table parsing (Swedish headers, decimal comma, % retur
   assert.ok(r.percent);
   close(r.rows[0].weight, 35.5, 1e-12); close(r.rows[0].ret, 0.021, 1e-12); close(r.rows[1].ret, -0.008, 1e-12);
 });
+
+test('insights: a short future that gains is return, not a subscription', async () => {
+  const { period } = await import('../js/insights.js');
+  const p = newPortfolio({ baseCcy: 'SEK' });
+  const fut = px => ({ id: 'f', type: 'future', name: 'OMXS30 Dec', ticker: 'OMXS301', qty: -10, price: px, multiplier: 100, ccy: 'SEK', underlyingClass: 'equity' });
+  const eq = px => ({ id: 'e', type: 'equity', name: 'E', isin: 'SEE', qty: 1000, price: px, ccy: 'SEK' });
+  const a = { date: '2026-01-01', positions: [eq(100), fut(2500), { id: 'c', type: 'cash', name: 'Cash', qty: 50000, ccy: 'SEK' }] };
+  // Index −4 %: equity loses 4 000, the short future gains 10 × 100 × 100 = 100 000, settled into cash.
+  const b = { date: '2026-01-02', positions: [eq(96), fut(2400), { id: 'c', type: 'cash', name: 'Cash', qty: 150000, ccy: 'SEK' }] };
+  const q = period(p, a, b);
+  close(q.variationMargin, 100000, 1e-6);
+  close(q.flows, 0, 1e-6, 'futures P&L is not a flow');
+  close(q.ret, (-4000 + 100000) / 150000, 1e-12);
+  close(q.rows.reduce((s, o) => s + o.contrib, 0), q.ret, 1e-12);
+  close(q.rows.find(o => o.type === 'future').priceEffect, 100000, 1e-6);
+});
+
+test('insights: a position closed and reported with quantity 0 is priced from that row; turnover spans the window', async () => {
+  const { period, realised } = await import('../js/insights.js');
+  const p = newPortfolio({ baseCcy: 'SEK' });
+  const s = (d, q, px, cash, extra = []) => ({ date: d, positions: [{ id: 'k', type: 'equity', name: 'K', isin: 'FRK', qty: q, price: px, ccy: 'SEK' }, { id: 'c', type: 'cash', name: 'Cash', qty: cash, ccy: 'SEK' }, ...extra] });
+  // Short 100 at 190, covered at 170: +2 000 is return, not a flow.
+  const q = period(p, s('2026-06-01', -100, 190, 50000), s('2026-06-30', 0, 170, 50000 - 17000));
+  close(q.ret, 2000 / (50000 - 19000), 1e-12);
+  close(q.flows, 0, 1e-9);
+  assert.equal(q.rows.find(o => o.name === 'K').status, 'sold');
+  assert.equal(q.unpriced.length, 0);
+  // One month only buying, the next only selling: turnover is not zero.
+  const e = (q2, px) => ({ id: 'e', type: 'equity', name: 'E', isin: 'SEE', qty: q2, price: px, ccy: 'SEK' });
+  const r = realised(p, [s('2026-01-01', 0, 1, 10000, [e(100, 10)]), s('2026-02-01', 0, 1, 9000, [e(200, 10)]), s('2026-03-01', 0, 1, 10000, [e(100, 10)])]);
+  close(r.turnover, 1000 / 11000, 1e-12);
+});
