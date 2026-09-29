@@ -202,8 +202,11 @@ export function riskIndicators(input, { rhpYears = 5, crm = 1 } = {}) {
 //  INDICATIVE NAV PER UNIT & FLOWS
 // ============================================================================================
 // cfg (stored on the portfolio as p.fund):
-//   { classes: [{ id, name, ccy, units, lastNav, lastNavDate, feePct }], liabilities, receivables, feeFrom }
-export function defaultFund() { return { classes: [], liabilities: 0, receivables: 0, feeFrom: '' }; }
+//   { classes: [{ id, name, ccy, units, lastNav, lastNavDate, feePct, perfFeePct, hurdlePct, hwm }],
+//     liabilities, receivables, feeFrom, perfFrom }
+// Performance fee: perfFeePct of the NAV per unit (after management fee) above the high-water mark,
+// raised by the hurdle pro rata from perfFrom (the start of the crystallisation period).
+export function defaultFund() { return { classes: [], liabilities: 0, receivables: 0, feeFrom: '', perfFrom: '' }; }
 
 export function navPerUnit(v, cfg) {
   const f = { ...defaultFund(), ...(cfg || {}) };
@@ -216,6 +219,8 @@ export function navPerUnit(v, cfg) {
   const netBeforeFees = gross - num(f.liabilities) + num(f.receivables);
   const valDate = v.ctx.valDate;
   const feeDays = f.feeFrom ? Math.max(0, (parseISODate(valDate) - parseISODate(f.feeFrom)) / DAY_MS) : 0;
+  const perfFrom = f.perfFrom || f.feeFrom;
+  const perfDays = perfFrom ? Math.max(0, (parseISODate(valDate) - parseISODate(perfFrom)) / DAY_MS) : 0;
   // Split net assets by each class's capital at its last official NAV. One class takes it all.
   const caps = classes.map(c => (classes.length === 1 ? 1 : num(c.units) * num(c.lastNav) * fx(c)));
   const capSum = sum(caps);
@@ -223,15 +228,22 @@ export function navPerUnit(v, cfg) {
     const share = caps[i] / capSum;
     const assets = share * netBeforeFees;
     const fee = num(c.feePct) / 100 * assets * feeDays / 365;
-    const net = assets - fee;
+    const navPre = (assets - fee) / fx(c) / num(c.units);
+    // Performance fee on the gain per unit above the hurdle-adjusted high-water mark.
+    const hurdle = num(c.hwm) > 0 ? num(c.hwm) * (1 + num(c.hurdlePct) / 100 * perfDays / 365) : null;
+    const perfPerUnit = num(c.perfFeePct) > 0 && hurdle != null ? num(c.perfFeePct) / 100 * Math.max(0, navPre - hurdle) : 0;
+    const perfFee = perfPerUnit * num(c.units) * fx(c);
+    const net = assets - fee - perfFee;
     const nav = net / fx(c) / num(c.units);
     return {
-      ...c, share, assetsBase: assets, accruedFee: fee, netBase: net, navPerUnit: nav,
+      ...c, share, assetsBase: assets, accruedFee: fee, accruedPerf: perfFee, perfHurdle: hurdle, perfMissingHwm: num(c.perfFeePct) > 0 && hurdle == null,
+      netBase: net, navPerUnit: nav,
       feePerDay: num(c.feePct) / 100 * assets / 365,
       vsLast: num(c.lastNav) > 0 ? nav / num(c.lastNav) - 1 : null
     };
   });
-  return { ok: true, gross, netBeforeFees, liabilities: num(f.liabilities), receivables: num(f.receivables), feeDays, accruedFees: sum(rows.map(r => r.accruedFee)), net: sum(rows.map(r => r.netBase)), classes: rows };
+  const accruedMgmt = sum(rows.map(r => r.accruedFee)), accruedPerf = sum(rows.map(r => r.accruedPerf));
+  return { ok: true, gross, netBeforeFees, liabilities: num(f.liabilities), receivables: num(f.receivables), feeDays, perfDays, accruedMgmt, accruedPerf, accruedFees: accruedMgmt + accruedPerf, net: sum(rows.map(r => r.netBase)), classes: rows };
 }
 
 // Subscription (+) or redemption (−) of `amountBase` into one class, settled in base-currency cash.

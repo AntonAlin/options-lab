@@ -23,7 +23,7 @@ export default {
       <div class="alert alert-info"><span>${esc(t('navp.honest'))}</span></div>
       ${card(t('navp.classes'), `
         <div class="table-wrap"><table class="tbl dense class-tbl">
-          <thead><tr><th>${esc(t('navp.className'))}</th><th>${esc(t('col.ccy'))}</th><th class="r">${esc(t('navp.units'))}</th><th class="r">${esc(t('navp.lastNav'))}</th><th>${esc(t('navp.lastNavDate'))}</th><th class="r">${esc(t('navp.fee'))}</th><th></th></tr></thead>
+          <thead><tr><th>${esc(t('navp.className'))}</th><th>${esc(t('col.ccy'))}</th><th class="r">${esc(t('navp.units'))}</th><th class="r">${esc(t('navp.lastNav'))}</th><th>${esc(t('navp.lastNavDate'))}</th><th class="r">${esc(t('navp.fee'))}</th><th class="r">${esc(t('navp.perfFee'))}</th><th class="r">${esc(t('navp.hurdle'))}</th><th class="r">${esc(t('navp.hwm'))}</th><th></th></tr></thead>
           <tbody>${f.classes.map(c => `<tr>
             <td><input data-cls="${c.id}" data-k="name" value="${esc(c.name || '')}" placeholder="A SEK"></td>
             <td>${selectHtml(`data-cls="${c.id}" data-k="ccy"`, ccyOpts, c.ccy || base)}</td>
@@ -31,6 +31,9 @@ export default {
             <td class="r"><input data-cls="${c.id}" data-k="lastNav" inputmode="decimal" class="num-in" value="${c.lastNav ?? ''}"></td>
             <td><input type="date" data-cls="${c.id}" data-k="lastNavDate" value="${esc(c.lastNavDate || '')}"></td>
             <td class="r"><input data-cls="${c.id}" data-k="feePct" inputmode="decimal" class="num-in sm" value="${c.feePct ?? ''}"></td>
+            <td class="r"><input data-cls="${c.id}" data-k="perfFeePct" inputmode="decimal" class="num-in sm" value="${c.perfFeePct ?? ''}" placeholder="0"></td>
+            <td class="r"><input data-cls="${c.id}" data-k="hurdlePct" inputmode="decimal" class="num-in sm" value="${c.hurdlePct ?? ''}" placeholder="0"></td>
+            <td class="r"><input data-cls="${c.id}" data-k="hwm" inputmode="decimal" class="num-in" value="${c.hwm ?? ''}"></td>
             <td><button class="icon-btn sm" data-delcls="${c.id}" aria-label="${esc(t('common.delete'))}">✕</button></td>
           </tr>`).join('')}</tbody>
         </table></div>
@@ -39,6 +42,7 @@ export default {
           <label><span>${esc(t('navp.liabilities', { base }))}</span><input data-fund="liabilities" inputmode="decimal" value="${f.liabilities || ''}" placeholder="0"></label>
           <label><span>${esc(t('navp.receivables', { base }))}</span><input data-fund="receivables" inputmode="decimal" value="${f.receivables || ''}" placeholder="0"></label>
           <label><span>${esc(t('navp.feeFrom'))}</span><input type="date" data-fund="feeFrom" value="${esc(f.feeFrom || '')}"></label>
+          <label><span>${esc(t('navp.perfFrom'))}</span><input type="date" data-fund="perfFrom" value="${esc(f.perfFrom || '')}"></label>
         </div>
       `, { sub: esc(t('navp.classesSub')) })}
       ${!nav.ok ? `<div class="empty"><p>${esc(t('navp.why.' + nav.reason))}</p></div>` : `
@@ -94,11 +98,11 @@ export default {
     root.querySelectorAll('[data-cls]').forEach(el => el.addEventListener('change', e => {
       const { cls, k } = e.target.dataset;
       const raw = e.target.value;
-      saveFund(fd => { const c = fd.classes.find(x => x.id === cls); if (!c) return; c[k] = ['units', 'lastNav', 'feePct'].includes(k) ? (raw === '' ? null : numIn(raw)) : raw; });
+      saveFund(fd => { const c = fd.classes.find(x => x.id === cls); if (!c) return; c[k] = ['units', 'lastNav', 'feePct', 'perfFeePct', 'hurdlePct', 'hwm'].includes(k) ? (raw === '' ? null : numIn(raw)) : raw; });
     }));
     root.querySelectorAll('[data-fund]').forEach(el => el.addEventListener('change', e => {
       const k = e.target.dataset.fund, raw = e.target.value;
-      saveFund(fd => { fd[k] = k === 'feeFrom' ? raw : (raw === '' ? 0 : numIn(raw) || 0); });
+      saveFund(fd => { fd[k] = k === 'feeFrom' || k === 'perfFrom' ? raw : (raw === '' ? 0 : numIn(raw) || 0); });
     }));
     root.querySelector('#simCls')?.addEventListener('change', e => { ui.classId = e.target.value; app.rerender(); });
     root.querySelector('#simAmt')?.addEventListener('change', e => { ui.amount = e.target.value; ui.pct = null; app.rerender(); });

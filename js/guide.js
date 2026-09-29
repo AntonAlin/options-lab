@@ -178,6 +178,22 @@ export const GUIDE = [
     ]
   },
   {
+    id: 'navcontrol',
+    title: { en: 'NAV control: checking the administrator', sv: 'NAV-kontroll: att kontrollera administratören' },
+    blocks: [
+      { p: { en: 'The administrator calculates the official NAV; the management company has to check it. NAV control does that check against the platform, using the files the administrator already sends.', sv: 'Administratören räknar fram det officiella andelsvärdet; förvaltningsbolaget ska kontrollera det. NAV-kontroll gör den kontrollen mot plattformen, med de filer administratören redan skickar.' } },
+      { steps: [
+        { en: 'On NAV & units, set up the share classes: units, last official NAV, management fee and — if the fund has one — performance fee rate, hurdle and high-water mark.', sv: 'Under NAV & andelar lägger du in andelsklasserna: andelar, senaste officiella NAV, förvaltningsavgift och — om fonden har en — prestationsavgift, tröskelränta och high-water mark.' },
+        { en: 'On NAV control, load the administrator\'s NAV file and holdings file (“Download template” shows the columns; most administrator reports are recognised as they are). A file with many dates and funds is fine.', sv: 'Under NAV-kontroll läser du in administratörens NAV-fil och innehavsfil (”Ladda ner mall” visar kolumnerna; de flesta administratörsrapporter känns igen som de är). En fil med många datum och fonder går bra.' },
+        { en: 'Pick the date. The platform needs its own holdings for that date: the current holdings, a date in a connected file, or a saved snapshot.', sv: 'Välj datum. Plattformen behöver egna innehav för det datumet: nuvarande innehav, ett datum i en kopplad fil eller en sparad ögonblicksbild.' },
+        { en: 'Read the result: NAV difference per class with a bridge explaining it, holdings and cash that differ, prices that are stale, jumped or disagree, and fee accruals that differ.', sv: 'Läs resultatet: NAV-skillnad per klass med en brygga som förklarar den, innehav och kassa som skiljer sig, kurser som är inaktuella, har hoppat eller avviker, och upplupna avgifter som skiljer sig.' },
+        { en: 'Work the break log: each break is logged once; write the cause and mark it explained. Breaks that disappear close themselves. Export the log for the depositary or the risk file.', sv: 'Arbeta av avvikelseloggen: varje avvikelse loggas en gång; skriv orsaken och markera den som förklarad. Avvikelser som försvinner stänger sig själva. Exportera loggen till förvaringsinstitutet eller riskarkivet.' }
+      ] },
+      { p: { en: 'Tolerances (5 bp on NAV by default) are under “Tolerances” on the page. The shadow NAV has no equalisation or series accounting, so a fund that uses them will show a small, explainable difference.', sv: 'Toleranserna (5 bp på NAV som förval) finns under ”Toleranser” på sidan. Skugg-NAV:et saknar utjämning och serieredovisning, så en fond som använder det visar en liten, förklarbar skillnad.' } },
+      { link: 'navcontrol', label: { en: 'Go to NAV control', sv: 'Till NAV-kontroll' } }
+    ]
+  },
+  {
     id: 'analytics',
     title: { en: 'Analytics, page by page', sv: 'Analys, sida för sida' },
     blocks: [
