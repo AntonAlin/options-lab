@@ -338,7 +338,7 @@ const en = {
   'welcome.lead': 'Upload your holdings from Excel or your custodian, and get exposure, VaR, stress tests, duration, liquidity and UCITS limit checks in seconds. Export a board-ready PDF.',
   'welcome.demo': 'Explore the demo fund', 'welcome.new': 'Start an empty portfolio', 'welcome.import': 'Upload holdings',
   'welcome.note': "No account, no installation, no server. Your portfolio data never leaves your computer — it is read, calculated and stored in your browser and in files your organisation controls.",
-  'feature.instruments': '15 instrument types', 'feature.instruments.body': 'Equities, ETFs, funds, government and corporate bonds, FRNs, T-bills, cash, futures, options, FX forwards, swaps, CDS, commodities and alternatives.',
+  'feature.instruments': '22 instrument types', 'feature.instruments.body': 'From equities, bonds and funds to futures, options, swaps, CDS, CFDs, repos, linkers, convertibles and structured products — what European institutions trade.',
   'feature.upload': 'Bulk upload', 'feature.upload.body': 'CSV or Excel in English or Swedish formats. Columns are mapped automatically, every row is validated, and daily price updates match on ISIN.',
   'feature.risk': 'Risk you can explain', 'feature.risk.body': 'Parametric factor VaR and historical VaR side by side, risk contribution by factor and position, and full-revaluation stress scenarios.',
   'feature.compliance': 'UCITS limit checks', 'feature.compliance.body': '5/10/40, issuer, deposit, fund, counterparty, commitment and liquidity limits — all editable.',
@@ -1008,7 +1008,14 @@ const en = {
   'imp.replaceConfirmMany': "Replace the current holdings in {n} portfolio(s) with the file?",
   'exp.strategy': "Strategy",
   'exp.strategyNote': "Net economic exposure per strategy (derivatives at delta-adjusted notional, cash excluded), so an overlay built from futures or swaps shows its real size.",
-  'att.dim.strategy': "Strategy"
+  'att.dim.strategy': "Strategy",
+  'val.unknownTypeRaw': "Instrument type “{raw}” is not recognised — map it under Instrument type codes. The row is not valued until then.",
+  'warn.index_ratio_missing': "Index ratio missing — valued as if 1.00, which understates an inflation-linked bond",
+  'warn.perpetual_no_call': "Perpetual without a future call date — cannot be priced to a workout date",
+  'warn.amortising': "Amortising (ABS/MBS/CLO) treated as repaid at legal maturity — enter the weighted average life as maturity for a better duration",
+  'warn.delta_assumed': "No equity delta given — 0.5 assumed",
+  'warn.leverage_missing': "No leverage given — 1 assumed (add a Leverage column, or use a name like “BULL OMX X5”)",
+  'warn.greeks_missing': "Valued at its market price; without strike, expiry, spot and volatility the delta is unknown and the exposure is the market value"
 
 };
 
@@ -1337,7 +1344,7 @@ const sv = {
   'welcome.lead': 'Ladda upp innehaven från Excel eller depåbanken och få exponering, VaR, stresstester, duration, likviditet och UCITS-kontroller på några sekunder. Exportera en PDF redo för styrelsen.',
   'welcome.demo': 'Utforska demofonden', 'welcome.new': 'Starta en tom portfölj', 'welcome.import': 'Ladda upp innehav',
   'welcome.note': "Inget konto, ingen installation, ingen server. Din portföljdata lämnar aldrig datorn — den läses, beräknas och sparas i webbläsaren och i filer som organisationen själv kontrollerar.",
-  'feature.instruments': '15 instrumenttyper', 'feature.instruments.body': 'Aktier, ETF:er, fonder, stats- och företagsobligationer, FRN, statsskuldväxlar, kassa, terminer, optioner, valutaterminer, swappar, CDS, råvaror och alternativa tillgångar.',
+  'feature.instruments': '22 instrumenttyper', 'feature.instruments.body': 'Från aktier, obligationer och fonder till terminer, optioner, swappar, CDS, CFD:er, repor, realränteobligationer, konvertibler och strukturerade produkter — det europeiska institutioner handlar.',
   'feature.upload': 'Massuppladdning', 'feature.upload.body': 'CSV eller Excel i svenskt eller engelskt format. Kolumnerna mappas automatiskt, varje rad valideras och dagliga kursuppdateringar matchas på ISIN.',
   'feature.risk': 'Risk som går att förklara', 'feature.risk.body': 'Parametrisk faktor-VaR och historisk VaR sida vid sida, riskbidrag per faktor och innehav, samt stresscenarier med fullständig omvärdering.',
   'feature.compliance': 'UCITS-kontroller', 'feature.compliance.body': '5/10/40, emittent-, insättnings-, fond-, motparts-, åtagande- och likviditetsgränser — alla justerbara.',
@@ -2007,7 +2014,14 @@ const sv = {
   'imp.replaceConfirmMany': "Ersätta nuvarande innehav i {n} portfölj(er) med filen?",
   'exp.strategy': "Strategi",
   'exp.strategyNote': "Ekonomisk nettoexponering per strategi (derivat till deltajusterat nominellt belopp, kassa exkluderad), så ett överlägg med terminer eller swappar syns med sin verkliga storlek.",
-  'att.dim.strategy': "Strategi"
+  'att.dim.strategy': "Strategi",
+  'val.unknownTypeRaw': "Instrumenttypen ”{raw}” känns inte igen — mappa den under Egna typkoder. Raden värderas inte förrän dess.",
+  'warn.index_ratio_missing': "Indexkvot saknas — värderas som om den vore 1,00, vilket ger för lågt värde på en realränteobligation",
+  'warn.perpetual_no_call': "Evig obligation utan kommande inlösendag — kan inte prissättas till ett slutdatum",
+  'warn.amortising': "Amorterande (ABS/MBS/CLO) behandlas som återbetald vid förfall — ange den vägda genomsnittliga löptiden som förfall för bättre duration",
+  'warn.delta_assumed': "Inget aktiedelta angivet — 0,5 antaget",
+  'warn.leverage_missing': "Ingen hävstång angiven — 1 antagen (lägg till en kolumn Hävstång, eller ett namn som ”BULL OMX X5”)",
+  'warn.greeks_missing': "Värderad till marknadskurs; utan lösenpris, förfall, spot och volatilitet är deltat okänt och exponeringen är marknadsvärdet"
 
 };
 

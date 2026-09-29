@@ -116,7 +116,9 @@ test('rows to positions: type column, inference and validation', () => {
   assert.equal(out[0].errors.length, 0);
   assert.equal(out[1].pos.type, 'money_market'); // maturity, no coupon → discount paper
   assert.equal(out[2].pos.ccy, 'SEK');
-  assert.ok(out[2].errors.some(e => e.code.startsWith('type_guessed')));
+  // An unrecognised type is not guessed: the row is kept, unvalued, with a blocking error.
+  assert.equal(out[2].pos.type, 'unknown');
+  assert.ok(out[2].errors.some(e => e.code === 'unknown_type:Weird'));
 });
 
 test('merge in update mode matches on ISIN and only overwrites supplied values', () => {
@@ -810,7 +812,7 @@ test('insights: liquidity stress test coverage, waterfall and vertical slice', a
   p.positions = [
     { id: 'c', type: 'cash', name: 'Cash', qty: 100, ccy: 'SEK' },
     { id: 'e', type: 'equity', name: 'E', isin: 'SEE', qty: 60, price: 10, ccy: 'SEK' },
-    { id: 'x', type: 'alternative', name: 'PE fund', qty: 1, price: 300, ccy: 'SEK', altType: 'private_equity' }];
+    { id: 'x', type: 'alternative', name: 'PE fund', qty: 1, price: 300, ccy: 'SEK', altType: 'private_equity', liquidityDays: 180 }];
   const r = liquidityStress(p, { redemptions: [0.1, 0.3, 0.8], horizon: 7, stressed: false });
   close(r.nav, 1000, 1e-9);
   close(r.maxRedemption, (100 + 600 + 300 * 7 / 180) / 1000, 1e-9);
@@ -936,4 +938,58 @@ test('compliance: a CDS on an index is not one issuer (UCITS art. 51(3)); a sing
   close(idx.rules.find(r => r.id === 'issuerMax').value, 0, 1e-9);
   const single = compliance(valuePortfolio({ ...p, positions: [cash, cds('Kering SA', 20000000)] }));
   close(single.rules.find(r => r.id === 'issuerMax').value, 20, 1e-9);
+});
+
+test('instrument coverage: European institutional instruments import and value correctly', () => {
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  const run = (header, row) => {
+    const [res] = rowsToPositions([row], autoMapping(header), { decimal: '.' });
+    const x = valuePortfolio({ ...p, positions: [{ id: 'x', ...res.pos }] }).rows[0];
+    return { type: res.pos.type, r: x.r, errors: res.errors, warnings: x.warnings };
+  };
+  const H = ['Name', 'Type', 'Quantity', 'Price', 'Currency'];
+  // Warrants are one share per unit, not 100.
+  const w = run(H, ['ABB call warrant', 'Warrant', 1000, 5, 'SEK']);
+  assert.equal(w.type, 'option'); close(w.r.mv, 5000, 1e-9); assert.deepEqual(w.errors, []);
+  // Certificates: leverage from the name, sign from BULL/BEAR.
+  const bull = run(H, ['BULL OMX X5 AVA', 'Certifikat', 1000, 120, 'SEK']);
+  assert.equal(bull.type, 'certificate'); close(bull.r.mv, 120000, 1e-9); close(bull.r.eqDelta, 600000, 1e-6);
+  close(run(H, ['BEAR DAX X3 NORDNET', 'Bear certificate', 1000, 50, 'SEK']).r.eqDelta, -150000, 1e-6);
+  assert.equal(run(H, ['SEB CP', 'Företagscertifikat', 1000000, 99.5, 'SEK']).type, 'money_market');
+  // CFD / TRS: value is the MTM, exposure the notional.
+  const cfd = run([...H, 'Market value'], ['CFD Volvo B', 'CFD', 1000, 270, 'SEK', 12000]);
+  assert.equal(cfd.type, 'equity_swap'); close(cfd.r.mv, 12000, 1e-9); close(cfd.r.exposure, 270000, 1e-6);
+  // Pence: GBp is not GBP.
+  close(run(H, ['BP', 'Equity', 10000, 450, 'GBp']).r.mv, 10000 * 4.5 * 11.2 / 0.85, 1);
+  // Inflation-linked: index ratio applied.
+  const il = run([...H, 'Maturity', 'Coupon', 'Issuer', 'Index ratio'], ['SGB IL', 'Realränteobligation', 10000000, 101, 'SEK', '2032-06-01', 0.125, 'Kingdom of Sweden', 1.32]);
+  assert.equal(il.type, 'inflation_linked'); assert.ok(Math.abs(il.r.mv / (10000000 * 1.01 * 1.32) - 1) < 0.002);
+  // AT1 perpetual priced to call, not guessed as equity.
+  const at1 = run([...H, 'Coupon', 'Issuer', 'Call date'], ['Swedbank AT1', 'AT1', 1000000, 98, 'SEK', 7.5, 'Swedbank AB', '2030-03-17']);
+  assert.equal(at1.type, 'corp_bond'); assert.equal(at1.r.fi.workout, 'call'); assert.ok(at1.r.mv > 980000 && at1.r.mv < 1030000);
+  // Money market fund, term deposit, repo: no equity risk.
+  const mmf = run(H, ['SEB Likviditetsfond', 'Money market fund', 1000, 110, 'SEK']);
+  assert.equal(mmf.r.eqDelta, 0); assert.equal(mmf.r.liqDays, 1);
+  assert.equal(run([...H, 'Maturity'], ['Term deposit', 'Term deposit', 5000000, '', 'SEK', '2026-12-28']).r.liqDays, 91);
+  assert.equal(run(H, ['Reverse repo', 'Reverse repo', 5000000, '', 'SEK']).type, 'repo');
+  // Leveraged / inverse ETF, VIX future, STIR future.
+  close(run([...H, 'Leverage'], ['Bear OMX', 'Inverse ETF', 1000, 100, 'SEK', -1]).r.eqDelta, -100000, 1e-9);
+  const vix = run([...H, 'Multiplier'], ['VIX Oct', 'VIX future', 10, 18, 'USD', 1000]);
+  assert.equal(vix.r.eqDelta, 0); close(vix.r.vega, 10 * 1000 * 10, 1e-9);
+  const stir = run([...H, 'Multiplier'], ['3M Euribor', 'Euribor future', -100, 97.9, 'EUR', 2500]);
+  close(stir.r.ir01.EUR, 2500 * 11.2, 1e-6, 'DV01 = contracts × multiplier × 0.01');
+  // Dirty price gives the same value as the matching clean price.
+  const clean = run([...H, 'Maturity', 'Coupon', 'Issuer'], ['T', 'Corporate bond', 1000000, 101, 'SEK', '2031-10-07', 3, 'Telia']);
+  const dirty = run(['Name', 'Type', 'Quantity', 'Dirty price', 'Currency', 'Maturity', 'Coupon', 'Issuer'], ['T', 'Corporate bond', 1000000, 101 + 3 * 356 / 365, 'SEK', '2031-10-07', 3, 'Telia']);
+  close(dirty.r.mv, clean.r.mv, 1);
+  // American put is worth at least its intrinsic value.
+  const am = run(['Name', 'Type', 'Quantity', 'Currency', 'Strike', 'Maturity', 'Underlying price', 'Volatility', 'Option type', 'Multiplier'], ['ABB put', 'Stock option', 10, 'SEK', 700, '2027-09-17', 500, 25, 'put', 100]);
+  assert.ok(am.r.mv >= 200000, 'American put ≥ intrinsic: ' + am.r.mv);
+  // OTC MTM-only: swaption and variance swap.
+  const swpt = run(['Name', 'Type', 'Quantity', 'Currency', 'Market value', 'Delta', 'Duration'], ['EUR 5y10y payer', 'Swaption', 20000000, 'EUR', 310000, -0.42, 8.6]);
+  assert.equal(swpt.type, 'otc'); close(swpt.r.mv, 310000 * 11.2, 1e-6);
+  close(run(['Name', 'Type', 'Quantity', 'Currency', 'Market value'], ['Var swap', 'Variance swap', 100000, 'EUR', -50000]).r.vega, 100000 * 11.2, 1e-6);
+  // An unknown type is not valued at all.
+  const unk = run(H, ['Mystery', 'Snowflake swap', 1000, 100, 'SEK']);
+  assert.equal(unk.type, 'unknown'); assert.equal(unk.r, null);
 });

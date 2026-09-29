@@ -191,6 +191,8 @@ export function fxFn(p = active()) {
   const eur = p.fxEur || FALLBACK_EUR_RATES;
   const b = eur[p.baseCcy];
   return ccy => {
+    const minor = { GBX: 'GBP', ZAC: 'ZAR', ILA: 'ILS' }[ccy]; // quoted in 1/100 of the currency
+    if (minor) { const f = fxFn(p)(minor); return isNum(f) ? f / 100 : undefined; }
     if (!ccy || ccy === p.baseCcy) return 1;
     const c = eur[ccy];
     return isNum(c) && isNum(b) && c > 0 ? b / c : undefined;

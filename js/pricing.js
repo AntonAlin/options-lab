@@ -95,9 +95,26 @@ export function couponSchedule(valISO, maturityISO, freq) {
   return { dates, prev: d };
 }
 
+// American option on a Cox-Ross-Rubinstein tree (early exercise checked at every node). Same inputs
+// as bsm(); q is the dividend yield (or the foreign rate, or r for a future).
+export function americanOption(type, S, K, T, r, q, sigma, steps = 200) {
+  if (!(T > 0) || !(sigma > 0) || !(S > 0)) return Math.max(0, type === 'call' ? S - K : K - S);
+  const dt = T / steps, u = Math.exp(sigma * Math.sqrt(dt)), d = 1 / u;
+  const disc = Math.exp(-r * dt), pu = (Math.exp((r - q) * dt) - d) / (u - d), pd = 1 - pu;
+  const pay = s => Math.max(0, type === 'call' ? s - K : K - s);
+  const v = new Float64Array(steps + 1);
+  for (let j = 0; j <= steps; j++) v[j] = pay(S * u ** (steps - j) * d ** j);
+  for (let n = steps - 1; n >= 0; n--) {
+    for (let j = 0; j <= n; j++) v[j] = Math.max(disc * (pu * v[j] + pd * v[j + 1]), pay(S * u ** (n - j) * d ** j));
+  }
+  return v[0];
+}
+
 // Street-convention bond analytics. price = clean % of par. Returns per-100 figures.
 // Yield solved by Newton with bisection fallback. Coupon 0 gives a zero-coupon bond.
-export function bondAnalytics({ valuationDate, maturity, couponPct = 0, freq = 1, cleanPrice, yieldPct }) {
+// `redemption` is the amount repaid per 100 at `maturity`: 100 for a bullet, the call price when a
+// callable is priced to its call date.
+export function bondAnalytics({ valuationDate, maturity, couponPct = 0, freq = 1, cleanPrice, yieldPct, redemption = 100 }) {
   const f = Math.max(1, Math.round(freq || 1));
   const { dates, prev } = couponSchedule(valuationDate, maturity, f);
   if (!dates.length) return null;
@@ -107,7 +124,7 @@ export function bondAnalytics({ valuationDate, maturity, couponPct = 0, freq = 1
   const periodDays = (nextD - prevD) / DAY_MS;
   const w = Math.min(1, Math.max(0, ((nextD - val) / DAY_MS) / periodDays)); // fraction to next coupon
   const accrued = couponPct ? cpn * (1 - w) : 0;
-  const flows = dates.map((d, i) => ({ t: (i + w) / f, n: i + w, cf: cpn + (i === dates.length - 1 ? 100 : 0) }));
+  const flows = dates.map((d, i) => ({ t: (i + w) / f, n: i + w, cf: cpn + (i === dates.length - 1 ? redemption : 0) }));
 
   const pv = y => {
     const g = 1 + y / f;

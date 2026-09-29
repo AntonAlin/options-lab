@@ -1,6 +1,6 @@
 // Portfolio analytics. Every function takes plain data (a portfolio object) and returns plain
 // data, so the same numbers drive the screen, the PDF and the tests.
-import { INSTRUMENTS, validatePosition, regionOf, ratingScore, ratingFromScore, isInvestmentGrade, displayName } from './instruments.js';
+import { INSTRUMENTS, validatePosition, regionOf, ratingScore, ratingFromScore, isInvestmentGrade, displayName, SUBUNITS, majorCcy } from './instruments.js';
 import { normInv, normPDF } from './pricing.js';
 import { isNum, num, sum, mean, stdev, quantile, covariance, todayISO } from './util.js';
 import { FALLBACK_EUR_RATES, DEFAULT_CMA, DEFAULT_RISK } from './store.js';
@@ -13,7 +13,10 @@ export function makeCtx(p) {
   return {
     base: p.baseCcy,
     valDate: p.valDate || todayISO(),
-    fx: ccy => { if (!ccy || ccy === p.baseCcy) return 1; const c = eur[ccy]; return isNum(c) && isNum(b) && c > 0 ? b / c : undefined; },
+    fx: ccy => {
+      if (SUBUNITS[ccy]) { const [major, k] = SUBUNITS[ccy]; ccy = major; if (ccy === p.baseCcy) return k; const c = eur[ccy]; return isNum(c) && isNum(b) && c > 0 ? k * b / c : undefined; }
+      if (!ccy || ccy === p.baseCcy) return 1; const c = eur[ccy]; return isNum(c) && isNum(b) && c > 0 ? b / c : undefined;
+    },
     cma: { ...cma, equitySpecificVol: cma.equitySpecificVol / 100 },
     useReported: p.risk?.useReported !== false
   };
@@ -75,7 +78,7 @@ export function allocations(v) {
     sector: groupBy(rows.filter(x => !['cash', 'fx_forward', 'irs'].includes(x.pos.type) && x.pos.type !== 'govt_bond'), x => (x.pos.sector || '').trim() || '—', mv, nav),
     region: groupBy(rows.filter(x => !['cash', 'fx_forward'].includes(x.pos.type)), x => regionOf(x.pos.country), mv, nav),
     country: groupBy(rows, x => (x.pos.country || '').toUpperCase().trim() || '—', mv, nav),
-    currency: groupBy(rows.filter(x => x.pos.type !== 'fx_forward'), x => x.pos.ccy || v.ctx.base, mv, nav),
+    currency: groupBy(rows.filter(x => x.pos.type !== 'fx_forward'), x => majorCcy(x.pos.ccy) || v.ctx.base, mv, nav),
     rating: groupBy(fiRows, x => bucketRating(x.pos.rating), mv, nav),
     issuer: groupBy(rows.filter(x => !['cash', 'fx_forward', 'irs', 'future'].includes(x.pos.type)), x => x.issuer, mv, nav).slice(0, 15),
     // By strategy the economic (net) exposure is what matters: a futures overlay has no market value.
@@ -539,12 +542,12 @@ export function liquidity(v, { stressed = false } = {}) {
 
 // ---- compliance ---------------------------------------------------------------------------------
 const GOVT_RE = /(govern|treasur|stat(en|s)|riksg|kingdom|republic|bund|federal|sovereign|kommun|municipal|supranational|\beib\b|world bank|nordic investment)/i;
-function isGovt(x) { return x.pos.type === 'govt_bond' || (x.pos.type === 'money_market' && (!x.pos.issuer || GOVT_RE.test(x.pos.issuer))); }
+function isGovt(x) { return x.pos.type === 'govt_bond' || (['money_market', 'inflation_linked'].includes(x.pos.type) && (!x.pos.issuer || GOVT_RE.test(x.pos.issuer))); }
 // UCITS art. 51(3): derivatives on a financial index are not combined with the issuer limits, so a
 // CDS on iTraxx / CDX is not one issuer (it is 125 of them).
 const INDEX_CDS_RE = /\b(itraxx|cdx|markit|index)\b/i;
 const isIndexCds = x => x.pos.type === 'cds' && INDEX_CDS_RE.test(`${x.pos.issuer || ''} ${x.pos.name || ''}`);
-const ISSUER_TYPES = new Set(['equity', 'corp_bond', 'frn', 'money_market', 'alternative', 'commodity', 'cds']);
+const ISSUER_TYPES = new Set(['equity', 'corp_bond', 'frn', 'money_market', 'alternative', 'commodity', 'cds', 'inflation_linked', 'convertible', 'certificate']);
 
 export function compliance(v, liq = liquidity(v)) {
   const L = v.p.limits || {};
@@ -590,7 +593,7 @@ export function compliance(v, liq = liquidity(v)) {
 
   const cpty = new Map();
   // OTC: forwards and swaps, and options with a counterparty in the issuer field (listed options clear).
-  v.valid.filter(x => (['fx_forward', 'irs', 'cds'].includes(x.pos.type) || (x.pos.type === 'option' && x.pos.issuer)) && x.r.mv > 0)
+  v.valid.filter(x => (['fx_forward', 'irs', 'cds', 'equity_swap', 'ccs', 'otc'].includes(x.pos.type) || (x.pos.type === 'option' && x.pos.issuer)) && x.r.mv > 0)
     .forEach(x => { const k = x.pos.issuer || '—'; cpty.set(k, (cpty.get(k) || 0) + x.r.mv); });
   const cl = [...cpty.entries()].map(([k, e]) => ({ name: k, value: pct(e) })).sort((a, b) => b.value - a.value);
   add('otcCounterparty', cl[0]?.value || 0, 'max', cl.slice(0, 5));

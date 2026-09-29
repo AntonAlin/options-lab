@@ -13,6 +13,7 @@ function errorText(e, type) {
   const [code, arg] = e.code.split(':');
   if (code === 'one_of') return t('val.oneOf', { fields: arg.split('|').map(k => fieldLabel(type, k, lang())).join(' / ') });
   if (code === 'type_guessed') return t('val.typeGuessed', { raw: arg });
+  if (code === 'unknown_type' && arg) return t('val.unknownTypeRaw', { raw: arg });
   return t('val.' + code, { field: f });
 }
 
@@ -183,7 +184,7 @@ function readForm(form, type) {
 // `onSave(pos)` makes the form hand the validated position back instead of saving it (Pre-trade uses it).
 export function openForm(existing, { onSave = null } = {}) {
   const p = store.active();
-  let type = existing.type;
+  let type = INSTRUMENTS[existing.type] ? existing.type : 'equity';
   const isNew = !existing.id;
   const draft = { ...(INSTRUMENTS[type].defaults || {}), ccy: p.baseCcy, ...existing };
 

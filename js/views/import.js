@@ -75,6 +75,7 @@ export function errText(e, type) {
   const f = fieldLabel(type, e.field, lang());
   if (code === 'one_of') return t('val.oneOf', { fields: arg.split('|').map(k => fieldLabel(type, k, lang())).join(' / ') });
   if (code === 'type_guessed') return t('val.typeGuessed', { raw: arg });
+  if (code === 'unknown_type' && arg) return t('val.unknownTypeRaw', { raw: arg });
   return t('val.' + code, { field: f });
 }
 

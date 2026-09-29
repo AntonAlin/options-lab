@@ -1,6 +1,6 @@
 // Bulk upload: CSV/TSV/XLSX parsing, Swedish and English number and date formats, header
 // auto-mapping, row validation, holdings and price-history import, and templates.
-import { FIELDS, INSTRUMENTS, allFieldKeys, normKey, resolveType, validatePosition, OPTION_LABELS } from './instruments.js';
+import { FIELDS, INSTRUMENTS, allFieldKeys, normKey, resolveType, typePreset, validatePosition, OPTION_LABELS } from './instruments.js';
 import { isNum, uid, parseISODate, toISODate } from './util.js';
 
 // ---- text parsing --------------------------------------------------------------------------------
@@ -244,7 +244,12 @@ export function coerce(field, raw, dec, opts = {}) {
       return isNum(n) ? (isNum(opts.scale) && opts.scale !== 1 ? n * opts.scale : n) : String(raw);
     }
     case 'date': return parseDate(raw, opts.dateFormat || 'auto') || String(raw);
-    case 'ccy': return String(raw).trim().toUpperCase().slice(0, 3);
+    case 'ccy': {
+      // Minor units are written GBp / ZAc / ILa: upper-casing would turn pence into pounds (×100).
+      const c = String(raw).trim();
+      const minor = { GBp: 'GBX', GBX: 'GBX', GBx: 'GBX', GBP_pence: 'GBX', ZAc: 'ZAC', ZAC: 'ZAC', ILa: 'ILA', ILA: 'ILA', ILs: 'ILS' }[c];
+      return minor || c.toUpperCase().slice(0, 3);
+    }
     case 'select': return field === 'type' ? raw : normaliseSelect(field, raw);
     default: return raw instanceof Date ? toISODate(raw) : String(raw).trim();
   }
@@ -293,8 +298,18 @@ export function rowsToPositions(rows, mapping, { decimal = '.', defaultType = 'a
     const rawKey = String(rawType ?? '').trim();
     if (rawKey && typeMap[rawKey] === '__skip') return;
     let type = rawKey ? (typeMap[rawKey] || resolveType(rawKey)) : (constants.type || null);
-    const typeUnknown = !!rawKey && !type;
+    // A type the file names but nobody recognises is not guessed: a guess is how a total return swap
+    // became a 125 bn equity position. The row is kept, unvalued, until the type is mapped.
+    if (rawKey && !type) {
+      const pos = { id: uid(), type: 'unknown', rawType: rawKey };
+      for (const f of ['name', 'ticker', 'isin', 'issuer', 'qty', 'price', 'ccy', 'strategy']) if (p[f] !== undefined) pos[f] = p[f];
+      out.push({ line: i + 1, pos, errors: [{ field: 'type', code: 'unknown_type:' + rawKey }], raw: r, rawType: rawKey });
+      return;
+    }
     if (!type) type = defaultType === 'auto' ? inferType(p) : defaultType;
+    // Labels such as "Warrant", "Euribor future" or "Money market fund" fill in what they imply.
+    const preset = rawKey && !typeMap[rawKey] ? typePreset(rawKey) : null;
+    if (preset) for (const [k, v] of Object.entries(preset)) if (p[k] === undefined) p[k] = v;
     // Options/warrants flagged in the type column as "call"/"put".
     if (type === 'option' && !p.optType && /put|sälj/i.test(rawType)) p.optType = 'put';
     if (type === 'option' && !p.optType && /call|köp/i.test(rawType)) p.optType = 'call';
@@ -305,7 +320,6 @@ export function rowsToPositions(rows, mapping, { decimal = '.', defaultType = 'a
     for (const f of def.fields) if (p[f] !== undefined) pos[f] = p[f];
     if (type === 'cash' && !pos.name) pos.name = 'Cash ' + (pos.ccy || '');
     const errors = validatePosition(pos);
-    if (typeUnknown) errors.unshift({ field: 'type', code: 'type_guessed:' + rawKey });
     out.push({ line: i + 1, pos, errors, raw: r, rawType: rawKey });
   });
   return out;
@@ -423,7 +437,14 @@ export const TEMPLATE_EXAMPLES = [
   { type: 'irs', name: 'SEK 5y payer', qty: 50000000, ccy: 'SEK', direction: 'pay', fixedRate: 2.35, marketRate: 2.45, freq: 1, maturity: '2031-06-20', issuer: 'LCH' },
   { type: 'cds', name: 'iTraxx Main S46 5y', issuer: 'iTraxx Europe Main', qty: 10000000, ccy: 'EUR', protection: 'buy', spread: 100, marketSpread: 62, maturity: '2031-12-20', rating: 'A-' },
   { type: 'commodity', name: 'Physical Gold ETC', ticker: 'PHAU', qty: 800, price: 255, ccy: 'USD', sector: 'Precious metals' },
-  { type: 'alternative', name: 'Nordic Buyout Fund IV', altType: 'private_equity', qty: 1, price: 18500000, ccy: 'SEK', liquidityDays: 365, country: 'SE' }
+  { type: 'alternative', name: 'Nordic Buyout Fund IV', altType: 'private_equity', qty: 1, price: 18500000, ccy: 'SEK', liquidityDays: 365, country: 'SE' },
+  { type: 'inflation_linked', name: 'Sweden IL 3113 0.125% 2032', issuer: 'Kingdom of Sweden', qty: 10000000, price: 101.2, indexRatio: 1.318, ccy: 'SEK', coupon: 0.125, freq: 1, maturity: '2032-06-01', rating: 'AAA', country: 'SE' },
+  { type: 'convertible', name: 'Cellnex 0.75% 2031 CB', issuer: 'Cellnex Telecom', qty: 1000000, price: 88.5, ccy: 'EUR', coupon: 0.75, freq: 1, maturity: '2031-11-20', reportedDelta: 0.35, rating: 'BB+', country: 'ES' },
+  { type: 'certificate', name: 'BULL OMX X5 AVA', issuer: 'Avanza Bank', qty: 2000, price: 118.4, ccy: 'SEK', leverage: 5, underlyingClass: 'equity', country: 'SE' },
+  { type: 'equity_swap', name: 'CFD short Kering', issuer: 'Goldman Sachs International', qty: -3000, underlyingPrice: 190, costPrice: 205, mtm: 45000, ccy: 'EUR', underlyingClass: 'equity', country: 'FR' },
+  { type: 'ccs', name: 'USD/SEK CCS 2030', issuer: 'Nordea', buyCcy: 'SEK', buyAmount: 105000000, sellCcy: 'USD', sellAmount: 10000000, maturity: '2030-06-15', mtm: -1250000, ccy: 'SEK' },
+  { type: 'repo', name: 'Reverse repo SGB collateral', issuer: 'SEB', qty: 25000000, ccy: 'SEK', rate: 1.85, maturity: '2026-10-05' },
+  { type: 'otc', name: 'EUR 5y10y payer swaption', issuer: 'BNP Paribas', qty: 20000000, ccy: 'EUR', mtm: 310000, underlyingClass: 'rates', reportedDelta: -0.42, duration: 8.6, maturity: '2031-06-15' }
 ];
 
 export function templateColumns(type = null) {

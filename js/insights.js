@@ -57,10 +57,13 @@ export function reprice(prev, next, { history = null, date = '' } = {}) {
 
 // Coupon cash a bond position paid in (from, to]: quantity is nominal, coupon in % a year.
 export function couponsPaid(pos, from, to) {
-  if (!['govt_bond', 'corp_bond', 'frn'].includes(pos.type) || !pos.maturity || !num(pos.coupon)) return 0;
-  const f = freqOf(pos.freq, 1);
-  const n = couponSchedule(from, pos.maturity, f).dates.filter(d => d > from && d <= to).length;
-  return n * num(pos.qty) * num(pos.coupon) / 100 / f;
+  if (!['govt_bond', 'corp_bond', 'frn', 'inflation_linked', 'convertible'].includes(pos.type) || !num(pos.coupon)) return 0;
+  const end = pos.maturity || pos.callDate;
+  if (!end) return 0;
+  const f = freqOf(pos.freq, pos.type === 'frn' ? 4 : 1);
+  const n = couponSchedule(from, end, f).dates.filter(d => d > from && d <= to).length;
+  const ir = pos.type === 'inflation_linked' && isNum(pos.indexRatio) ? pos.indexRatio : 1;
+  return n * num(pos.qty) * num(pos.coupon) / 100 / f * ir;
 }
 
 // ---- one period between two snapshots --------------------------------------------------------------
