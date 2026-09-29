@@ -5,6 +5,7 @@ import { normInv, normPDF } from './pricing.js';
 import { isNum, num, sum, mean, stdev, quantile, covariance, todayISO } from './util.js';
 import { FALLBACK_EUR_RATES, DEFAULT_CMA, DEFAULT_RISK } from './store.js';
 import { zeroAt } from './marketdata.js';
+import { ewmaRisk, riskDrivers } from './riskstats.js';
 
 // ---- valuation ----------------------------------------------------------------------------------
 export function makeCtx(p) {
@@ -174,13 +175,33 @@ export function currencyExposure(v) {
 // Delta-normal model on a handful of macro factors plus uncorrelated stock-specific risk.
 // Sensitivities come straight from the instrument registry; vols and correlations are the
 // portfolio's capital-market assumptions (editable in Settings).
+// Equity risk sits on one factor per region, so Nordic and US holdings no longer count as the same
+// bet; a position without a known country (a global fund, an index future without one) goes on
+// the global factor. Credit splits into investment grade and high yield by rating. A position
+// with credit risk and no rating counts as high yield — the cautious reading — except money
+// market paper; the risk page says how many that is.
+export const EQ_REGIONS = ['nordics', 'europe', 'north_america', 'asia_pacific', 'emerging', 'global'];
+export const equityRegion = x => { const r = regionOf(x.pos.country); return EQ_REGIONS.includes(r) ? r : 'global'; };
+export function creditBucket(x) {
+  if (x.pos.rating && ratingScore(x.pos.rating) != null) return isInvestmentGrade(x.pos.rating) ? 'IG' : 'HY';
+  if (/crossover|xover|high.?yield|\bhy\b/i.test(x.pos.name || '')) return 'HY';
+  if (x.r.assetClass === 'money_market') return 'IG';
+  return 'HY';
+}
+
 export function factorModel(v) {
   const c = { ...DEFAULT_CMA, ...(v.p.cma || {}) };
-  const rateCcys = new Set(), fxCcys = new Set(), infCcys = new Set();
-  v.valid.forEach(x => { Object.keys(x.r.ir01).forEach(k => rateCcys.add(k)); Object.keys(x.r.fx).forEach(k => fxCcys.add(k)); Object.keys(x.r.inf01 || {}).forEach(k => infCcys.add(k)); });
+  const rateCcys = new Set(), fxCcys = new Set(), infCcys = new Set(), eqRegions = new Set(), csBuckets = new Set();
+  v.valid.forEach(x => {
+    Object.keys(x.r.ir01).forEach(k => rateCcys.add(k)); Object.keys(x.r.fx).forEach(k => fxCcys.add(k)); Object.keys(x.r.inf01 || {}).forEach(k => infCcys.add(k));
+    if (x.r.eqDelta) eqRegions.add(equityRegion(x));
+    if (x.r.cs01) csBuckets.add(creditBucket(x));
+  });
+  if (!eqRegions.size) eqRegions.add('global');
+  if (!csBuckets.size) csBuckets.add('IG');
   const factors = [
-    { id: 'EQ', group: 'equity', vol: c.equityVol / 100 },
-    { id: 'CS', group: 'credit', vol: c.creditVolBp },
+    ...EQ_REGIONS.filter(r => eqRegions.has(r)).map(r => ({ id: 'EQ:' + r, group: 'equity', vol: (r === 'emerging' ? c.equityVolEm : c.equityVol) / 100, region: r })),
+    ...['IG', 'HY'].filter(b => csBuckets.has(b)).map(b => ({ id: 'CS:' + b, group: 'credit', vol: b === 'HY' ? c.creditHyVolBp : c.creditVolBp, bucket: b })),
     { id: 'CMD', group: 'commodity', vol: c.commodityVol / 100 },
     { id: 'VOL', group: 'volatility', vol: c.volOfVolPts },
     ...[...rateCcys].sort().map(k => ({ id: 'IR:' + k, group: 'rates', vol: c.ratesVolBp, ccy: k })),
@@ -192,6 +213,8 @@ export function factorModel(v) {
     if (a === b) return 1;
     const g = [a.group, b.group].sort().join('|');
     switch (g) {
+      case 'equity|equity': return c.corrEqRegion;
+      case 'credit|credit': return c.corrIgHy;
       case 'equity|rates': return c.corrEqRates;
       case 'credit|equity': return c.corrEqCredit;
       case 'currency|equity': return c.corrEqFx;
@@ -212,9 +235,9 @@ export function factorModel(v) {
   };
   const cov = factors.map(a => factors.map(b => corr(a, b) * a.vol * b.vol));
   const sensOf = x => factors.map(f => {
+    if (f.group === 'equity') return f.region === equityRegion(x) ? x.r.eqDelta * x.r.beta : 0;
+    if (f.group === 'credit') return f.bucket === creditBucket(x) ? x.r.cs01 : 0;
     switch (f.id) {
-      case 'EQ': return x.r.eqDelta * x.r.beta;
-      case 'CS': return x.r.cs01;
       case 'CMD': return x.r.cmDelta;
       case 'VOL': return x.r.vega;
       default: return f.group === 'rates' ? (x.r.ir01[f.ccy] || 0) : f.group === 'inflation' ? ((x.r.inf01 || {})[f.ccy] || 0) : (x.r.fx[f.ccy] || 0);
@@ -273,7 +296,8 @@ export function factorModel(v) {
     var: z * sigH, es: sigH * normPDF(z) / (1 - risk.confidence),
     varPct: v.nav ? z * sigH / v.nav : 0, esPct: v.nav ? sigH * normPDF(z) / (1 - risk.confidence) / v.nav : 0,
     confidence: risk.confidence, horizonDays: risk.horizonDays,
-    byFactorGroup, byAssetClass: Object.values(byAssetClass).sort((a, b) => b.total - a.total), standalone, byPosition, diversification: sum(Object.values(standalone)) - sigma
+    byFactorGroup, byAssetClass: Object.values(byAssetClass).sort((a, b) => b.total - a.total), standalone, byPosition, diversification: sum(Object.values(standalone)) - sigma,
+    unratedAsHy: v.valid.filter(x => x.r.cs01 && !(x.pos.rating && ratingScore(x.pos.rating) != null) && creditBucket(x) === 'HY').length
   };
 }
 
@@ -419,10 +443,12 @@ export function chooseRisk(v) {
   const hp = historicalPnl(v);
   const hist = historicalRisk(v, hp);
   const method = v.p.risk?.method || 'auto';
+  const ewma = ewmaRisk(v, hp);
   let headline = param;
   if (method === 'historical' && hist) headline = hist;
+  else if (method === 'ewma' && ewma) headline = ewma;
   else if (method === 'auto' && hist && hist.coverage >= 0.7 && hist.obs >= 120) headline = hist;
-  return { param, hist, hp, headline };
+  return { param, hist, ewma, hp, headline, drivers: riskDrivers(hp) };
 }
 
 export function correlationMatrix(hp, maxN = 12) {

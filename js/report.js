@@ -222,14 +222,16 @@ export async function generateReport(p, a, opts) {
   // ---- risk ------------------------------------------------------------------------------------------------
   if (sections.has('risk')) {
     doc.addPage(); y = M + 6;
-    const P = risk.param, Hs = risk.hist, H0 = risk.headline;
+    const P = risk.param, Hs = risk.hist, E = risk.ewma, H0 = risk.headline;
     heading(t('nav.risk'), t('risk.sub'));
-    tableAt([t('rep.measure'), t('method.parametric'), t('method.historical')], [
-      [t('kpi.var', { c: fmtNum(P.confidence * 100, 1), h: P.horizonDays }), `${fmtPct(P.varPct, 2)} (${fmtMoney(P.var, base, { compact: true })})`, Hs ? `${fmtPct(Hs.varPct, 2)} (${fmtMoney(Hs.var, base, { compact: true })})` : '-'],
-      [t('risk.es'), fmtPct(P.esPct, 2), Hs ? fmtPct(Hs.esPct, 2) : '-'],
-      [t('kpi.vol'), fmtPct(P.volPct, 1), Hs ? fmtPct(Hs.volPct, 1) : '-'],
-      [t('rep.headline'), H0 === P ? 'X' : '', Hs && H0 === Hs ? 'X' : '']
+    const cell = (m, f) => (m ? f(m) : '-');
+    tableAt([t('rep.measure'), t('method.parametric'), t('method.historical'), t('method.ewma')], [
+      [t('kpi.var', { c: fmtNum(P.confidence * 100, 1), h: P.horizonDays }), ...[P, Hs, E].map(m => cell(m, m => `${fmtPct(m.varPct, 2)} (${fmtMoney(m.var, base, { compact: true })})`))],
+      [t('risk.es'), ...[P, Hs, E].map(m => cell(m, m => fmtPct(m.esPct, 2)))],
+      [t('kpi.vol'), ...[P, Hs, E].map(m => cell(m, m => fmtPct(m.volPct, 1)))],
+      [t('rep.headline'), ...[P, Hs, E].map(m => (m && H0 === m ? 'X' : ''))]
     ]);
+    if (risk.drivers) para(t('rep.drivers', { a: fmtPct(risk.drivers.top1, 0), n: fmtNum(risk.drivers.n80, 0), e: fmtNum(risk.drivers.effective, 1), k: risk.drivers.n }), 8);
     const classes = P.byAssetClass.filter(c => Math.abs(c.total) > 1e-9);
     heading(t('risk.byClass'), t('risk.byClassSub', { m: t('method.parametric') }));
     await chart(charts.barHGroupedSpec(classes.map(c => classLabel(c.key)), [

@@ -13,6 +13,8 @@ export const CURRENCIES = Object.keys(FALLBACK_EUR_RATES);
 export const DEFAULT_CMA = {
   // Annualised, used by the parametric (factor) risk model when there is no price history.
   equityVol: 16, equitySpecificVol: 25, ratesVolBp: 90, creditVolBp: 70, fxVol: 9, commodityVol: 22, volOfVolPts: 6,
+  // One equity factor per region (emerging markets with their own vol), IG and HY credit apart.
+  equityVolEm: 20, corrEqRegion: 0.8, creditHyVolBp: 200, corrIgHy: 0.8,
   corrEqRates: 0.2, corrEqCredit: -0.6, corrEqFx: -0.3, corrEqCmd: 0.3, corrEqVol: -0.7, corrRatesCredit: -0.2,
   corrRatesRates: 0.75, corrFxFx: 0.55, corrCmdFx: -0.1,
   // Breakeven inflation: its own factor per currency, partly moving with nominal rates and commodities.

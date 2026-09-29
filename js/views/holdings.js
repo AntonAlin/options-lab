@@ -3,8 +3,24 @@ import { t, L } from '../i18n.js';
 import { esc, card, pageHead, fmtMoney, fmtPct, fmtNum, table, openModal, closeModal, confirmDialog, toast, selectHtml, empty } from '../ui.js';
 import { INSTRUMENTS, GROUPS, FIELDS, OPTION_LABELS, fieldLabel, typeLabel, validatePosition } from '../instruments.js';
 import { makeCtx } from '../analytics.js';
-import { uid, isNum, sum, downloadBlob, slug, loadScript } from '../util.js';
+import { uid, isNum, sum, downloadBlob, slug, loadScript, todayISO } from '../util.js';
 import { toCSV, positionRows, XLSX_URL, XLSX_SRI } from '../importer.js';
+import { checkHoldings } from '../datachecks.js';
+import { snapshots } from '../snapshots.js';
+import { dataChecksCard } from './datachecks-card.js';
+
+// Today's holdings against the latest earlier snapshot (a connected file's previous date, or a
+// saved snapshot): the checks that catch a bad daily file. Cached per portfolio version.
+let checkCache = { key: '', res: null, prevDate: '' };
+function holdingChecks(p) {
+  const date = p.source?.shown || p.valDate || todayISO();
+  const key = p.id + '|' + p.updatedAt + '|' + date;
+  if (checkCache.key !== key) {
+    const prev = snapshots(p).filter(s => s.date < date).pop();
+    checkCache = { key, prevDate: prev?.date || '', res: prev && p.positions.length ? checkHoldings(prev.positions, p.positions, { p, prevDate: prev.date, nextDate: date, complete: true }) : null };
+  }
+  return checkCache;
+}
 
 const ui = { q: '', type: '', sort: 'mv', dir: -1, selected: new Set() };
 
@@ -64,6 +80,7 @@ export default {
       ${pageHead(t('nav.holdings'), esc(t('hold.sub', { n: v.rows.length, nav: fmtMoney(v.nav, base, { compact: true }) })),
         `<button class="btn" data-act="csv">${esc(t('hold.exportCsv'))}</button><button class="btn" data-act="xlsx">${esc(t('hold.exportXlsx'))}</button><a class="btn" href="#/import">${esc(t('nav.import'))}</a><button class="btn btn-primary" data-act="add">+ ${esc(t('hold.add'))}</button>`)}
       ${p.source && p.source.file ? `<div class="alert alert-info"><span>${esc(t('src.holdingsNote', { name: p.source.fileName, d: p.source.shown || p.valDate }))}</span></div>` : ''}
+      ${(() => { const c = holdingChecks(p); return dataChecksCard(c.res, { sub: t('dc.subHoldings', { d: c.prevDate }), compact: true }); })()}
       <div class="toolbar">
         <input type="search" id="hq" placeholder="${esc(t('hold.search'))}" value="${esc(ui.q)}" aria-label="${esc(t('hold.search'))}">
         ${selectHtml('id="htype" aria-label="' + esc(t('col.type')) + '"', [['', t('hold.allTypes')], ...typesPresent.map(k => [k, typeLabel(k)])], ui.type)}

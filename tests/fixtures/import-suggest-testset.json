@@ -1,0 +1,701 @@
+{
+  "_about": "Hand-written column headers and type codes in the style of custodian, administrator and broker exports. None of them is in the alias lists, and none is used in training: scripts/train-import-model.mjs only reports accuracy on them, and tests/core.test.mjs checks that the model stays above a floor.",
+  "columns": [
+    {
+      "header": "Security Description",
+      "values": [
+        "VOLVO AB-B SHS",
+        "ERICSSON LM-B SHS",
+        "APPLE INC",
+        "SWEDISH GOVT 1060"
+      ],
+      "field": "name"
+    },
+    {
+      "header": "Instrument Long Name",
+      "values": [
+        "Nordea Bank Abp",
+        "Investor AB ser. B",
+        "iShares Core MSCI World"
+      ],
+      "field": "name"
+    },
+    {
+      "header": "Sec Name",
+      "values": [
+        "Atlas Copco A",
+        "SEB A",
+        "Sandvik"
+      ],
+      "field": "name"
+    },
+    {
+      "header": "Bloomberg Code",
+      "values": [
+        "VOLVB SS",
+        "ERICB SS",
+        "AAPL US",
+        "NDA SS"
+      ],
+      "field": "ticker"
+    },
+    {
+      "header": "Exch. Symbol",
+      "values": [
+        "VOLV B",
+        "ERIC B",
+        "AAPL"
+      ],
+      "field": "ticker"
+    },
+    {
+      "header": "Sec ID ISIN No",
+      "values": [
+        "SE0000115446",
+        "SE0000108656",
+        "US0378331005"
+      ],
+      "field": "isin"
+    },
+    {
+      "header": "Sec. Identifier (ISIN)",
+      "values": [
+        "SE0000115446",
+        "FI4000297767",
+        "DE0007164600"
+      ],
+      "field": "isin"
+    },
+    {
+      "header": "Issuer Nm",
+      "values": [
+        "AB Volvo",
+        "Telefonaktiebolaget LM Ericsson",
+        "Kingdom of Sweden"
+      ],
+      "field": "issuer"
+    },
+    {
+      "header": "Obligor",
+      "values": [
+        "Swedbank AB",
+        "Vattenfall AB",
+        "Heimstaden Bostad"
+      ],
+      "field": "issuer"
+    },
+    {
+      "header": "Nominal / Units",
+      "values": [
+        "1 000 000",
+        "250 000",
+        "5 000"
+      ],
+      "field": "qty"
+    },
+    {
+      "header": "Pos Qty",
+      "values": [
+        "12000",
+        "3500",
+        "780"
+      ],
+      "field": "qty"
+    },
+    {
+      "header": "Shares Held",
+      "values": [
+        "12000",
+        "3500",
+        "780"
+      ],
+      "field": "qty"
+    },
+    {
+      "header": "Face Amt",
+      "values": [
+        "10000000",
+        "5000000",
+        "2500000"
+      ],
+      "field": "qty"
+    },
+    {
+      "header": "Mkt Px",
+      "values": [
+        "252.40",
+        "118.35",
+        "231.10"
+      ],
+      "field": "price"
+    },
+    {
+      "header": "Closing Px",
+      "values": [
+        "252.40",
+        "118.35",
+        "231.10"
+      ],
+      "field": "price"
+    },
+    {
+      "header": "Valuation Price",
+      "values": [
+        "101.23",
+        "99.87",
+        "100.02"
+      ],
+      "field": "price"
+    },
+    {
+      "header": "Sec Ccy",
+      "values": [
+        "SEK",
+        "SEK",
+        "USD",
+        "EUR"
+      ],
+      "field": "ccy"
+    },
+    {
+      "header": "Trading Currency Code",
+      "values": [
+        "SEK",
+        "EUR",
+        "USD"
+      ],
+      "field": "ccy"
+    },
+    {
+      "header": "Lot Multiplier",
+      "values": [
+        "100",
+        "100",
+        "10"
+      ],
+      "field": "multiplier"
+    },
+    {
+      "header": "GICS Sector Name",
+      "values": [
+        "Industrials",
+        "Information Technology",
+        "Financials"
+      ],
+      "field": "sector"
+    },
+    {
+      "header": "Industry Group",
+      "values": [
+        "Capital Goods",
+        "Banks",
+        "Software"
+      ],
+      "field": "sector"
+    },
+    {
+      "header": "Country of Domicile",
+      "values": [
+        "SE",
+        "SE",
+        "US",
+        "FI"
+      ],
+      "field": "country"
+    },
+    {
+      "header": "Risk Country",
+      "values": [
+        "SE",
+        "DE",
+        "US"
+      ],
+      "field": "country"
+    },
+    {
+      "header": "S&P Rtg",
+      "values": [
+        "AA-",
+        "BBB+",
+        "A",
+        "BB"
+      ],
+      "field": "rating"
+    },
+    {
+      "header": "Composite Rating",
+      "values": [
+        "AAA",
+        "A+",
+        "BBB-"
+      ],
+      "field": "rating"
+    },
+    {
+      "header": "Maturity Dt",
+      "values": [
+        "2028-05-12",
+        "2031-11-15",
+        "2027-03-01"
+      ],
+      "field": "maturity"
+    },
+    {
+      "header": "Final Redemption Date",
+      "values": [
+        "12.05.2028",
+        "15.11.2031"
+      ],
+      "field": "maturity"
+    },
+    {
+      "header": "Expiry Dt",
+      "values": [
+        "2026-12-18",
+        "2027-03-19"
+      ],
+      "field": "maturity"
+    },
+    {
+      "header": "Cpn Rate",
+      "values": [
+        "3.5",
+        "1.25",
+        "0.75"
+      ],
+      "field": "coupon"
+    },
+    {
+      "header": "Annual Cpn %",
+      "values": [
+        "3,50",
+        "1,25",
+        "0,75"
+      ],
+      "field": "coupon"
+    },
+    {
+      "header": "Cpn Freq",
+      "values": [
+        "1",
+        "2",
+        "1"
+      ],
+      "field": "freq"
+    },
+    {
+      "header": "Redemption Yld",
+      "values": [
+        "2.81",
+        "3.95",
+        "4.40"
+      ],
+      "field": "yield"
+    },
+    {
+      "header": "Yld to Mat",
+      "values": [
+        "2.81",
+        "3.95",
+        "4.40"
+      ],
+      "field": "yield"
+    },
+    {
+      "header": "Z-Sprd",
+      "values": [
+        "85",
+        "140",
+        "210"
+      ],
+      "field": "spread"
+    },
+    {
+      "header": "Put/Call Flag",
+      "values": [
+        "C",
+        "P",
+        "C"
+      ],
+      "field": "optType"
+    },
+    {
+      "header": "Strike Px",
+      "values": [
+        "2200",
+        "2400",
+        "250"
+      ],
+      "field": "strike"
+    },
+    {
+      "header": "Underlying Px",
+      "values": [
+        "2345.6",
+        "2345.6",
+        "252.4"
+      ],
+      "field": "underlyingPrice"
+    },
+    {
+      "header": "Impl. Vol",
+      "values": [
+        "18.5",
+        "22.1",
+        "31.0"
+      ],
+      "field": "vol"
+    },
+    {
+      "header": "Contract Notional Amt",
+      "values": [
+        "25000000",
+        "10000000"
+      ],
+      "field": "reportedNotional"
+    },
+    {
+      "header": "Broker Delta Ratio",
+      "values": [
+        "0.45",
+        "-0.30",
+        "0.62"
+      ],
+      "field": "reportedDelta"
+    },
+    {
+      "header": "Avg Purchase Px",
+      "values": [
+        "210.50",
+        "98.10",
+        "180.00"
+      ],
+      "field": "costPrice"
+    },
+    {
+      "header": "Book Cost / Unit",
+      "values": [
+        "210.50",
+        "98.10"
+      ],
+      "field": "costPrice"
+    },
+    {
+      "header": "Mod Dur",
+      "values": [
+        "4.2",
+        "6.8",
+        "1.1"
+      ],
+      "field": "duration"
+    },
+    {
+      "header": "Bought Ccy",
+      "values": [
+        "SEK",
+        "SEK",
+        "EUR"
+      ],
+      "field": "buyCcy"
+    },
+    {
+      "header": "Sold Currency",
+      "values": [
+        "USD",
+        "EUR",
+        "USD"
+      ],
+      "field": "sellCcy"
+    },
+    {
+      "header": "Bought Amt",
+      "values": [
+        "105000000",
+        "22000000"
+      ],
+      "field": "buyAmount"
+    },
+    {
+      "header": "Sold Amt",
+      "values": [
+        "10000000",
+        "2000000"
+      ],
+      "field": "sellAmount"
+    },
+    {
+      "header": "Pay Rec Fixed Leg",
+      "values": [
+        "Receive",
+        "Pay",
+        "Receive"
+      ],
+      "field": "direction"
+    },
+    {
+      "header": "Fixed Leg Rate",
+      "values": [
+        "2.45",
+        "2.10"
+      ],
+      "field": "fixedRate"
+    },
+    {
+      "header": "Fair Mkt Val",
+      "values": [
+        "-125000",
+        "340000",
+        "15000"
+      ],
+      "field": "mtm"
+    },
+    {
+      "header": "Counterparty MTM",
+      "values": [
+        "-125000",
+        "340000"
+      ],
+      "field": "mtm"
+    },
+    {
+      "header": "Accrued-incl. price",
+      "values": [
+        "101.9",
+        "100.4"
+      ],
+      "field": "dirtyPrice"
+    },
+    {
+      "header": "Next Call",
+      "values": [
+        "2027-06-15",
+        "2029-01-10"
+      ],
+      "field": "callDate"
+    },
+    {
+      "header": "Swap Tenor Yrs",
+      "values": [
+        "10",
+        "5"
+      ],
+      "field": "tenor"
+    },
+    {
+      "header": "Coll. Value",
+      "values": [
+        "16000000",
+        "9800000"
+      ],
+      "field": "collateralValue"
+    },
+    {
+      "header": "Coll Haircut Pct",
+      "values": [
+        "2",
+        "5",
+        "0"
+      ],
+      "field": "haircut"
+    },
+    {
+      "header": "Remarks",
+      "values": [
+        "hedge",
+        "",
+        "check with PM"
+      ],
+      "field": "notes"
+    },
+    {
+      "header": "Maturity Remaining Days",
+      "values": [
+        "120",
+        "3",
+        "400"
+      ],
+      "field": "__none"
+    },
+    {
+      "header": "Row No",
+      "values": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "field": "__none"
+    },
+    {
+      "header": "Booking Status",
+      "values": [
+        "Settled",
+        "Settled",
+        "Pending"
+      ],
+      "field": "__none"
+    },
+    {
+      "header": "Last Updated By",
+      "values": [
+        "jdoe",
+        "asmith"
+      ],
+      "field": "__none"
+    },
+    {
+      "header": "Custody Account No",
+      "values": [
+        "123-456",
+        "123-456"
+      ],
+      "field": "__none"
+    }
+  ],
+  "types": [
+    {
+      "code": "Common Shs",
+      "type": "equity"
+    },
+    {
+      "code": "ORD SHS",
+      "type": "equity"
+    },
+    {
+      "code": "EQUITY-ORD",
+      "type": "equity"
+    },
+    {
+      "code": "Stamaktie",
+      "type": "equity"
+    },
+    {
+      "code": "ETF Units UCITS",
+      "type": "etf"
+    },
+    {
+      "code": "UCITS Fund Units",
+      "type": "fund"
+    },
+    {
+      "code": "Open-end fund",
+      "type": "fund"
+    },
+    {
+      "code": "GOVT BOND FIX",
+      "type": "govt_bond"
+    },
+    {
+      "code": "Sovereign Bond",
+      "type": "govt_bond"
+    },
+    {
+      "code": "Corp Bond Fixed",
+      "type": "corp_bond"
+    },
+    {
+      "code": "Corporate Fixed Rate",
+      "type": "corp_bond"
+    },
+    {
+      "code": "Covered Bond FIX",
+      "type": "corp_bond"
+    },
+    {
+      "code": "Floating Rate Corp",
+      "type": "frn"
+    },
+    {
+      "code": "FRN Senior",
+      "type": "frn"
+    },
+    {
+      "code": "T-Bill Discount",
+      "type": "money_market"
+    },
+    {
+      "code": "Comm. Paper",
+      "type": "money_market"
+    },
+    {
+      "code": "Cash Balance",
+      "type": "cash"
+    },
+    {
+      "code": "Index Fut",
+      "type": "future"
+    },
+    {
+      "code": "Bond Futures",
+      "type": "future"
+    },
+    {
+      "code": "Stock Opt",
+      "type": "option"
+    },
+    {
+      "code": "Index Option Put",
+      "type": "option"
+    },
+    {
+      "code": "FX Outright Fwd",
+      "type": "fx_forward"
+    },
+    {
+      "code": "Currency Forward Contract",
+      "type": "fx_forward"
+    },
+    {
+      "code": "IRS Vanilla",
+      "type": "irs"
+    },
+    {
+      "code": "Interest Rate Swap OIS",
+      "type": "irs"
+    },
+    {
+      "code": "CDS Single Name",
+      "type": "cds"
+    },
+    {
+      "code": "Inflation Linked Govt",
+      "type": "inflation_linked"
+    },
+    {
+      "code": "Conv. Bond",
+      "type": "convertible"
+    },
+    {
+      "code": "Turbo Long",
+      "type": "certificate"
+    },
+    {
+      "code": "CFD Equity Long",
+      "type": "equity_swap"
+    },
+    {
+      "code": "Cross Ccy Swap",
+      "type": "ccs"
+    },
+    {
+      "code": "Reverse Repurchase",
+      "type": "repo"
+    },
+    {
+      "code": "Swaption Payer",
+      "type": "swaption"
+    },
+    {
+      "code": "Private Equity Fund",
+      "type": "alternative"
+    },
+    {
+      "code": "Grand Total",
+      "type": "__none"
+    },
+    {
+      "code": "Sub-total",
+      "type": "__none"
+    }
+  ]
+}

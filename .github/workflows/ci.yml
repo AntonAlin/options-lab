@@ -18,6 +18,8 @@ jobs:
         with:
           node-version: 20
       - run: npm test
+      # The import suggestion model must be retrained when the field registry changes.
+      - run: node scripts/train-import-model.mjs --check
 
   smoke:
     name: Browser smoke test

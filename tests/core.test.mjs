@@ -8,6 +8,7 @@ import { valuePortfolio, factorModel, runStress, liquidity, compliance, fixedInc
 import { newPortfolio } from '../js/store.js';
 import { buildDemo } from '../js/demo.js';
 import { DICT } from '../js/i18n.js';
+import { mulberry32, gaussian, isNum } from '../js/util.js';
 
 const close = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg ?? ''} expected ${b}, got ${a}`);
 
@@ -1134,4 +1135,106 @@ test('stored positions of removed types are migrated, not lost', async () => {
   assert.ok(!('certType' in ac) && !('autocallLevel' in ac));
   assert.deepEqual(validatePosition(ac), []);
   assert.equal(p.snapshots[0].positions[0].type, 'otc');
+});
+
+test('import model: suggests columns and type codes it has never seen, never a mapped field or an unrelated column', async () => {
+  const { readFileSync } = await import('node:fs');
+  const S = await import('../js/suggest.js');
+  const model = JSON.parse(readFileSync(new URL('../js/models/import-model.json', import.meta.url), 'utf8'));
+  const set = JSON.parse(readFileSync(new URL('./fixtures/import-suggest-testset.json', import.meta.url), 'utf8'));
+  // Held-out, hand-written headers: floors a little under what training reports, so drift shows.
+  const top = (m, feats) => S.scores(m, feats)[0];
+  const colHits = set.columns.filter(c => top(model.columns, S.featuresOf(c.header, c.values)).label === c.field).length;
+  assert.ok(colHits / set.columns.length >= 0.8, `columns top-1 ${colHits}/${set.columns.length}`);
+  const sug = set.columns.map(c => ({ c, b: top(model.columns, S.featuresOf(c.header, c.values)) })).filter(x => x.b.p >= S.MIN_CONFIDENCE && x.b.label !== '__none');
+  assert.ok(sug.filter(x => x.b.label === x.c.field).length / sug.length >= 0.9, 'suggestions shown are mostly right');
+  const typeHits = set.types.filter(x => top(model.types, S.featuresOf(x.code)).label === x.type).length;
+  assert.ok(typeHits / set.types.length >= 0.9, `types top-1 ${typeHits}/${set.types.length}`);
+  // Mapping rules: an already mapped field is not suggested again; unrelated columns get nothing.
+  const header = ['Security Description', 'Sec Name', 'Mkt Px', 'Row No'];
+  const body = [['VOLVO AB-B SHS', 'Volvo B', '252.4', '1'], ['APPLE INC', 'Apple', '231.1', '2'], ['SAAB AB-B', 'Saab B', '480', '3']];
+  const out = S.suggestColumns(model.columns, header, body, ['name', '', '', '']);
+  assert.ok(!out.some(x => x.field === 'name'), 'name is already mapped');
+  assert.ok(out.some(x => x.col === 2 && x.field === 'price'));
+  assert.ok(!out.some(x => x.col === 3), 'a row counter is not a field');
+  assert.equal(S.suggestType(model.types, 'Grand Total'), null);
+  assert.equal(S.suggestType(model.types, 'Index Fut').type, 'future');
+  assert.equal(S.looseNumber('1 234,50'), 1234.5); assert.equal(S.looseNumber('1,234.50'), 1234.5); assert.equal(S.looseNumber('(300)'), -300);
+});
+
+test('factor model: equity by region and credit by rating', () => {
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  const eq = (id, country) => ({ id, type: 'equity', name: id, qty: 1000, price: 100, ccy: 'SEK', country, beta: 1 });
+  const P = cma => factorModel(valuePortfolio({ ...p, cma: { ...p.cma, equitySpecificVol: 0, ...cma }, positions: [eq('a', 'SE'), eq('b', 'US')] }));
+  const one = P({ corrEqRegion: 1 }), two = P({ corrEqRegion: 0.5 });
+  assert.deepEqual(one.factors.filter(f => f.group === 'equity').map(f => f.id), ['EQ:nordics', 'EQ:north_america']);
+  close(one.sigmaAnnual, 200000 * 0.16, 1e-6, 'fully correlated regions = one factor');
+  close(two.sigmaAnnual, 0.16 * Math.sqrt(2 * 100000 ** 2 * 1.5), 1e-6, 'ρ = 0.5 between regions');
+  // Same bond, IG vs HY vs unrated: HY carries the HY spread vol; unrated counts as HY and is reported.
+  const bond = rating => ({ id: 'x' + rating, type: 'corp_bond', name: 'Bond', issuer: 'X', qty: 1000000, price: 100, ccy: 'SEK', coupon: 4, freq: '1', maturity: '2031-09-28', ...(rating ? { rating } : {}) });
+  const vol = rating => factorModel(valuePortfolio({ ...p, positions: [bond(rating)] }));
+  const ig = vol('A'), hy = vol('BB'), nr = vol('');
+  assert.ok(hy.standalone.credit > ig.standalone.credit * 2, 'HY spread vol');
+  close(nr.standalone.credit, hy.standalone.credit, 1e-9);
+  assert.equal(nr.unratedAsHy, 1); assert.equal(ig.unratedAsHy, 0);
+});
+
+test('risk statistics: EWMA, Ledoit-Wolf, eigen-decomposition and the statistical risk drivers', async () => {
+  const R = await import('../js/riskstats.js');
+  close(R.ewmaVariance(Array.from({ length: 300 }, (_, i) => (i % 2 ? 2 : -2))), 4, 1e-12);
+  // After a calm year a volatile month dominates the EWMA, not the plain variance.
+  const calmThenWild = [...Array.from({ length: 250 }, (_, i) => (i % 2 ? 1 : -1)), ...Array.from({ length: 20 }, (_, i) => (i % 2 ? 5 : -5))];
+  assert.ok(Math.sqrt(R.ewmaVariance(calmThenWild)) > 3);
+  const A = [[4, 1, 0.5], [1, 3, 0.2], [0.5, 0.2, 2]];
+  const e = R.eigenSym(A);
+  close(e.reduce((s, x) => s + x.value, 0), 9, 1e-12, 'trace');
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) close(e.reduce((s, x) => s + x.value * x.vector[i] * x.vector[j], 0), A[i][j], 1e-12);
+  const rng = mulberry32(3), g = () => gaussian(rng);
+  assert.ok(R.ledoitWolf(Array.from({ length: 40 }, () => Array.from({ length: 20 }, g))).shrink > 0.8, 'noise is shrunk hard');
+  assert.ok(R.ledoitWolf(Array.from({ length: 2000 }, () => { const f = g(); return Array.from({ length: 5 }, () => f + 0.3 * g()); })).shrink < 0.05, 'real structure is kept');
+  const a = fullAnalysis(buildDemo('2026-09-28'));
+  const D = a.risk.drivers;
+  assert.ok(D && D.n >= 5);
+  close(D.components.reduce((s, c) => s + c.share, 0), 1, 1e-9, 'shares add up');
+  assert.ok(D.effective >= 1 && D.effective <= D.n && D.n80 >= 1 && D.n80 <= D.n);
+  const E = a.risk.ewma;
+  assert.ok(E && E.var > 0 && E.halfLife > 10 && E.halfLife < 12);
+  const sumContrib = E.byPosition.reduce((s, b) => s + b.contrib, 0);
+  assert.ok(Math.abs(sumContrib / E.sigmaAnnual - 1) < 0.05, 'EWMA contributions add up to the EWMA vol (up to the seed window)');
+  const p = buildDemo('2026-09-28'); p.risk.method = 'ewma';
+  assert.equal(fullAnalysis(p).risk.headline.method, 'ewma');
+});
+
+test('data checks: unit errors, scaled quantities, jumps, stale and missing prices; a clean file has none', async () => {
+  const { checkHoldings } = await import('../js/datachecks.js');
+  const p = buildDemo('2026-09-28');
+  const prev = p.positions;
+  const same = checkHoldings(prev, JSON.parse(JSON.stringify(prev)), { p, prevDate: '2026-09-25', nextDate: '2026-09-28', complete: true });
+  assert.equal(same.flags.length, 0);
+  const next = JSON.parse(JSON.stringify(prev));
+  next.forEach((x, i) => { if (isNum(x.price)) x.price *= 1 + (i % 5 - 2) * 0.002; });
+  const eq = next.filter(x => x.type === 'equity');
+  eq[0].price *= 100; eq[1].price *= 1.4; eq[2].qty *= 1000; eq[3].ccy = 'EUR';
+  next.find(x => x.type === 'corp_bond').price = undefined;
+  const r = checkHoldings(prev, next, { p, prevDate: '2026-09-25', nextDate: '2026-09-28' });
+  const kinds = Object.fromEntries(r.flags.map(f => [f.name + '|' + f.kind, f.severity]));
+  assert.equal(kinds[eq[0].name + '|unit'], 'error');
+  assert.equal(kinds[eq[1].name + '|jump'], 'warn');
+  assert.equal(kinds[eq[2].name + '|qty_scale'], 'warn');
+  assert.equal(kinds[eq[3].name + '|ccy'], 'error');
+  assert.ok(r.flags.some(f => f.kind === 'price_missing'));
+  assert.equal(r.flags.length, 5, r.flags.map(f => f.kind + ' ' + f.name).join('; '));
+  // No history: the cross-section of the file decides. One stock up 40 % while ten move ±1 %.
+  const stocks = Array.from({ length: 11 }, (_, i) => ({ type: 'equity', name: 'S' + i, qty: 100, price: 100, ccy: 'SEK' }));
+  const moved = stocks.map((x, i) => ({ ...x, price: i === 0 ? 140 : 100 * (1 + ((i % 3) - 1) * 0.01) }));
+  const q = newPortfolio({ baseCcy: 'SEK' });
+  const cs = checkHoldings(stocks, moved, { p: q, prevDate: '2026-09-25', nextDate: '2026-09-28' });
+  assert.deepEqual(cs.flags.map(f => f.name + ' ' + f.kind + ' ' + f.detail.basis), ['S0 jump file']);
+  // Stale: unchanged for a week while the others moved.
+  const week = stocks.map((x, i) => ({ ...x, price: i === 5 ? 100 : 100 * (1 + (i % 2 ? 0.01 : -0.01)) }));
+  assert.deepEqual(checkHoldings(stocks, week, { p: q, prevDate: '2026-09-18', nextDate: '2026-09-28' }).flags.map(f => f.name + ' ' + f.kind), ['S5 stale']);
+  // A complete file without a 5 %+ holding.
+  const big = checkHoldings(prev, next.filter(x => x.name !== eq[5].name), { p, prevDate: '2026-09-25', nextDate: '2026-09-28', complete: true });
+  const w = valuePortfolio(p).valid.find(x => x.pos.name === eq[5].name).weight;
+  assert.equal(big.flags.some(f => f.kind === 'dropped' && f.name === eq[5].name), w >= 0.05);
 });

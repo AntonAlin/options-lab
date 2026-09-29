@@ -1,6 +1,9 @@
 import * as store from '../store.js';
 import { t, L } from '../i18n.js';
-import { esc, card, pageHead, table, toast, selectHtml, segmented, fmtNum, openModal, closeModal, confirmDialog, privacyCallout } from '../ui.js';
+import { esc, card, pageHead, table, toast, selectHtml, segmented, fmtNum, fmtPct, openModal, closeModal, confirmDialog, privacyCallout } from '../ui.js';
+import { loadModels, suggestColumns, suggestType } from '../suggest.js';
+import { checkHoldings } from '../datachecks.js';
+import { dataChecksCard } from './datachecks-card.js';
 import { INSTRUMENTS, FIELDS, OPTION_LABELS, allFieldKeys, fieldLabel, typeLabel } from '../instruments.js';
 import {
   readFile, parseText, findHeaderRow, autoMapping, rowsToPositions, mergePositions, templateCSV, templateColumns, TEMPLATE_EXAMPLES, XLSX_URL,
@@ -15,9 +18,12 @@ import { sourceCardHtml, bindSourceCard } from './source-card.js';
 const FRESH = () => ({
   name: '', parsed: null, sheet: 0, headerRow: 0, mapping: [], decimal: '.', dateFormat: 'auto', defaultType: 'auto',
   transforms: {}, constants: {}, typeMap: {}, skipPattern: '', templateId: '', autoApplied: '',
-  onlyErrors: false, includeInvalid: false, date: '', asOf: ''
+  onlyErrors: false, includeInvalid: false, date: '', asOf: '', ignored: []
 });
 const st = { ...FRESH(), mode: 'append' };
+// Trained suggestion model (js/suggest.js), fetched the first time a file is open here.
+let models = null;
+let lastSuggestions = [];
 function reset() { Object.assign(st, FRESH()); }
 
 const SCALES = [[1, '×1'], [100, '×100'], [0.01, '÷100'], [1000, '×1 000'], [0.001, '÷1 000'], [-1, '×−1']];
@@ -92,6 +98,20 @@ function constantInput(field, value) {
   return `<input ${attrs} value="${esc(value ?? '')}" placeholder="${esc(t('imp.constantPh'))}">`;
 }
 
+// The file against the portfolio's current holdings, before it is imported. A dated file and
+// "replace" deliver the whole portfolio, so a large holding missing from them is flagged too.
+const usable = r => !r.errors.some(e => !e.code.startsWith('type_guessed'));
+function importChecks(p, D, valid) {
+  if (!p.positions.length || (!D && st.mode === 'append')) return null;
+  let next = valid.map(r => r.pos);
+  if (D) {
+    const g = D.groups.find(x => !x.key || x.key.trim().toLowerCase() === p.name.trim().toLowerCase());
+    if (!g) return null;
+    next = rowsToPositions(g.dates.find(d => d.date === st.date)?.rows || [], st.mapping, parseOpts()).filter(usable).map(r => r.pos);
+  }
+  return checkHoldings(p.positions, next, { p, prevDate: p.source?.shown || p.valDate || '', nextDate: D ? st.date : st.asOf, complete: !!D || st.mode === 'replace' });
+}
+
 // What a dated file contains and where each portfolio in it will go.
 function datedCard(D, p) {
   const byName = name => store.listPortfolios().find(x => x.name.trim().toLowerCase() === name.trim().toLowerCase());
@@ -154,9 +174,10 @@ function typeMapCard(body) {
   const opts = [['', ''], ...Object.keys(INSTRUMENTS).map(k => [k, typeLabel(k)]), ['__skip', t('imp.skipRows')]];
   return card(t('imp.typeMap'), `<div class="map-grid">${vals.slice(0, 60).map(v => {
     const o = opts.map(([k, l]) => (k === '' ? ['', `${t('imp.auto')}: ${v.auto ? typeLabel(v.auto) : '?'}`] : [k, l]));
-    return `<div class="map-row ${st.typeMap[v.value] || v.auto ? 'mapped' : 'unmapped'}">
+    const sug = !v.auto && !st.typeMap[v.value] && models ? suggestType(models.types, v.value) : null;
+    return `<div class="map-row ${st.typeMap[v.value] || v.auto ? 'mapped' : sug ? 'suggested' : 'unmapped'}">
       <div><div class="map-head">${esc(v.value)}</div><div class="map-sample">${esc(t('imp.nRows', { n: v.count }))}</div></div>
-      ${selectHtml(`data-typemap="${esc(v.value)}" aria-label="${esc(v.value)}"`, o, st.typeMap[v.value] || '')}
+      <div class="map-ctl">${selectHtml(`data-typemap="${esc(v.value)}" aria-label="${esc(v.value)}"`, o, st.typeMap[v.value] || '')}${sug ? `<button class="chip chip-suggest" data-sugtype="${esc(v.value)}" data-type="${esc(sug.type)}" title="${esc(t('imp.useSuggestion'))}">${esc(t('imp.suggested', { f: typeLabel(sug.type), p: fmtPct(sug.p, 0) }))}</button>` : ''}</div>
     </div>`;
   }).join('')}</div>`, { sub: esc(t('imp.typeMapSub')) });
 }
@@ -219,9 +240,14 @@ export default {
     const body = D ? D.groups.flatMap(g => g.dates.find(d => d.date === st.date)?.rows || []) : allRows;
     const results = hasFile ? rowsToPositions(body, st.mapping, parseOpts()) : [];
     const skipped = hasFile ? body.length - results.length : 0;
-    const valid = results.filter(r => !r.errors.some(e => !e.code.startsWith('type_guessed')));
+    const valid = results.filter(usable);
+    const checks = hasFile ? importChecks(p, D, valid) : null;
     const invalid = results.length - valid.length;
     const mappedCount = st.mapping.filter(Boolean).length;
+    if (hasFile && !models) loadModels().then(m => { if (m && !models) { models = m; if (st.parsed && app.route() === 'import') app.rerender(); } });
+    const colSug = hasFile && models ? suggestColumns(models.columns, header, body, st.mapping, { skipCols: [...st.ignored, ...(D ? [D.dateCol, D.pfCol] : [])] }) : [];
+    const sugOf = c => colSug.find(x => x.col === c);
+    lastSuggestions = colSug;
     const fieldOpts = [['', t('imp.ignore')], ...allFieldKeys().map(k => [k, fieldName(k)])];
     const tplOpts = [['', t('imp.noTemplate')], ...store.templates().map(x => [x.id, x.name])];
     const dateOpts = DATE_FORMATS.map(f => [f, t('imp.date.' + f)]);
@@ -273,15 +299,17 @@ export default {
           <label class="inline">${esc(t('imp.skipIf'))} <input id="skipIn" value="${esc(st.skipPattern)}" placeholder="${esc(t('imp.skipPh'))}" class="w-160"></label>
         </div>
         <p class="muted small">${esc(t('imp.mapHelp', { n: mappedCount, total: header.length }))}</p>
+        ${colSug.length ? `<div class="alert alert-info suggest-bar"><span>${esc(t('imp.suggestHelp', { n: colSug.length }))}</span><button class="btn btn-sm" data-act="sugall">${esc(t('imp.useAll', { n: colSug.length }))}</button></div>` : ''}
         <div class="map-grid">${header.map((h, c) => {
           const f = st.mapping[c];
           const spec = f && FIELDS[f];
           const tr = (f && st.transforms[f]) || {};
           const extra = spec?.type === 'number' ? selectHtml(`data-scale="${f}" class="scale-sel" title="${esc(t('imp.scale'))}" aria-label="${esc(t('imp.scale'))}"`, SCALES.map(([v, l]) => [v, l]), tr.scale ?? 1)
             : spec?.type === 'date' ? selectHtml(`data-datefmt="${f}" class="scale-sel" title="${esc(t('imp.dateFormat'))}" aria-label="${esc(t('imp.dateFormat'))}"`, [['', t('imp.date.inherit')], ...dateOpts], tr.dateFormat || '') : '';
-          return `<div class="map-row ${f ? 'mapped' : ''}">
+          const sug = !f && sugOf(c);
+          return `<div class="map-row ${f ? 'mapped' : sug ? 'suggested' : ''}">
             <div><div class="map-head">${esc(String(h ?? '') || t('imp.col', { n: c + 1 }))}</div><div class="map-sample">${esc(body.slice(0, 3).map(r => r[c] instanceof Date ? r[c].toISOString().slice(0, 10) : String(r[c] ?? '')).filter(Boolean).join(' · ').slice(0, 60))}</div></div>
-            <div class="map-ctl">${selectHtml(`data-map="${c}" aria-label="${esc(String(h))}"`, fieldOpts, f || '')}${extra}</div>
+            <div class="map-ctl">${selectHtml(`data-map="${c}" aria-label="${esc(String(h))}"`, fieldOpts, f || '')}${extra}${sug ? `<button class="chip chip-suggest" data-sugcol="${c}" data-field="${esc(sug.field)}" title="${esc(t('imp.useSuggestion'))}">${esc(t('imp.suggested', { f: fieldName(sug.field), p: fmtPct(sug.p, 0) }))}</button>` : ''}</div>
           </div>`;
         }).join('')}</div>
       `)}
@@ -290,6 +318,7 @@ export default {
         ${mandatoryCard(header, results, D, p)}
         ${typeMapCard(body) || card(t('imp.typeMap'), `<p class="muted small">${esc(t('imp.typeMapNone'))}</p>`)}
       </div>
+      ${checks ? dataChecksCard(checks, { sub: t('dc.subImport', { name: p.name }) }) : ''}
       ${card(t('imp.step3'), `
         <div class="import-summary">
           <div class="stat"><span class="big pos">${fmtNum(valid.length)}</span><span>${esc(t('imp.valid'))}</span></div>
@@ -358,6 +387,8 @@ export default {
       // A field can only come from one column.
       if (f) st.mapping = st.mapping.map((x, i) => (x === f && i !== c ? '' : x));
       st.mapping[c] = f;
+      // A column set to "ignore" by hand is not suggested again.
+      st.ignored = f ? st.ignored.filter(i => i !== c) : [...new Set([...st.ignored, c])];
       touched();
     }));
     root.querySelectorAll('[data-scale]').forEach(s => s.addEventListener('change', e => { const f = e.target.dataset.scale; st.transforms[f] = { ...(st.transforms[f] || {}), scale: +e.target.value }; touched(); }));
@@ -387,6 +418,11 @@ export default {
     });
 
     root.onclick = async e => {
+      const sc = e.target.closest('[data-sugcol]');
+      if (sc) { const c = +sc.dataset.sugcol, f = sc.dataset.field; st.mapping = st.mapping.map((x, i) => (x === f && i !== c ? '' : x)); st.mapping[c] = f; touched(); return; }
+      const stp = e.target.closest('[data-sugtype]');
+      if (stp) { st.typeMap[stp.dataset.sugtype] = stp.dataset.type; touched(); return; }
+      if (e.target.closest('[data-act="sugall"]')) { for (const x of lastSuggestions) if (!st.mapping.includes(x.field)) st.mapping[x.col] = x.field; touched(); return; }
       const seg = e.target.closest('[data-seg="mode"]');
       if (seg) { st.mode = seg.dataset.value; app.rerender(); return; }
       const apply = e.target.closest('[data-tplapply]')?.dataset.tplapply;

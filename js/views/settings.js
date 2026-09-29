@@ -10,8 +10,8 @@ import { parseEcbRates, ECB_PAGE } from '../fxfile.js';
 import * as marketsync from '../marketsync.js';
 
 const CMA_FIELDS = [
-  ['equityVol', '%'], ['equitySpecificVol', '%'], ['ratesVolBp', 'bp'], ['creditVolBp', 'bp'], ['fxVol', '%'], ['commodityVol', '%'], ['volOfVolPts', 'pts'],
-  ['corrEqRates', 'ρ'], ['corrEqCredit', 'ρ'], ['corrEqFx', 'ρ'], ['corrEqCmd', 'ρ'], ['corrEqVol', 'ρ'], ['corrRatesCredit', 'ρ'], ['corrRatesRates', 'ρ'], ['corrFxFx', 'ρ'], ['corrCmdFx', 'ρ'], ['inflationVolBp', 'bp'], ['corrRatesInfl', 'ρ'], ['corrCmdInfl', 'ρ']
+  ['equityVol', '%'], ['equityVolEm', '%'], ['equitySpecificVol', '%'], ['ratesVolBp', 'bp'], ['creditVolBp', 'bp'], ['creditHyVolBp', 'bp'], ['fxVol', '%'], ['commodityVol', '%'], ['volOfVolPts', 'pts'],
+  ['corrEqRegion', 'ρ'], ['corrIgHy', 'ρ'], ['corrEqRates', 'ρ'], ['corrEqCredit', 'ρ'], ['corrEqFx', 'ρ'], ['corrEqCmd', 'ρ'], ['corrEqVol', 'ρ'], ['corrRatesCredit', 'ρ'], ['corrRatesRates', 'ρ'], ['corrFxFx', 'ρ'], ['corrCmdFx', 'ρ'], ['inflationVolBp', 'bp'], ['corrRatesInfl', 'ρ'], ['corrCmdInfl', 'ρ']
 ];
 
 export default {

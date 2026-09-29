@@ -1100,7 +1100,7 @@ export function allFieldKeys() {
 }
 
 // Map free-text type values ("Aktie", "Corp bond", "BOND_CORP", "FX Fwd"...) to registry ids.
-const TYPE_ALIASES = {
+export const TYPE_ALIASES = {
   equity: ['equity', 'stock', 'share', 'shares', 'commonstock', 'aktie', 'aktier', 'eq', 'ordinaryshare', 'preferred', 'preferenceshare', 'preferensaktie', 'adr', 'gdr', 'depositaryreceipt', 'sdb', 'svenskadepåbevis', 'rights', 'subscriptionrights', 'subscriptionright', 'teckningsrätt', 'teckningsrätter', 'tr', 'bta', 'betaldtecknadaktie', 'interimshare', 'interimaktie', 'reit', 'spac'],
   etf: ['etf', 'exchangetradedfund', 'börshandladfond', 'etp', 'etn', 'exchangetradednote', 'exchangetradedproduct', 'ucitsetf', 'leveragedetf', 'inverseetf', 'hävstångsetf', 'ETF (börshandlad fond)'],
   fund: ['fund', 'mutualfund', 'ucits', 'aif', 'fond', 'fonder', 'sicav', 'unittrust', 'investmentfund', 'oeic', 'fcp', 'moneymarketfund', 'mmf', 'likviditetsfond', 'penningmarknadsfond', 'kortränefond', 'bondfund', 'räntefond', 'obligationsfond', 'equityfund', 'aktiefond', 'mixedfund', 'blandfond', 'balancedfund', 'Fond (UCITS/AIF)'],
