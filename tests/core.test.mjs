@@ -715,6 +715,15 @@ test('user guide: every block exists in English and Swedish, links go to real pa
       for (const k of ['h', 'p', 'note']) if (b[k]) both(b[k], s.id);
       for (const k of ['steps', 'list']) if (b[k]) b[k].forEach(x => both(x, s.id));
       if (b.link) { assert.ok(routes.includes(b.link), b.link); both(b.label, s.id); }
+      if (b.href) { assert.match(b.href, /^https:\/\//); both(b.label, s.id); }
     }
+  }
+});
+
+test('methodology module links point at files that exist in js/', async () => {
+  const { METHODOLOGY } = await import('../js/methodology.js');
+  const { existsSync } = await import('node:fs');
+  for (const s of METHODOLOGY) for (const m of s.module.match(/[\w-]+\.js/g)) {
+    assert.ok(existsSync(new URL('../js/' + m, import.meta.url)), `${s.id}: js/${m} does not exist`);
   }
 });

@@ -11,6 +11,7 @@ import { todayISO, debounce } from './util.js';
 import * as filelink from './filelink.js';
 import * as source from './sourcefile.js';
 import { errorText as sourceError } from './views/source-card.js';
+import { REPO_URL } from './guide.js';
 import { backupAge, maybeAutoBackup, BACKUP_WARN_DAYS } from './backup.js';
 
 import dashboard from './views/dashboard.js';
@@ -102,7 +103,7 @@ function renderSidebar() {
       <a class="privacy-note" href="#/guide?s=privacy" title="${esc(t('privacy.more'))}">${icon('M12 11c1.7 0 3-1.3 3-3V6a3 3 0 10-6 0v2c0 1.7 1.3 3 3 3zM5 11h14v10H5z')}<span>${esc(t('app.privacy'))}</span></a>
       ${sourceStatusHtml()}
       ${dataStatusHtml()}
-      <div class="copyright">© 2026 Anton Ålin · <a href="#/settings">${esc(t('nav.settings'))}</a></div>
+      <div class="copyright">© 2026 Anton Ålin · <a href="#/settings">${esc(t('nav.settings'))}</a> · <a href="${REPO_URL}" target="_blank" rel="noopener noreferrer">${esc(t('app.source'))}</a></div>
     </div>`;
 }
 

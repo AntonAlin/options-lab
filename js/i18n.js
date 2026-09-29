@@ -656,7 +656,7 @@ const en = {
   'meth.toc': "Sections",
   'meth.params': "Inputs:",
   'meth.module': "Source module:",
-  'meth.foot': "The code is open on GitHub and the unit tests in tests/ check the formulas above against textbook values (Hull for options, par-bond identities, PRIIPs examples).",
+  'meth.foot': "The source code is public on GitHub and the unit tests in tests/ check the formulas above against textbook values (Hull for options, par-bond identities, PRIIPs examples).",
   'file.title': "Linked file on your computer",
   'file.sub': "Keep the workspace in a file you control — on a synced drive, a network share or a backed-up folder — instead of only in the browser.",
   'file.body': "Every change is written to the file automatically (about a second after you make it). A JSON file holds everything and can be opened again from any Chrome or Edge browser. CSV and Excel hold the active portfolio's positions in the same layout the bulk upload reads, so other systems can pick them up too.",
@@ -767,7 +767,8 @@ const en = {
   'welcome.guide': "Read the user guide",
   'src.privacy': "Why a connected file: your holdings never leave your organisation. The browser reads the file straight from your computer or network share — nothing is uploaded, nothing is sent to us or anyone else, and the original stays under your organisation's own access control and backup.",
   'imp.privacy': "“Upload” here only means reading the file into this browser — it is not sent to any server. For data that changes regularly, a connected file (above) keeps it where your organisation stores it.",
-  'file.privacy': "Save the file on storage your organisation controls — a network share or the company OneDrive/SharePoint — so the data stays inside the organisation."
+  'file.privacy': "Save the file on storage your organisation controls — a network share or the company OneDrive/SharePoint — so the data stays inside the organisation.",
+  'app.source': "Source code"
 
 };
 
@@ -1414,7 +1415,7 @@ const sv = {
   'meth.toc': "Avsnitt",
   'meth.params': "Indata:",
   'meth.module': "Källmodul:",
-  'meth.foot': "Koden är öppen på GitHub och enhetstesterna i tests/ kontrollerar formlerna ovan mot läroboksvärden (Hull för optioner, par-obligationsidentiteter, PRIIPs-exempel).",
+  'meth.foot': "Källkoden är publik på GitHub och enhetstesterna i tests/ kontrollerar formlerna ovan mot läroboksvärden (Hull för optioner, par-obligationsidentiteter, PRIIPs-exempel).",
   'file.title': "Kopplad fil på din dator",
   'file.sub': "Ha arbetsytan i en fil du själv kontrollerar — på en synkad enhet, en nätverksdisk eller en mapp som säkerhetskopieras — i stället för bara i webbläsaren.",
   'file.body': "Varje ändring skrivs automatiskt till filen (ungefär en sekund efter att du gjort den). En JSON-fil rymmer allt och kan öppnas igen från valfri Chrome eller Edge. CSV och Excel innehåller den aktiva portföljens innehav i samma layout som massuppladdningen läser, så andra system kan använda dem också.",
@@ -1525,7 +1526,8 @@ const sv = {
   'welcome.guide': "Läs användarguiden",
   'src.privacy': "Därför en kopplad fil: innehaven lämnar aldrig organisationen. Webbläsaren läser filen direkt från din dator eller nätverksdisk — ingenting laddas upp, ingenting skickas till oss eller någon annan, och originalet ligger kvar under organisationens egen behörighetsstyrning och säkerhetskopiering.",
   'imp.privacy': "”Ladda upp” betyder här bara att filen läses in i den här webbläsaren — den skickas inte till någon server. För data som ändras regelbundet håller en kopplad fil (ovan) den kvar där organisationen lagrar den.",
-  'file.privacy': "Spara filen på lagring som organisationen kontrollerar — en nätverksdisk eller företagets OneDrive/SharePoint — så att datan stannar inom organisationen."
+  'file.privacy': "Spara filen på lagring som organisationen kontrollerar — en nätverksdisk eller företagets OneDrive/SharePoint — så att datan stannar inom organisationen.",
+  'app.source': "Källkod"
 
 };
 

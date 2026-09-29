@@ -9,6 +9,9 @@
 //   { note, tone }     highlighted box; tone 'ok' | 'warn' | 'info'
 //   { code }           monospace example (not translated)
 //   { link: 'route', label } button to a page of the app
+//   { href, label }    button to an external page (opens in a new tab)
+
+export const REPO_URL = 'https://github.com/AntonAlin/options-lab';
 
 export const GUIDE = [
   {
@@ -37,8 +40,12 @@ export const GUIDE = [
         { en: 'PDF reports and CSV/Excel exports are ordinary files. Treat them like any other client or fund document.', sv: 'PDF-rapporter och CSV/Excel-exporter är vanliga filer. Hantera dem som vilket fond- eller kunddokument som helst.' },
         { en: 'On a shared computer, use “Delete everything” in Settings when you are done, or use your own browser profile.', sv: 'På en delad dator: använd ”Radera allt” i Inställningar när du är klar, eller använd en egen webbläsarprofil.' }
       ] },
+      { h: { en: 'Check it yourself: the source code is public', sv: 'Kontrollera själv: källkoden är publik' } },
+      { p: { en: 'You do not have to take our word for any of this. The complete source code is public on GitHub, so your IT department, risk function or compliance can read exactly what the platform does, confirm that no portfolio data is sent anywhere, and check every formula on “How we calculate” — each module named there links to its file.', sv: 'Du behöver inte ta vårt ord för något av detta. Hela källkoden är publik på GitHub, så er IT-avdelning, riskfunktion eller compliance kan läsa exakt vad plattformen gör, bekräfta att ingen portföljdata skickas någonstans och kontrollera varje formel på ”Så räknar vi” — varje modul som nämns där länkar till sin fil.' } },
+      { p: { en: 'Public to read is not the same as open source: the code may be read and checked, but copying, redistributing or hosting it elsewhere needs the author\'s written permission (see LICENSE in the repository).', sv: 'Publik att läsa är inte samma sak som öppen källkod: koden får läsas och granskas, men att kopiera, sprida eller driftsätta den någon annanstans kräver upphovspersonens skriftliga tillstånd (se LICENSE i repot).' } },
+      { href: REPO_URL, label: { en: 'View the source code on GitHub', sv: 'Visa källkoden på GitHub' } },
       { h: { en: 'For IT: running with no external requests at all', sv: 'För IT: köra helt utan externa anrop' } },
-      { p: { en: 'The platform is a folder of static files with no back end. IT can copy it to an internal web server and point the library addresses (in index.html, js/importer.js and js/report.js) and the font link to internal copies. After that the only outbound request left is the optional ECB button.', sv: 'Plattformen är en mapp med statiska filer utan serverdel. IT kan kopiera den till en intern webbserver och peka om biblioteksadresserna (i index.html, js/importer.js och js/report.js) och typsnittslänken till interna kopior. Därefter återstår bara det valfria ECB-anropet.' } }
+      { p: { en: 'The platform is a folder of static files with no back end. With the author\'s written permission, IT can host a copy on an internal web server and point the library addresses (in index.html, js/importer.js and js/report.js) and the font link to internal copies. After that the only outbound request left is the optional ECB button.', sv: 'Plattformen är en mapp med statiska filer utan serverdel. Med upphovspersonens skriftliga tillstånd kan IT driftsätta en kopia på en intern webbserver och peka om biblioteksadresserna (i index.html, js/importer.js och js/report.js) och typsnittslänken till interna kopior. Därefter återstår bara det valfria ECB-anropet.' } }
     ]
   },
   {

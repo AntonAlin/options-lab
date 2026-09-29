@@ -10,6 +10,7 @@ function block(b) {
   if (b.list) return `<ul class="guide-list">${b.list.map(s => `<li>${esc(L(s))}</li>`).join('')}</ul>`;
   if (b.note) return `<div class="guide-note ${b.tone || 'info'}">${esc(L(b.note))}</div>`;
   if (b.code) return `<pre class="meth-formula">${esc(b.code)}</pre>`;
+  if (b.href) return `<p><a class="btn btn-sm" href="${esc(b.href)}" target="_blank" rel="noopener noreferrer">${esc(L(b.label))} ↗</a></p>`;
   if (b.link) return `<p><a class="btn btn-sm" href="#/${esc(b.link)}">${esc(L(b.label))} →</a></p>`;
   return '';
 }
