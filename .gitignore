@@ -2,3 +2,7 @@ node_modules/
 dist/
 _site/
 data/market.json
+__pycache__/
+.pytest_cache/
+research/**/out/
+*.pkl
