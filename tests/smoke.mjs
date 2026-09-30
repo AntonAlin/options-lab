@@ -49,6 +49,29 @@ try {
     const bad = await page.evaluate(() => { const t = document.getElementById('main')?.innerText || ''; const m = t.match(/.{0,40}\b(NaN|undefined)\b.{0,40}/); return m ? m[0] : ''; });
     if (bad) failures.push(`#/${r}: "${bad}"`);
   }
+  // Control log on the demo: a limit tightened into a breach is logged; sign in by name, sign off,
+  // and open a case on the breach.
+  await page.evaluate(async () => { const store = await import('./js/store.js'); store.update(p => { p.limits.issuerMax.value = 1; }, 'limit'); });
+  await page.goto(base + 'index.html#/control-log');
+  await page.waitForTimeout(400);
+  await page.fill('#clName', 'Smoke Tester');
+  await page.dispatchEvent('#clName', 'change');
+  await page.waitForTimeout(300);
+  await page.click('[data-act="signoff"]');
+  await page.waitForTimeout(300);
+  const hasTodo = await page.$('[data-open]');
+  if (!hasTodo) failures.push('control log: the breach has no "Open case" button');
+  else {
+    await hasTodo.click();
+    await page.fill('#caseForm textarea[name="text"]', 'Smoke test case');
+    await page.click('button[form="caseForm"]');
+    await page.waitForTimeout(300);
+  }
+  const clog = await page.evaluate(async () => { const store = await import('./js/store.js'); const al = await import('./js/auditlog.js'); const l = store.active().controlLog; return { kinds: l.map(e => e.kind), by: l.at(-1)?.by, ok: al.verify(l).ok }; });
+  if (clog.kinds.join() !== 'limit,signoff,case.open' || !clog.ok) failures.push('control log: ' + JSON.stringify(clog));
+  if (process.env.SMOKE_SHOTS) await page.screenshot({ path: process.env.SMOKE_SHOTS + '/control-log.png', fullPage: true });
+  console.log(`Control log: ${JSON.stringify(clog)}`);
+
   // Published ECB data: a new portfolio on placeholder rates takes the rates and the curve.
   const synced = await page.evaluate(async () => {
     const store = await import('./js/store.js');

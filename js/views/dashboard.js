@@ -1,4 +1,5 @@
 import * as store from '../store.js';
+import { lastSignoff } from '../auditlog.js';
 import { t, L } from '../i18n.js';
 import { esc, kpi, card, pageHead, fmtMoney, fmtPct, fmtNum, table, statusChip, fmtDate } from '../ui.js';
 import { ruleName, ruleVal, ruleLimit } from '../labels.js';
@@ -58,6 +59,9 @@ export default {
     if (v.fxMissing.length) alerts.push(['warn', t('dash.alert.fx', { list: v.fxMissing.join(', ') }), 'settings']);
     if (p.fxSource === 'fallback' && v.valid.some(x => x.pos.ccy && x.pos.ccy !== base)) alerts.push(['info', t('dash.alert.fxFallback'), 'settings']);
     if (comp.breaches) alerts.push(['breach', t('dash.alert.breaches', { n: comp.breaches }), 'compliance']);
+    // Only once the control log is in use: a reminder that today's limit check is not signed off.
+    const signed = lastSignoff(p.controlLog);
+    if (signed && signed.valDate !== store.valuationDate(p)) alerts.push(['info', t('dash.alert.signoff', { d: fmtDate(store.valuationDate(p)) }), 'control-log']);
 
     root.innerHTML = `
       ${pageHead(p.name, `${esc(t('dash.sub', { date: fmtDate(v.ctx.valDate), n: v.rows.length }))}${p.manager ? ' · ' + esc(p.manager) : ''}`,

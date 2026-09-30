@@ -8,6 +8,8 @@ import * as charts from './charts.js';
 import { treeNodes, overlayRows, classLabel, ruleName, ruleVal, ruleLimit } from './labels.js';
 import { REG_AS_OF } from './views/regnote.js';
 import { loadScript, isNum, slug } from './util.js';
+import { verify, caseList } from './auditlog.js';
+import { describe as describeLog } from './views/control-log.js';
 
 // Pinned versions from the npm mirror on jsDelivr, verified with Subresource Integrity hashes taken
 // from the npm tarballs (the CDN serves those bytes unchanged).
@@ -16,7 +18,7 @@ export const JSPDF_SRI = 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/S
 export const AUTOTABLE_URL = 'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';
 export const AUTOTABLE_SRI = 'sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3';
 
-export const SECTIONS = ['summary', 'holdings', 'pnl', 'allocation', 'exposure', 'derivatives', 'risk', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance'];
+export const SECTIONS = ['summary', 'holdings', 'pnl', 'allocation', 'exposure', 'derivatives', 'risk', 'fixedIncome', 'performance', 'stress', 'liquidity', 'cashflow', 'nav', 'compliance', 'controlLog'];
 
 // Standard PDF fonts are WinAnsi; map the few characters Intl and our labels produce that it lacks.
 function clean(s) {
@@ -361,6 +363,32 @@ export async function generateReport(p, a, opts) {
     }
     para(t('reg.title') + ' ' + t('reg.note', { d: REG_AS_OF, refs: t('reg.refs.ucits') }), 7.5, MUTED);
     para(t('comp.disclaimer'), 7.5, MUTED);
+  }
+
+  // ---- control log -------------------------------------------------------------------------------------------------
+  if (sections.has('controlLog') && (p.controlLog || []).length) {
+    const log = p.controlLog;
+    const chain = verify(log);
+    const at = iso => `${fmtDate(iso.slice(0, 10))} ${iso.slice(11, 16)}`;
+    doc.addPage(); y = M + 6;
+    heading(t('nav.controlLog'), t('cl.logHelp'));
+    para(`${chain.ok ? t('cl.chainOkLong', { n: chain.n }) : t('cl.chainBrokenAt', { n: chain.brokenAt })} ${t('cl.head')} ${chain.head}`, 8.5, chain.ok ? INK2 : NEG);
+    const signoffs = log.filter(e => e.kind === 'signoff').slice(-15).reverse();
+    if (signoffs.length) {
+      font(10, 'bold'); ensure(10); txt(t('cl.signoff'), M, y); y += 2;
+      tableAt([t('top.valdate'), t('cl.time'), t('cl.by'), t('cl.what')], signoffs.map(e => [fmtDate(e.valDate), at(e.at), e.by || t('cl.noName'), describeLog(e)]), { fontSize: 7.5, columnStyles: { 0: { halign: 'left', cellWidth: 24 }, 1: { halign: 'left', cellWidth: 30 }, 2: { halign: 'left', cellWidth: 32 }, 3: { halign: 'left' } } });
+    }
+    const cases = caseList(log).slice(0, 25);
+    if (cases.length) {
+      font(10, 'bold'); ensure(10); txt(t('cl.cases'), M, y); y += 2;
+      const last = c => c.closed ? `${t('cl.closed')}: ${c.closed.text || ''}` : (c.notes[c.notes.length - 1]?.text || c.notes[c.notes.length - 1]?.action || '');
+      tableAt([t('cmp.rule'), t('bh.start'), t('bh.cause'), t('comp.status'), t('cl.what')], cases.map(c => [c.name || ruleName(c.rule, p), fmtDate(c.start), t('cl.cause.' + c.cause), t('cl.status.' + c.status), last(c)]), { fontSize: 7.5, columnStyles: { 0: { halign: 'left', cellWidth: 42 }, 1: { halign: 'left', cellWidth: 22 }, 2: { halign: 'left', cellWidth: 22 }, 3: { halign: 'left', cellWidth: 18 }, 4: { halign: 'left' } } });
+    }
+    const changes = log.filter(e => ['limit', 'rule', 'ge', 'lmt'].includes(e.kind)).slice(-20).reverse();
+    if (changes.length) {
+      font(10, 'bold'); ensure(10); txt(t('cl.log'), M, y); y += 2;
+      tableAt([t('cl.time'), t('cl.by'), t('cl.what')], changes.map(e => [at(e.at), e.by || t('cl.noName'), describeLog(e)]), { fontSize: 7.5, columnStyles: { 0: { halign: 'left', cellWidth: 30 }, 1: { halign: 'left', cellWidth: 32 }, 2: { halign: 'left' } } });
+    }
   }
 
   // ---- disclaimer, header & footer on every page -------------------------------------------------------------

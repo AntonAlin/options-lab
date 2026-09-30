@@ -182,7 +182,7 @@ export const GUIDE = [
   },
   {
     id: 'regulatory',
-    title: { en: 'Fund rules, global exposure and liquidity tools' },
+    title: { en: 'Fund rules, global exposure, liquidity tools and the control log' },
     blocks: [
       { note: { en: 'Regulation is updated continuously by lawmakers, ESMA and national supervisors. These three pages are built on the developer\'s own reading of the rules as of September 2026. That reading is an opinion, not legal advice, and it may be incomplete, out of date or wrong. Check it against the current rules, your fund\'s prospectus and fund rules, and with your compliance function.' } },
       { h: { en: 'Fund rules (Compliance page)' } },
@@ -198,7 +198,17 @@ export const GUIDE = [
       { link: 'global-exposure', label: { en: 'Go to Global exposure' } },
       { h: { en: 'Liquidity tools' } },
       { p: { en: 'Record which liquidity management tools the fund has selected, calibrate swing pricing or an anti-dilution levy from your trading costs, and see what a redemption gate does to large outflows. Replace the default trading costs with your own.' } },
-      { link: 'liquidity-tools', label: { en: 'Go to Liquidity tools' } }
+      { link: 'liquidity-tools', label: { en: 'Go to Liquidity tools' } },
+      { h: { en: 'Control log: who checked what, and when' } },
+      { steps: [
+        { en: 'Type your name at the top of the Control log page. There are no accounts, so this name is what every entry from this browser is recorded under; each person should use their own browser profile.' },
+        { en: 'Each day, review Compliance and click “Sign off limit check”. The result at that moment (limits checked, breaches, near-breaches, breaches without a case) is recorded with your name and the time.' },
+        { en: 'For every breach — today\'s, and every breach period the limit history finds — open a case: the cause (active or passive), what happened and what is being done. Add notes as it develops and close it with the resolution.' },
+        { en: 'Changes to limits, fund rules, global exposure and liquidity tool settings are logged automatically, with the old and new value. Undo (Ctrl+Z) puts a setting back and logs that too; it never removes a log entry.' },
+        { en: 'Export the log (CSV or JSON), or include it in the PDF report, and keep the head hash somewhere else — an e-mail to compliance is enough. Every entry carries the hash of the one before, so anything changed afterwards shows as a broken chain.' }
+      ] },
+      { note: { en: 'The log is a record, not an access control: without a server nobody can prove who typed a name, and someone who can edit the workspace file can rebuild a chain. What the chain does prove is that nothing before a head hash you kept elsewhere has been changed since.' } },
+      { link: 'control-log', label: { en: 'Go to Control log' } }
     ]
   },
   {

@@ -197,6 +197,17 @@ export const METHODOLOGY = [
     ]
   },
   {
+    id: 'controlLog', module: 'auditlog.js',
+    title: { en: 'Control log' },
+    intro: { en: 'An append-only record per portfolio: sign-offs, breach cases and changes to the controls, each entry chained to the one before by a hash.' },
+    items: [
+      { en: 'Hash chain', formula: 'hash_n = SHA-256( canonical JSON of { seq, at, by, kind, valDate, data, prev = hash_(n−1) } ),  hash_0 = 64 zeros\nintact ⇔ for every n: seq_n = n, prev_n = hash_(n−1) and hash_n recomputes', notes: { en: 'Canonical JSON: keys sorted, so the order a file stores them in does not matter. SHA-256 is computed in the page itself (no dependency, works on plain-http intranet servers). Tamper-evident, not tamper-proof: whoever can edit the file can rebuild the whole chain, so keep the head hash somewhere else.' } },
+      { en: 'Logged automatically', formula: 'any change through the app to: a UCITS limit (on/off, value), a fund rule (added, changed, removed), global exposure settings, liquidity tool settings\nundo: the change back is logged, flagged as undo; entries are never removed', notes: { en: 'Changes to holdings and prices are not logged here; the snapshots and Changes & track record cover those.' } },
+      { en: 'Breach cases', formula: 'case = rule + start date;  state read from its entries: opened → notes → closed (or reopened)\na breach period is covered ⇔ a case of the same rule was opened on a date inside it (start ≤ case date ≤ end)\na breach today without a history period is covered ⇔ an open case of that rule exists', notes: { en: 'Breach periods, and whether each was active or passive, come from the limit history on Compliance (holdings on two or more dates). The cause on a case can be changed by a note; the original entry stays.' } },
+      { en: 'Who', formula: 'by = the name typed on the Control log page, kept in this browser', notes: { en: 'No accounts, no server: the name is self-declared. Use one browser profile per person.' } }
+    ]
+  },
+  {
     id: 'importModel', module: 'suggest.js · datachecks.js',
     title: { en: 'Import suggestions and data checks' },
     intro: { en: 'Two helpers around the import. Neither changes data by itself.' },

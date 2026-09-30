@@ -23,6 +23,7 @@ export default {
     root.innerHTML = `
       ${pageHead(t('nav.compliance'), esc(t('comp.sub', { type: p.fundType || 'UCITS' })))}
       ${regNote('ucits')}
+      ${comp.breaches ? `<div class="alert alert-info"><span>${esc(t('comp.toLog'))}</span><a href="#/control-log">${esc(t('nav.controlLog'))} →</a></div>` : ''}
       <div class="kpi-grid">
         ${kpi(t('comp.checked'), String(comp.rules.length))}
         ${kpi(t('comp.breaches'), String(comp.breaches), { tone: comp.breaches ? 'breach' : 'ok' })}

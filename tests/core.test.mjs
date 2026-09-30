@@ -630,7 +630,7 @@ test('connected source file: no portfolio column means one portfolio; no date co
 
 test('user guide: every block has text, links go to real pages', async () => {
   const { GUIDE } = await import('../js/guide.js');
-  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution', 'global-exposure', 'liquidity-tools'];
+  const routes = ['dashboard', 'holdings', 'import', 'history', 'exposure', 'risk', 'fixed-income', 'performance', 'stress', 'liquidity', 'compliance', 'report', 'settings', 'cashflow', 'nav', 'allocation', 'derivatives', 'methodology', 'pnl', 'guide', 'changes', 'whatif', 'attribution', 'global-exposure', 'liquidity-tools', 'control-log'];
   const both = (o, where) => assert.ok(o && String(o.en || '').trim(), 'missing text in ' + where);
   assert.equal(GUIDE[0].id, 'privacy', 'data privacy comes first');
   assert.equal(new Set(GUIDE.map(s => s.id)).size, GUIDE.length);
@@ -1376,4 +1376,84 @@ test('liquidity tools: selection rule, swing factor and dilution, gates', async 
   const r30 = g.normal.find(r => r.request === 30);
   assert.equal(r30.days, 3); close(r30.firstDay, 10, 1e-9); close(r30.deferred, 20, 1e-9);
   assert.equal(g.normal.find(r => r.request === 5).gated, false);
+});
+
+test('control log: SHA-256, chain verification, control changes, breach cases', async () => {
+  const al = await import('../js/auditlog.js');
+  const { createHash } = await import('node:crypto');
+  for (const s of ['', 'abc', 'Anna Svensson, Risk – €', 'x'.repeat(55), 'x'.repeat(56), 'x'.repeat(1000)]) assert.equal(al.sha256(s), createHash('sha256').update(s).digest('hex'));
+  // Chain: each entry links to the one before; a change, removal or reorder is caught at that entry.
+  const log = [];
+  al.append(log, [{ kind: 'signoff', data: { checked: 12, breaches: 0, warnings: 1 } }], { by: 'Anna', valDate: '2026-09-28', at: '2026-09-28T16:00:00.000Z' });
+  al.append(log, [{ kind: 'limit', data: { limit: 'issuerMax', field: 'value', from: 10, to: 9 } }, { kind: 'limit', data: { limit: 'cashMin', field: 'on', from: false, to: true } }], { by: 'Bo', valDate: '2026-09-29' });
+  assert.deepEqual(log.map(e => e.seq), [1, 2, 3]);
+  assert.equal(log[0].prev, al.GENESIS); assert.equal(log[1].prev, log[0].hash);
+  const ok = al.verify(log);
+  assert.ok(ok.ok); assert.equal(ok.head, log[2].hash); assert.equal(ok.n, 3);
+  const copy = () => JSON.parse(JSON.stringify(log));
+  const edited = copy(); edited[1].data.to = 12;
+  assert.deepEqual([al.verify(edited).ok, al.verify(edited).brokenAt], [false, 2]);
+  const renamed = copy(); renamed[0].by = 'Someone else';
+  assert.equal(al.verify(renamed).brokenAt, 1);
+  const removed = copy(); removed.splice(1, 1);
+  assert.equal(al.verify(removed).ok, false);
+  // Key order in storage does not matter.
+  const reordered = copy().map(e => Object.fromEntries(Object.entries(e).reverse()));
+  assert.ok(al.verify(reordered).ok);
+  assert.ok(al.verify([]).ok);
+  // Control changes.
+  const before = { limits: { issuerMax: { on: true, value: 10 }, cashMin: { on: false, value: 1 } }, rules: [{ id: 'r1', name: 'Max HY', measure: 'mv', dir: 'max', limit: 10, conds: [] }], ge: {}, lmt: {} };
+  const after = JSON.parse(JSON.stringify(before));
+  after.limits.issuerMax.value = 9; after.limits.cashMin.on = true;
+  after.rules[0].limit = 12; after.rules.push({ id: 'r2', name: 'Min cash', measure: 'mv', dir: 'min', limit: 1, conds: [] });
+  after.ge = { method: 'absolute' };
+  const diff = al.controlDiff(before, after);
+  assert.deepEqual(diff.map(d => d.kind + ':' + (d.data.limit || d.data.change || '')), ['limit:issuerMax', 'limit:cashMin', 'rule:changed', 'rule:added', 'ge:']);
+  assert.deepEqual(al.controlDiff(after, after), []);
+  assert.equal(al.controlDiff(after, { ...after, rules: [after.rules[1]] })[0].data.change, 'removed');
+  // Cases: opened, noted, closed; the case covers the breach period it was opened in.
+  const cl = [];
+  const id = al.caseId('issuerMax', '2026-09-20');
+  al.append(cl, [{ kind: 'case.open', data: { case: id, rule: 'issuerMax', name: 'Single issuer', start: '2026-09-20', cause: 'passive', peak: 10.4, limit: 10, text: 'Price rise' } }], { by: 'Anna' });
+  al.append(cl, [{ kind: 'case.note', data: { case: id, rule: 'issuerMax', cause: 'active', action: 'PM sells 0.5 %' } }], { by: 'Bo' });
+  let cases = al.caseList(cl);
+  assert.equal(cases.length, 1); assert.equal(cases[0].status, 'open'); assert.equal(cases[0].cause, 'active'); assert.equal(cases[0].notes.length, 2);
+  const episodes = [
+    { id: 'issuerMax', start: '2026-09-18', end: null, ongoing: true, cause: 'passive', peak: 10.4, limit: 10, dir: 'max' },
+    { id: 'fundMax', start: '2026-08-01', end: '2026-08-05', ongoing: false, cause: 'active', peak: 21, limit: 20, dir: 'max' }
+  ];
+  const current = [{ id: 'issuerMax', value: 10.4, limit: 10, dir: 'max' }, { id: 'cashMin', value: 0.5, limit: 1, dir: 'min' }];
+  const todo = al.unhandled({ current, episodes, log: cl, valDate: '2026-09-28' });
+  assert.deepEqual(todo.map(x => x.rule + '@' + x.start), ['cashMin@2026-09-28', 'fundMax@2026-08-01'], 'the issuer breach has its case; cash and the old fund breach do not');
+  // A case opened before the episode started does not cover it.
+  assert.equal(al.unhandled({ episodes: [{ ...episodes[0], start: '2026-09-25' }], log: cl }).length, 1);
+  al.append(cl, [{ kind: 'case.close', data: { case: id, rule: 'issuerMax', text: 'Back under 10 % on 29 Sep' } }], { by: 'Anna' });
+  cases = al.caseList(cl);
+  assert.equal(cases[0].status, 'closed'); assert.equal(cases[0].closed.by, 'Anna');
+  // With the case closed, a breach today without an episode (no history) needs a new case.
+  assert.deepEqual(al.unhandled({ current: [current[0]], log: cl, valDate: '2026-09-30' }).map(x => x.rule), ['issuerMax']);
+  assert.equal(al.lastSignoff(log).by, 'Anna');
+  assert.equal(al.exportRows(log).length, 4);
+});
+
+test('control log: limit changes through the store are logged, and undo never removes an entry', async () => {
+  const store = await import('../js/store.js');
+  const al = await import('../js/auditlog.js');
+  store.setSetting('userName', 'Test User');
+  store.addPortfolio(store.newPortfolio({ name: 'Log test', valDate: '2026-09-28' }));
+  store.update(p => { p.limits.issuerMax.value = 8; }, 'limit');
+  store.update(p => { p.positions.push({ id: 'x', type: 'cash', name: 'Cash', qty: 1, price: 1, ccy: 'SEK' }); }, 'holding');
+  let p = store.active();
+  assert.equal(p.controlLog.length, 1, 'a change of holdings is not a control change');
+  assert.deepEqual([p.controlLog[0].kind, p.controlLog[0].by, p.controlLog[0].valDate, p.controlLog[0].data.to], ['limit', 'Test User', '2026-09-28', 8]);
+  store.logControl([{ kind: 'signoff', data: { checked: 1, breaches: 0, warnings: 0 } }]);
+  store.undo(); // the holding
+  store.undo(); // the limit: back to 10, and that is logged too
+  p = store.active();
+  assert.equal(p.limits.issuerMax.value, 10);
+  assert.deepEqual(p.controlLog.map(e => e.kind), ['limit', 'signoff', 'limit']);
+  assert.equal(p.controlLog[2].data.undo, true); assert.equal(p.controlLog[2].data.to, 10);
+  assert.ok(al.verify(p.controlLog).ok);
+  store.deletePortfolio(p.id);
+  await store.flushed();
 });

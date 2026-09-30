@@ -2,6 +2,7 @@
 // IndexedDB is unavailable), a small undo stack and pub/sub so views re-render when data changes.
 // Nothing ever leaves the browser.
 import { uid, todayISO, isNum } from './util.js';
+import { append, controlsOf, controlDiff } from './auditlog.js';
 
 const KEY = 'nexus_portfolio_lab_v1';
 const listeners = new Set();
@@ -199,6 +200,7 @@ export function upgradePortfolio(p) {
   p.rules = Array.isArray(p.rules) ? p.rules : [];
   p.globalExposure = p.globalExposure && typeof p.globalExposure === 'object' ? p.globalExposure : {};
   p.lmt = p.lmt && typeof p.lmt === 'object' ? p.lmt : {};
+  p.controlLog = Array.isArray(p.controlLog) ? p.controlLog : [];
   delete p.navControl;
   const lim = JSON.parse(JSON.stringify(DEFAULT_LIMITS));
   for (const [k, v] of Object.entries(p.limits || {})) if (lim[k]) lim[k] = { ...lim[k], ...v };
@@ -232,7 +234,7 @@ function flush() {
   writing = writing.then(async () => {
     try {
       if (db) await writeDb(db, job);
-      else localStorage.setItem(KEY, JSON.stringify(state));
+      else if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(state));
       storageOk = true;
       channel?.postMessage('saved');
     } catch (e) {
@@ -307,22 +309,48 @@ export function deletePortfolio(id) {
 }
 
 // Mutate the active portfolio. `label` goes on the undo stack so the toast can say what it undid.
+// A change to a limit, fund rule or global exposure / LMT setting is written to the control log.
 export function update(fn, label = '') {
   const p = active();
   if (!p) return;
   undoStack.push({ label, snap: JSON.stringify(p) });
   if (undoStack.length > 30) undoStack.shift();
+  const before = controlsOf(p);
   fn(p);
+  logChanges(p, before, controlsOf(p));
   p.updatedAt = new Date().toISOString();
   persist({ id: p.id }); emit('data');
 }
+// Undo brings back the holdings and settings, never an earlier control log: the log only grows, and
+// a limit that undo puts back is logged as a change of its own.
 export function undo() {
   const last = undoStack.pop();
   if (!last) return null;
   const p = JSON.parse(last.snap);
+  const cur = state.portfolios[p.id];
+  if (cur) {
+    p.controlLog = cur.controlLog || [];
+    logChanges(p, controlsOf(cur), controlsOf(p), { undo: true });
+  }
   state.portfolios[p.id] = p;
   persist({ id: p.id }); emit('data');
   return last.label;
+}
+function logChanges(p, before, after, extra = null) {
+  const items = controlDiff(before, after);
+  if (!items.length) return;
+  if (!Array.isArray(p.controlLog)) p.controlLog = [];
+  append(p.controlLog, extra ? items.map(i => ({ ...i, data: { ...i.data, ...extra } })) : items, { by: state.settings.userName || '', valDate: valuationDate(p) });
+}
+
+// Add entries to a portfolio's control log (sign-offs, breach cases). Not undoable.
+export function logControl(items, { id = state.activeId } = {}) {
+  const p = state.portfolios[id];
+  if (!p) return [];
+  if (!Array.isArray(p.controlLog)) p.controlLog = [];
+  const out = append(p.controlLog, items, { by: state.settings.userName || '', valDate: valuationDate(p) });
+  persist({ id }); emit('log');
+  return out;
 }
 
 export function valuationDate(p = active()) { return (p && p.valDate) || todayISO(); }
