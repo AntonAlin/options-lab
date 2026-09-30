@@ -1,5 +1,6 @@
-// Workspace state: portfolios, settings, persistence in localStorage, a small undo stack and
-// pub/sub so views re-render when data changes. Nothing ever leaves the browser.
+// Workspace state: portfolios, settings, persistence in the browser's IndexedDB (localStorage when
+// IndexedDB is unavailable), a small undo stack and pub/sub so views re-render when data changes.
+// Nothing ever leaves the browser.
 import { uid, todayISO, isNum } from './util.js';
 
 const KEY = 'nexus_portfolio_lab_v1';
@@ -60,23 +61,121 @@ let state = freshState();
 let undoStack = [];
 let storageOk = true;
 
+function adopt(s) {
+  if (s && s.portfolios) {
+    state = { ...freshState(), ...s, settings: { ...freshState().settings, ...(s.settings || {}) } };
+    // Old saves predate newer defaults — merge so a new limit or CMA key shows up.
+    for (const p of Object.values(state.portfolios)) upgradePortfolio(p);
+  }
+  if (!state.activeId || !state.portfolios[state.activeId]) state.activeId = Object.keys(state.portfolios)[0] || null;
+  return state;
+}
+
+// ---- storage backends ----------------------------------------------------------------------------
+// IndexedDB holds one record for the workspace settings and one per portfolio, so a change to one
+// portfolio rewrites only that portfolio. localStorage (about 5 MB per site, one string) is the
+// fallback, and where workspaces saved before IndexedDB came in are read from once and moved over.
+const DB = 'nexus-workspace', OS = 'kv', META = 'meta', PF = 'pf:';
+let db = null;          // the open IndexedDB, or null when we are on localStorage
+let backendName = 'localStorage';
+export const backend = () => backendName;
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') { reject(new Error('no IndexedDB')); return; }
+    const req = indexedDB.open(DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(OS);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('IndexedDB blocked'));
+  });
+}
+function readAll(d) {
+  return new Promise((resolve, reject) => {
+    const out = {};
+    const tx = d.transaction(OS);
+    const req = tx.objectStore(OS).openCursor();
+    req.onsuccess = () => { const c = req.result; if (c) { out[c.key] = c.value; c.continue(); } };
+    tx.oncomplete = () => resolve(out);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+// Stored as JSON text: the state is plain data, and a string can never fail to clone.
+const metaOf = s => JSON.stringify({ version: s.version, settings: s.settings, activeId: s.activeId, templates: s.templates });
+function writeDb(d, { all, ids, removed }) {
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(OS, 'readwrite');
+    const os = tx.objectStore(OS);
+    if (all) os.clear();
+    os.put(metaOf(state), META);
+    const list = all ? Object.keys(state.portfolios) : ids;
+    for (const id of list) if (state.portfolios[id]) os.put(JSON.stringify(state.portfolios[id]), PF + id);
+    for (const id of removed) os.delete(PF + id);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('aborted'));
+  });
+}
+function stateFromRecords(rec) {
+  if (!rec[META]) return null;
+  const meta = JSON.parse(rec[META]);
+  const portfolios = {};
+  for (const [k, v] of Object.entries(rec)) if (k.startsWith(PF)) { const p = JSON.parse(v); portfolios[p.id] = p; }
+  return { ...meta, portfolios };
+}
+function readLocal() {
+  try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+
+// Synchronous read from localStorage only: the fallback path, and what init() migrates from.
 export function load() {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const s = JSON.parse(raw);
-      if (s && s.portfolios) {
-        state = { ...freshState(), ...s, settings: { ...freshState().settings, ...(s.settings || {}) } };
-        // Old saves predate newer defaults — merge so a new limit or CMA key shows up.
-        for (const p of Object.values(state.portfolios)) upgradePortfolio(p);
-      }
-    }
+    adopt(readLocal());
   } catch (e) {
     storageOk = false;
     console.warn('Workspace could not be read from localStorage', e);
   }
-  if (!state.activeId || !state.portfolios[state.activeId]) state.activeId = Object.keys(state.portfolios)[0] || null;
+  return adopt(null);
+}
+
+// Open the workspace: IndexedDB when the browser has it, moving a localStorage workspace over the
+// first time; localStorage otherwise. Also asks the browser not to evict the data under pressure.
+let channel = null;
+export async function init() {
+  try {
+    db = await openDb();
+    const rec = await readAll(db);
+    const fromDb = stateFromRecords(rec);
+    if (fromDb) adopt(fromDb);
+    else {
+      const old = readLocal();
+      if (old) { adopt(old); await writeDb(db, { all: true, ids: [], removed: [] }); }
+    }
+    // The IndexedDB copy is complete, so the old localStorage copy only takes up space.
+    try { localStorage.removeItem(KEY); } catch (e) { /* not available */ }
+    backendName = 'IndexedDB';
+  } catch (e) {
+    console.warn('IndexedDB unavailable, using localStorage', e);
+    db = null;
+    backendName = 'localStorage';
+    load();
+  }
+  try { navigator.storage?.persist?.(); } catch (e) { /* optional */ }
+  if (typeof BroadcastChannel !== 'undefined') {
+    channel = new BroadcastChannel(DB);
+    // Another tab saved: read its version (only while this tab has nothing unsaved).
+    channel.onmessage = async () => {
+      if (pending.meta || !db) return;
+      try { const s = stateFromRecords(await readAll(db)); if (s) { adopt(s); undoStack = []; emit('active'); } } catch (e) { console.warn(e); }
+    };
+  }
+  if (typeof window !== 'undefined') window.addEventListener('pagehide', () => flush());
   return state;
+}
+
+// Used and available space for this site, in bytes: { usage, quota } or null.
+export async function storageEstimate() {
+  try { return navigator.storage?.estimate ? await navigator.storage.estimate() : null; } catch (e) { return null; }
 }
 
 // Types and models that were removed. A variance swap becomes an OTC position at counterparty
@@ -112,51 +211,73 @@ export function upgradePortfolio(p) {
   return p;
 }
 
-let saveTimer = null;
-export function persist() {
+// What changed since the last write: a portfolio id, a removed id, or everything. The workspace
+// settings (active portfolio, templates) are written every time; they are small.
+const pending = { all: false, meta: false, ids: new Set(), removed: new Set() };
+let saveTimer = null, writing = Promise.resolve();
+export function persist({ id, removed, all, meta } = {}) {
+  pending.meta = true;
+  if (all || (!id && !removed && !meta)) pending.all = true;
+  if (id) pending.ids.add(id);
+  if (removed) { pending.removed.add(removed); pending.ids.delete(removed); }
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
+  saveTimer = setTimeout(flush, 150);
+}
+function flush() {
+  clearTimeout(saveTimer);
+  if (!pending.meta) return writing;
+  const job = { all: pending.all, ids: [...pending.ids], removed: [...pending.removed] };
+  pending.all = false; pending.meta = false; pending.ids.clear(); pending.removed.clear();
+  // Writes run one after another, so an older one can never land after a newer one.
+  writing = writing.then(async () => {
     try {
-      localStorage.setItem(KEY, JSON.stringify(state));
+      if (db) await writeDb(db, job);
+      else localStorage.setItem(KEY, JSON.stringify(state));
       storageOk = true;
+      channel?.postMessage('saved');
     } catch (e) {
+      console.warn('Workspace could not be saved', e);
       storageOk = false;
       emit('storage_error');
     }
-  }, 150);
+  });
+  return writing;
 }
+// Resolves when everything changed so far is on disk (tests, and before a reload).
+export const flushed = () => flush();
 export const storageAvailable = () => storageOk;
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 if (typeof window !== 'undefined') {
-  window.addEventListener('storage', e => { if (e.key === KEY) { load(); emit('active'); } });
+  // Only the localStorage fallback: IndexedDB tabs hear each other over the BroadcastChannel.
+  window.addEventListener('storage', e => { if (e.key === KEY && !db) { load(); emit('active'); } });
 }
 function emit(reason) { listeners.forEach(fn => { try { fn(reason); } catch (e) { console.error(e); } }); }
 
 export const settings = () => state.settings;
-export function setSetting(k, v) { state.settings[k] = v; persist(); emit('settings'); }
+export function setSetting(k, v) { state.settings[k] = v; persist({ meta: true }); emit('settings'); }
 
 // Import mapping templates are shared by all portfolios in the workspace.
 export const templates = () => (Array.isArray(state.templates) ? state.templates : []);
 export function saveTemplate(t) {
   state.templates = [...templates().filter(x => x.id !== t.id), t].sort((a, b) => a.name.localeCompare(b.name));
-  persist(); emit('templates');
+  persist({ meta: true }); emit('templates');
 }
 export function deleteTemplate(id) {
   state.templates = templates().filter(x => x.id !== id);
-  persist(); emit('templates');
+  persist({ meta: true }); emit('templates');
 }
 
 export function active() { return state.portfolios[state.activeId] || null; }
 export function listPortfolios() { return Object.values(state.portfolios).sort((a, b) => a.name.localeCompare(b.name)); }
-export function setActive(id) { if (state.portfolios[id]) { state.activeId = id; undoStack = []; persist(); emit('active'); } }
+export function setActive(id) { if (state.portfolios[id]) { state.activeId = id; undoStack = []; persist({ id }); emit('active'); } }
 
 export function addPortfolio(p) {
   upgradePortfolio(p);
   state.portfolios[p.id] = p;
   state.activeId = p.id;
   undoStack = [];
-  persist(); emit('active');
+  persist({ id: p.id }); emit('active');
   return p;
 }
 // Add a portfolio without necessarily switching to it (a connected file can bring in several).
@@ -164,7 +285,7 @@ export function upsertPortfolio(p, { activate = false } = {}) {
   upgradePortfolio(p);
   state.portfolios[p.id] = p;
   if (activate || !state.activeId) { state.activeId = p.id; undoStack = []; }
-  persist(); emit('active');
+  persist({ id: p.id }); emit('active');
   return p;
 }
 // Change any portfolio, not only the active one. Not undoable: used when a connected file
@@ -175,14 +296,14 @@ export function mutatePortfolio(id, fn, { silent = false } = {}) {
   fn(p);
   p.updatedAt = new Date().toISOString();
   if (id === state.activeId) undoStack = [];
-  persist();
+  persist({ id });
   if (!silent) emit('data');
 }
 export function deletePortfolio(id) {
   delete state.portfolios[id];
   if (state.activeId === id) state.activeId = Object.keys(state.portfolios)[0] || null;
   undoStack = [];
-  persist(); emit('active');
+  persist({ removed: id }); emit('active');
 }
 
 // Mutate the active portfolio. `label` goes on the undo stack so the toast can say what it undid.
@@ -193,14 +314,14 @@ export function update(fn, label = '') {
   if (undoStack.length > 30) undoStack.shift();
   fn(p);
   p.updatedAt = new Date().toISOString();
-  persist(); emit('data');
+  persist({ id: p.id }); emit('data');
 }
 export function undo() {
   const last = undoStack.pop();
   if (!last) return null;
   const p = JSON.parse(last.snap);
   state.portfolios[p.id] = p;
-  persist(); emit('data');
+  persist({ id: p.id }); emit('data');
   return last.label;
 }
 

@@ -158,13 +158,14 @@ export const METHODOLOGY = [
   },
   {
     id: 'market', module: 'marketdata.js · marketsync.js',
-    title: { en: 'Market data and discount curve' },
-    intro: { en: 'ECB data fetched by a scheduled GitHub Action every business day and published with the site as data/market.json. The browser downloads that one public file; it sends nothing.' },
+    title: { en: 'Market data and discount curves' },
+    intro: { en: 'ECB and Riksbank data fetched by a scheduled GitHub Action every business day and published with the site as data/market.json. The browser downloads that one public file; it sends nothing.' },
     items: [
       { en: 'FX rates by valuation date', formula: 'rates = ECB euro reference rates of the latest business day ≤ valuation date (last 90 days kept)', notes: { en: 'Applied only to portfolios on the placeholder or published rates; rates typed in or imported from your own ECB file are never replaced. Outside the 90 days nothing changes. Earlier snapshot dates (Changes, track record, limit history) are valued with their own day\'s rates and curve, so holdings-based returns include the currency effect.' }, params: 'Settings → FX rates' },
       { en: 'EUR discount curve', formula: 'points: €STR (overnight) and the ECB euro area AAA government spot curve at 3M, 6M, 1Y, 2Y, 3Y, 5Y, 7Y, 10Y, 15Y, 20Y, 30Y (Svensson, continuous)\nz(T) linear between points, flat outside;  DF(T) = e^(−z(T)·T)', notes: { en: 'Used for EUR positions with no rate of their own: option and structured-product discounting, IRS annuities, swaption and cap/floor discounting, inflation swaps. The forward or par rate of a swap still comes from the position. A government curve sits somewhat below the swap (OIS) curve; for discounting the difference is second order.' }, params: 'rate, marketRate (position wins)' },
-      { en: 'Spread over the AAA curve', formula: 'spread = yield to maturity − (e^(z(T)) − 1),  T = years to maturity;  portfolio figure MV-weighted', notes: { en: 'EUR fixed-rate bonds only (not linkers or floaters). A G-spread: credit, liquidity and optionality over the safest euro governments.' }, params: '' },
-      { en: 'Checks before publishing', formula: '≥ 20 days and ≥ 20 currencies of FX;  USD 0.6–2.5 and SEK 5–25 per EUR;  every curve tenor present and between −3 % and 15 %;  €STR present;  newest date ≤ 7 days old', notes: { en: 'A download that fails these is not published; the previous day\'s file stays in place.' }, params: '' }
+      { en: 'SEK discount curve', formula: 'points: SWESTR (overnight), Riksbank treasury bills 1M, 3M, 6M and benchmark government bond yields 2Y, 5Y, 7Y, 10Y\nz = ln(1 + y) (published yield taken as annual compounding);  z(T) linear between points, flat outside', notes: { en: 'Used for SEK positions with no rate of their own, as the EUR curve is for EUR. A simplification: the bond yields are yields of benchmark bonds, not bootstrapped zero-coupon rates, and bill rates are treated like the bond yields. For discounting at portfolio level the error is small; for pricing single long bonds it is not a substitute for a proper curve. A series the Riksbank does not deliver is left out; with no short or no 10-year point, or data older than a week, the SEK curve is not published and SEK positions fall back to their own rate.' }, params: 'rate, marketRate (position wins)' },
+      { en: 'Spread over the government curve', formula: 'spread = yield to maturity − (e^(z(T)) − 1),  T = years to maturity;  portfolio figure MV-weighted', notes: { en: 'EUR and SEK fixed-rate bonds only (not linkers or floaters), each on its own currency\'s curve. A G-spread: credit, liquidity and optionality over the government.' }, params: '' },
+      { en: 'Checks before publishing', formula: '≥ 20 days and ≥ 20 currencies of FX;  USD 0.6–2.5 and SEK 5–25 per EUR;  every curve tenor present and between −3 % and 15 %;  €STR present;  newest date ≤ 7 days old\nSEK: ≥ 4 tenors incl. ≤ 6M and 10Y, rates −3 % to 15 %, newest ≤ 7 days old', notes: { en: 'An ECB download that fails these is not published; the previous day\'s file stays in place. A Riksbank download that fails them only leaves the SEK curve out.' }, params: '' }
     ]
   },
   {
@@ -210,7 +211,7 @@ export const METHODOLOGY = [
     items: [
       { en: 'Prices and reported figures', formula: 'entered by hand or imported from your files (CSV, TSV, Excel, JSON, XML)', notes: { en: 'Nothing is fetched from brokers, custodians or market-data vendors. Reported notional and delta come from the same files.' } },
       { en: 'FX rates', formula: 'stored as EUR crosses;  base per CCY = EUR/base ÷ EUR/CCY', notes: { en: 'ECB reference rates read from the ECB\'s own file (eurofxref CSV or XML, downloaded by you), a built-in fallback table, or your own rates in Settings. Historical FX for the back-cast comes from series named CCY+BASE in the price history.' } },
-      { en: 'Storage', formula: 'browser localStorage (this device only) + optional linked file on your computer + backup files', notes: { en: 'Nothing is sent to a server. Charts, PDF and Excel libraries are loaded from a CDN with integrity hashes (SheetJS excepted, see README).' } }
+      { en: 'Storage', formula: 'browser IndexedDB (this device only; localStorage where IndexedDB is unavailable) + optional linked file on your computer + backup files', notes: { en: 'Nothing is sent to a server. Charts, PDF and Excel libraries are loaded from a CDN with integrity hashes, so a changed file is refused.' } }
     ]
   }
 ];

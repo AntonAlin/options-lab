@@ -40,7 +40,7 @@ jobs:
           SITE_DIR=_site node tests/smoke.mjs
 
   market-data:
-    name: ECB market data (download and validate)
+    name: ECB and Riksbank market data (download and validate)
     runs-on: ubuntu-latest
     # The ECB being down should not turn a code change red; the job still shows as failed.
     continue-on-error: true
@@ -49,7 +49,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: node scripts/market-data.mjs --check
+      - run: node scripts/market-data.mjs --check --strict
 
   release-build:
     name: Release packaging (dry run)

@@ -1,6 +1,7 @@
 // Public market data published next to the site: ECB euro reference rates (last 90 days), the ECB
-// euro area AAA government zero-coupon curve and €STR. A scheduled GitHub Action fetches them from
-// the ECB and publishes data/market.json with the site; the browser only downloads that public
+// euro area AAA government zero-coupon curve and €STR, and a Swedish government curve from the
+// Riksbank (treasury bills and benchmark government bonds, with SWESTR). A scheduled GitHub Action
+// fetches them and publishes data/market.json with the site; the browser only downloads that public
 // file from the site's own address, so no portfolio data goes anywhere.
 //
 // The parsers and the validation are shared by the Action (scripts/market-data.mjs) and the app.
@@ -16,6 +17,16 @@ export const SOURCES = {
 // ECB series codes → years.
 export const TENORS = { SR_3M: 0.25, SR_6M: 0.5, SR_1Y: 1, SR_2Y: 2, SR_3Y: 3, SR_5Y: 5, SR_7Y: 7, SR_10Y: 10, SR_15Y: 15, SR_20Y: 20, SR_30Y: 30 };
 export const curveUrl = () => SOURCES.curve.replace('{tenors}', Object.keys(TENORS).join('+'));
+
+// Riksbank open API (no key needed; a few calls a minute without one). SWEA series id → years:
+// treasury bills and the benchmark government bond yields.
+export const RIKSBANK = {
+  obs: 'https://api.riksbank.se/swea/v1/Observations/{series}/{from}/{to}',
+  swestr: 'https://api.riksbank.se/swestr/v1/all/SWESTR?fromDate={from}'
+};
+export const SE_TENORS = { SETB1MBENCHC: 1 / 12, SETB3MBENCH: 0.25, SETB6MBENCH: 0.5, SEGVB2YC: 2, SEGVB5YC: 5, SEGVB7YC: 7, SEGVB10YC: 10 };
+export const riksbankUrl = (series, from, to) => RIKSBANK.obs.replace('{series}', series).replace('{from}', from).replace('{to}', to);
+export const swestrUrl = from => RIKSBANK.swestr.replace('{from}', from);
 
 // ---- parsing (ECB formats) --------------------------------------------------------------------------
 // eurofxref-hist-90d.xml: <Cube time="2026-09-28"><Cube currency="USD" rate="1.1234"/>…</Cube>, newest first.
@@ -44,8 +55,37 @@ export function parseEcbCsv(text) {
   }).filter(o => /^\d{4}-\d{2}-\d{2}$/.test(o.date) && Number.isFinite(o.value));
 }
 
-// Build the published file from the three downloads.
-export function buildMarket({ fxXml, curveCsv, estrCsv, now = new Date().toISOString() }) {
+// Riksbank JSON: SWEA observations are [{ date, value }], SWESTR is [{ date, rate, … }]. Returns
+// [{ date, value }] sorted by date; anything else in the answer is ignored.
+export function parseRiksbank(text) {
+  let arr;
+  try { arr = typeof text === 'string' ? JSON.parse(text) : text; } catch (e) { return []; }
+  if (arr && !Array.isArray(arr)) arr = arr.observations || arr.data || [];
+  if (!Array.isArray(arr)) return [];
+  return arr.map(o => ({ date: String(o?.date || '').slice(0, 10), value: Number(o?.value ?? o?.rate) }))
+    .filter(o => /^\d{4}-\d{2}-\d{2}$/.test(o.date) && Number.isFinite(o.value))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// The Swedish curve from the Riksbank series: { series: { SEGVB10YC: text, … }, swestr: text }. A
+// series that did not come through is left out; a day counts when every remaining tenor has a
+// value. The published yields (annual compounding) are turned into continuous rates, like the ECB
+// curve, and the last 60 complete days are kept. Returns { curve, swestr } or null.
+export function buildSekCurve({ series = {}, swestr = null } = {}) {
+  const got = Object.keys(SE_TENORS).filter(k => series[k] != null).map(k => [k, parseRiksbank(series[k])]).filter(([, o]) => o.length);
+  if (!got.length) return null;
+  const byDate = new Map();
+  for (const [k, obs] of got) for (const o of obs) { if (!byDate.has(o.date)) byDate.set(o.date, {}); byDate.get(o.date)[k] = o.value; }
+  const keys = got.map(([k]) => k).sort((a, b) => SE_TENORS[a] - SE_TENORS[b]);
+  const dates = [...byDate.keys()].filter(d => keys.every(k => isNum(byDate.get(d)[k]))).sort().slice(-60);
+  const cont = y => Math.log(1 + y / 100) * 100;
+  const curve = { name: 'Riksbank: Swedish treasury bills and benchmark government bonds, continuous compounding, %', source: 'riksbank', series: keys, tenors: keys.map(k => SE_TENORS[k]), dates, zero: dates.map(d => keys.map(k => cont(byDate.get(d)[k]))) };
+  const sw = swestr != null ? parseRiksbank(swestr).slice(-60) : [];
+  return { curve, swestr: { name: 'Swedish krona short-term rate (SWESTR), %', dates: sw.map(o => o.date), values: sw.map(o => o.value) } };
+}
+
+// Build the published file from the three downloads (and the Riksbank's, when there are any).
+export function buildMarket({ fxXml, curveCsv, estrCsv, sek = null, now = new Date().toISOString() }) {
   const fxDays = parseFxHistory(fxXml);
   const ccys = [...new Set(fxDays.flatMap(d => Object.keys(d.rates)))].sort();
   const fx = { dates: fxDays.map(d => d.date), rates: Object.fromEntries(ccys.map(c => [c, fxDays.map(d => d.rates[c] ?? null)])) };
@@ -57,7 +97,33 @@ export function buildMarket({ fxXml, curveCsv, estrCsv, now = new Date().toISOSt
   const curve = { name: 'ECB euro area AAA government, spot rates (Svensson), continuous compounding, %', tenors: keys.map(k => TENORS[k]), dates, zero: dates.map(d => keys.map(k => byDate.get(d)[k])) };
   const est = parseEcbCsv(estrCsv).sort((a, b) => a.date.localeCompare(b.date));
   const estr = { name: 'Euro short-term rate (€STR), %', dates: est.map(o => o.date), values: est.map(o => o.value) };
-  return { version: 1, generatedAt: now, attribution: 'Source: European Central Bank (ECB). Reused under the ECB\'s terms of use.', sources: { fx: SOURCES.fx, curve: curveUrl(), estr: SOURCES.estr }, fx, curves: { EUR: curve }, estr };
+  const m = { version: 1, generatedAt: now, attribution: 'Source: European Central Bank (ECB). Reused under the ECB\'s terms of use.', sources: { fx: SOURCES.fx, curve: curveUrl(), estr: SOURCES.estr }, fx, curves: { EUR: curve }, estr };
+  const se = sek ? buildSekCurve(sek) : null;
+  if (se && se.curve.dates.length) {
+    m.curves.SEK = se.curve;
+    m.swestr = se.swestr;
+    m.attribution += ' Swedish rates: Sveriges Riksbank.';
+    m.sources.sek = RIKSBANK.obs;
+  }
+  return m;
+}
+
+// The Swedish part on its own. Problems here drop the SEK curve from the file (see
+// scripts/market-data.mjs); they never hold back the ECB data.
+export function validateSek(m, now = m?.generatedAt) {
+  const c = m?.curves?.SEK;
+  if (!c) return ['sek: no curve'];
+  const errs = [];
+  if (!c.dates?.length) errs.push('sek: no complete day');
+  else {
+    const z = c.zero[c.zero.length - 1];
+    if (z.some(x => !(x > -3 && x < 15))) errs.push('sek: rate out of range ' + z.join(','));
+    if (c.tenors.length < 4 || !c.tenors.some(t => t <= 0.5) || !c.tenors.some(t => t >= 10)) errs.push('sek: too few tenors (' + c.tenors.join(',') + ')');
+    if (now && (Date.parse(now) - Date.parse(c.dates[c.dates.length - 1])) / 864e5 > 7) errs.push('sek: newest date ' + c.dates[c.dates.length - 1] + ' is more than a week old');
+  }
+  const sw = m.swestr;
+  if (sw?.values?.length && !(sw.values[sw.values.length - 1] > -2 && sw.values[sw.values.length - 1] < 15)) errs.push('swestr: out of range');
+  return errs;
 }
 
 // What must hold before the file is published. Returns a list of problems (empty = fine).
@@ -104,16 +170,19 @@ export function fxOn(m, date) {
   for (const [c, s] of Object.entries(m.fx.rates)) if (isNum(s[i])) rates[c] = s[i];
   return { date: m.fx.dates[i], rates };
 }
-// The EUR curve for a date, with €STR as its overnight point: { date, t: [years], z: [decimal] }.
-export function curveOn(m, date) {
-  const c = m?.curves?.EUR;
+// A currency's curve for a date, with its overnight rate (€STR, SWESTR) as the first point:
+// { date, ccy, t: [years], z: [decimal] }.
+export function curveOn(m, date, ccy = 'EUR') {
+  const c = m?.curves?.[ccy];
   const i = indexOn(c?.dates, date);
   if (i < 0) return null;
   if (date && (Date.parse(date) - Date.parse(c.dates[i])) / 864e5 > 7) return null;
   const t = [...c.tenors], z = c.zero[i].map(x => x / 100);
-  const j = indexOn(m.estr?.dates, c.dates[i]);
-  if (j >= 0) { t.unshift(1 / 365); z.unshift(m.estr.values[j] / 100); }
-  return { date: c.dates[i], ccy: 'EUR', t, z };
+  const on = ccy === 'EUR' ? m.estr : ccy === 'SEK' ? m.swestr : null;
+  const j = indexOn(on?.dates, c.dates[i]);
+  // Overnight rates are simple (act/360): continuous is close enough at these levels.
+  if (j >= 0 && t[0] > 1 / 365) { t.unshift(1 / 365); z.unshift(on.values[j] / 100); }
+  return { date: c.dates[i], ccy, t, z };
 }
 // Zero rate (continuous, decimal) at T years: linear in the rate, flat beyond both ends.
 export function zeroAt(curve, T) {

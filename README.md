@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/AntonAlin/options-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/AntonAlin/options-lab/actions/workflows/ci.yml) [![CodeQL](https://github.com/AntonAlin/options-lab/actions/workflows/codeql.yml/badge.svg)](https://github.com/AntonAlin/options-lab/actions/workflows/codeql.yml) [![Release](https://img.shields.io/github/v/release/AntonAlin/options-lab?include_prereleases&label=release)](https://github.com/AntonAlin/options-lab/releases)
 
-Free portfolio analytics for fund managers. It runs entirely in the browser: holdings are stored in `localStorage`, nothing goes to a server, and there are no accounts.
+Free portfolio analytics for fund managers. It runs entirely in the browser: holdings are stored in the browser's IndexedDB, nothing goes to a server, and there are no accounts.
 
 ## Your data stays inside your organisation
 
@@ -49,14 +49,14 @@ Regulation is updated continuously by lawmakers, ESMA and national supervisors. 
 
 ### Where the data lives
 
-Everything is kept in the browser's `localStorage`. Two ways to keep it somewhere safer:
+Everything is kept in the browser's IndexedDB, one record per portfolio, so the space is not limited to the roughly 5 MB of `localStorage` (which is used only where IndexedDB is unavailable; a workspace saved there by an older version is moved over on first start). The app asks the browser to keep the data persistent, and Settings shows how much space is used. Two ways to keep it somewhere safer:
 
 - **Linked file (Settings).** In Chrome and Edge on desktop the workspace can be linked to a file on your computer through the File System Access API. Three steps: choose a format and click *Create and link a file…*; save it in a folder that is backed up or synced (OneDrive, Dropbox, a network share); keep working — every change is written about a second later, and after a browser restart one click on *Reconnect* is enough. On another computer, *Link an existing file…* loads it. Formats: a JSON file (the whole workspace, lossless — put it on a synced drive or a backed-up folder), or a CSV/Excel file with the active portfolio's positions in the same layout the bulk upload reads. Every change is written about a second later; the file is reconnected after a reload (the browser asks for permission once per session). If the JSON file was changed elsewhere, a banner offers to load it instead of overwriting it.
 - **Backup files.** *Download backup* saves a JSON of all portfolios; the sidebar shows how old the last backup is and an automatic backup is downloaded daily, weekly or monthly (Settings) when none is linked. *Restore from backup* merges a file back in.
 
 ### Third-party libraries
 
-Plotly (charts) loads from jsDelivr when the page opens; jsPDF and jspdf-autotable load only when you export a PDF. All three are pinned to exact versions and verified with Subresource Integrity hashes taken from the npm packages, so a tampered CDN file is refused. SheetJS 0.20.3 (Excel import/export, loaded on demand) is only published on `cdn.sheetjs.com` and its hash is left empty in `js/importer.js` (`XLSX_SRI`); fill it in with `openssl dgst -sha384 -binary xlsx.full.min.js | openssl base64 -A` on the file you verified.
+Plotly (charts) loads from jsDelivr when the page opens; jsPDF and jspdf-autotable load only when you export a PDF. All three are pinned to exact versions and verified with Subresource Integrity hashes taken from the npm packages, so a tampered CDN file is refused. SheetJS 0.20.3 (Excel import/export, loaded on demand) is only published on `cdn.sheetjs.com`; its hash is pinned in `js/importer.js` (`XLSX_SRI`). The release build, which CI runs on every push, downloads all four libraries from their CDNs and fails if a hash does not match or a CDN stops sending the CORS header the integrity check needs.
 
 ### Browser support
 
@@ -92,17 +92,17 @@ Developed by Anton Ålin with the help of AI. The product idea, requirements, st
 
 ## Market data
 
-A scheduled GitHub Action (`pages.yml`, every business day at 15:35 UTC, after the ECB publishes around 16:00 CET) runs `scripts/market-data.mjs`. It downloads the ECB euro reference rates for the last 90 days, the ECB euro area AAA government spot curve and €STR, validates them (ranges, completeness, age) and publishes `data/market.json` with the site. A download that fails validation is never published; the previous file stays. In the app:
+A scheduled GitHub Action (`pages.yml`, every business day at 15:35 UTC, after the ECB publishes around 16:00 CET) runs `scripts/market-data.mjs`. It downloads the ECB euro reference rates for the last 90 days, the ECB euro area AAA government spot curve and €STR, and from the Riksbank's open API the Swedish treasury bill and benchmark government bond yields and SWESTR. It validates them (ranges, completeness, age) and publishes `data/market.json` with the site. An ECB download that fails validation is never published; the previous file stays. A Riksbank download that fails only leaves the SEK curve out. In the app:
 
 - Portfolios on the placeholder or published rates get the ECB rates for their own valuation date. Rates typed in or imported from your own ECB file are never overwritten. Settings has a switch to turn the automatic update off.
-- EUR positions without their own rate are discounted on the curve (€STR + AAA curve): options and structured products, IRS annuities, swaptions, caps/floors, inflation swaps.
-- EUR fixed-rate bonds show their spread over the AAA curve (a G-spread) on Fixed income.
+- EUR positions without their own rate are discounted on the EUR curve (€STR + AAA curve), SEK positions on the SEK curve (SWESTR + treasury bills + government bond yields): options and structured products, IRS annuities, swaptions, caps/floors, inflation swaps.
+- EUR and SEK fixed-rate bonds show their spread over their government curve (a G-spread) on Fixed income.
 
-Source: European Central Bank. GitHub pauses scheduled workflows after 60 days without activity in the repository; re-enable it under Actions if that happens.
+Sources: European Central Bank; Sveriges Riksbank. GitHub pauses scheduled workflows after 60 days without activity in the repository; re-enable it under Actions if that happens.
 
 ## Quality, releases and security
 
-- **CI** (`ci.yml`) on every push and pull request: unit tests, a browser smoke test that opens every page and fails on any script error or NaN, a download-and-validate run of the ECB data, and a dry run of the release packaging.
+- **CI** (`ci.yml`) on every push and pull request: unit tests, a browser smoke test that opens every page and fails on any script error or NaN, a download-and-validate run of the ECB and Riksbank data, and a dry run of the release packaging.
 - **Releases** (`release.yml`): push a tag such as `v1.0.0`. The workflow builds two zips — the site as published, and an offline version with Plotly, SheetJS and jsPDF bundled (checked against their integrity hashes) and no web fonts — and attaches a signed build provenance attestation. Verify with `gh attestation verify nexus-portfolio-lab-v1.0.0-offline.zip --repo AntonAlin/options-lab`.
 - **CodeQL** (`codeql.yml`) scans the JavaScript on every change to `main` and weekly.
 - **Issues** use templates that ask for made-up numbers only — never real holdings. Security problems go through private reporting; see [SECURITY.md](SECURITY.md).

@@ -38,7 +38,7 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Fetch ECB market data
+      - name: Fetch ECB and Riksbank market data
         # A failed or implausible download never replaces good data: keep the file already published.
         run: |
           if node scripts/market-data.mjs data/market.json; then

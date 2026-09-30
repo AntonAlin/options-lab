@@ -1,0 +1,263 @@
+{
+ "_comment": "Made-up values in the shape of the Riksbank's SWEA Observations and SWESTR 'all' answers, for tests only.",
+ "series": {
+  "SETB1MBENCHC": [
+   {
+    "date": "2026-09-21",
+    "value": 1.72
+   },
+   {
+    "date": "2026-09-22",
+    "value": 1.73
+   },
+   {
+    "date": "2026-09-23",
+    "value": 1.74
+   },
+   {
+    "date": "2026-09-24",
+    "value": 1.75
+   },
+   {
+    "date": "2026-09-25",
+    "value": 1.76
+   },
+   {
+    "date": "2026-09-28",
+    "value": 1.77
+   }
+  ],
+  "SETB3MBENCH": [
+   {
+    "date": "2026-09-21",
+    "value": 1.74
+   },
+   {
+    "date": "2026-09-22",
+    "value": 1.75
+   },
+   {
+    "date": "2026-09-23",
+    "value": 1.76
+   },
+   {
+    "date": "2026-09-24",
+    "value": 1.77
+   },
+   {
+    "date": "2026-09-25",
+    "value": 1.78
+   },
+   {
+    "date": "2026-09-28",
+    "value": 1.79
+   }
+  ],
+  "SETB6MBENCH": [
+   {
+    "date": "2026-09-21",
+    "value": 1.78
+   },
+   {
+    "date": "2026-09-22",
+    "value": 1.79
+   },
+   {
+    "date": "2026-09-23",
+    "value": 1.8
+   },
+   {
+    "date": "2026-09-24",
+    "value": 1.81
+   },
+   {
+    "date": "2026-09-25",
+    "value": 1.82
+   },
+   {
+    "date": "2026-09-28",
+    "value": 1.83
+   }
+  ],
+  "SEGVB2YC": [
+   {
+    "date": "2026-09-21",
+    "value": 1.85
+   },
+   {
+    "date": "2026-09-22",
+    "value": 1.86
+   },
+   {
+    "date": "2026-09-23",
+    "value": 1.87
+   },
+   {
+    "date": "2026-09-24",
+    "value": 1.88
+   },
+   {
+    "date": "2026-09-25",
+    "value": 1.89
+   },
+   {
+    "date": "2026-09-28",
+    "value": 1.9
+   }
+  ],
+  "SEGVB5YC": [
+   {
+    "date": "2026-09-21",
+    "value": 2.05
+   },
+   {
+    "date": "2026-09-22",
+    "value": 2.06
+   },
+   {
+    "date": "2026-09-23",
+    "value": 2.07
+   },
+   {
+    "date": "2026-09-24",
+    "value": 2.08
+   },
+   {
+    "date": "2026-09-25",
+    "value": 2.09
+   },
+   {
+    "date": "2026-09-28",
+    "value": 2.1
+   }
+  ],
+  "SEGVB7YC": [
+   {
+    "date": "2026-09-21",
+    "value": 2.2
+   },
+   {
+    "date": "2026-09-22",
+    "value": 2.21
+   },
+   {
+    "date": "2026-09-24",
+    "value": 2.23
+   },
+   {
+    "date": "2026-09-25",
+    "value": 2.24
+   },
+   {
+    "date": "2026-09-28",
+    "value": 2.25
+   }
+  ],
+  "SEGVB10YC": [
+   {
+    "date": "2026-09-21",
+    "value": 2.38
+   },
+   {
+    "date": "2026-09-22",
+    "value": 2.39
+   },
+   {
+    "date": "2026-09-23",
+    "value": 2.4
+   },
+   {
+    "date": "2026-09-24",
+    "value": 2.41
+   },
+   {
+    "date": "2026-09-25",
+    "value": 2.42
+   },
+   {
+    "date": "2026-09-28",
+    "value": 2.43
+   }
+  ]
+ },
+ "swestr": [
+  {
+   "rate": 1.75,
+   "date": "2026-09-21",
+   "pctl12_5": 1.7,
+   "pctl87_5": 1.8,
+   "volume": 40000,
+   "alternativeCalculation": false,
+   "alternativeCalculationReason": null,
+   "publicationTime": "2026-09-21T09:00:00Z",
+   "republication": false,
+   "numberOfTransactions": 90,
+   "numberOfAgents": 7
+  },
+  {
+   "rate": 1.751,
+   "date": "2026-09-22",
+   "pctl12_5": 1.7,
+   "pctl87_5": 1.8,
+   "volume": 40000,
+   "alternativeCalculation": false,
+   "alternativeCalculationReason": null,
+   "publicationTime": "2026-09-22T09:00:00Z",
+   "republication": false,
+   "numberOfTransactions": 90,
+   "numberOfAgents": 7
+  },
+  {
+   "rate": 1.752,
+   "date": "2026-09-23",
+   "pctl12_5": 1.7,
+   "pctl87_5": 1.8,
+   "volume": 40000,
+   "alternativeCalculation": false,
+   "alternativeCalculationReason": null,
+   "publicationTime": "2026-09-23T09:00:00Z",
+   "republication": false,
+   "numberOfTransactions": 90,
+   "numberOfAgents": 7
+  },
+  {
+   "rate": 1.753,
+   "date": "2026-09-24",
+   "pctl12_5": 1.7,
+   "pctl87_5": 1.8,
+   "volume": 40000,
+   "alternativeCalculation": false,
+   "alternativeCalculationReason": null,
+   "publicationTime": "2026-09-24T09:00:00Z",
+   "republication": false,
+   "numberOfTransactions": 90,
+   "numberOfAgents": 7
+  },
+  {
+   "rate": 1.754,
+   "date": "2026-09-25",
+   "pctl12_5": 1.7,
+   "pctl87_5": 1.8,
+   "volume": 40000,
+   "alternativeCalculation": false,
+   "alternativeCalculationReason": null,
+   "publicationTime": "2026-09-25T09:00:00Z",
+   "republication": false,
+   "numberOfTransactions": 90,
+   "numberOfAgents": 7
+  },
+  {
+   "rate": 1.755,
+   "date": "2026-09-28",
+   "pctl12_5": 1.7,
+   "pctl87_5": 1.8,
+   "volume": 40000,
+   "alternativeCalculation": false,
+   "alternativeCalculationReason": null,
+   "publicationTime": "2026-09-28T09:00:00Z",
+   "republication": false,
+   "numberOfTransactions": 90,
+   "numberOfAgents": 7
+  }
+ ]
+}

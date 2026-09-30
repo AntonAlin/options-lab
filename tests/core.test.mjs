@@ -1095,7 +1095,7 @@ test('market data sync: only portfolios on placeholder or published ECB rates ar
   const m = md.buildMarket({ fxXml: read('ecb-hist-90d.xml'), curveCsv: read('ecb-yc.csv'), estrCsv: read('ecb-estr.csv'), now: '2026-09-28T16:30:00Z' });
   const fresh = newPortfolio({ valDate: '2026-09-28' });
   const plan = planFor(fresh, m);
-  assert.equal(plan.fx.date, '2026-09-28'); assert.equal(plan.curve.date, '2026-09-28');
+  assert.equal(plan.fx.date, '2026-09-28'); assert.equal(plan.curves.EUR.date, '2026-09-28');
   applyPlan(fresh, plan);
   assert.equal(fresh.fxSource, 'ecb-auto'); assert.equal(planFor(fresh, m), null, 'nothing more to do');
   assert.equal(planFor({ ...newPortfolio({ valDate: '2026-09-28' }), fxSource: 'manual', curves: fresh.curves }, m), null, 'hand-entered rates are left alone');
@@ -1103,6 +1103,55 @@ test('market data sync: only portfolios on placeholder or published ECB rates ar
   assert.ok(planFor({ ...fresh, curveMode: 'off' }, m).dropCurve);
   assert.equal(planFor({ ...newPortfolio({ valDate: '2024-01-31' }) }, m), null, 'outside the published window: untouched');
   assert.equal(planFor({ ...newPortfolio({ valDate: '2026-09-28' }), demo: true }, m), null);
+});
+
+test('market data: Riksbank SEK curve is built, validated, synced and discounts SEK positions', async () => {
+  const fs = await import('node:fs');
+  const md = await import('../js/marketdata.js');
+  const { planFor, applyPlan, ratesOn } = await import('../js/marketsync.js');
+  const read = f => fs.readFileSync(new URL('./fixtures/' + f, import.meta.url), 'utf8');
+  const rb = JSON.parse(read('riksbank.json'));
+  const sek = { series: Object.fromEntries(Object.entries(rb.series).map(([k, v]) => [k, JSON.stringify(v)])), swestr: JSON.stringify(rb.swestr) };
+  const m = md.buildMarket({ fxXml: read('ecb-hist-90d.xml'), curveCsv: read('ecb-yc.csv'), estrCsv: read('ecb-estr.csv'), sek, now: '2026-09-28T16:30:00Z' });
+  assert.deepEqual(md.validateMarket(m), []);
+  assert.deepEqual(md.validateSek(m), []);
+  const s = m.curves.SEK;
+  assert.deepEqual(s.tenors, [1 / 12, 0.25, 0.5, 2, 5, 7, 10]);
+  assert.ok(!s.dates.includes('2026-09-23'), 'a day with a tenor missing is not a complete day');
+  assert.equal(s.dates.at(-1), '2026-09-28');
+  close(s.zero.at(-1)[6], Math.log(1 + (2.38 + 0.05) / 100) * 100, 1e-9);
+  // SWESTR is the overnight point; linear inside, flat outside.
+  const c = md.curveOn(m, '2026-09-28', 'SEK');
+  assert.equal(c.ccy, 'SEK'); close(c.z[0], 0.01755, 1e-12); close(md.zeroAt(c, 30), c.z.at(-1), 1e-12);
+  // A series that did not come through is left out; too few tenors is not published.
+  const only = md.buildSekCurve({ series: { SEGVB2YC: sek.series.SEGVB2YC, SEGVB10YC: sek.series.SEGVB10YC } });
+  assert.deepEqual(only.curve.tenors, [2, 10]);
+  assert.ok(md.validateSek({ ...m, curves: { ...m.curves, SEK: only.curve } }).length);
+  assert.ok(md.validateSek({ ...m, curves: { ...m.curves, SEK: { ...s, zero: s.zero.map(r => r.map(() => 40)) } } }).length, 'out of range');
+  assert.ok(md.validateSek({ ...m, generatedAt: '2026-10-20T16:00:00Z' }).length, 'stale');
+  assert.equal(md.buildSekCurve({ series: {} }), null);
+  assert.deepEqual(md.parseRiksbank('not json'), []);
+  // Without Riksbank data the file is as before, and still valid.
+  const plain = md.buildMarket({ fxXml: read('ecb-hist-90d.xml'), curveCsv: read('ecb-yc.csv'), estrCsv: read('ecb-estr.csv'), now: '2026-09-28T16:30:00Z' });
+  assert.equal(plain.curves.SEK, undefined); assert.ok(md.validateSek(plain).length);
+  // Sync: both curves, with their source; a SEK curve that is no longer published is dropped.
+  const p = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  applyPlan(p, planFor(p, m));
+  assert.equal(p.curves.SEK.source, 'riksbank'); assert.equal(p.curves.EUR.source, 'ecb');
+  assert.equal(planFor(p, m), null);
+  const drop = planFor(p, plain);
+  assert.deepEqual(drop.drop, ['SEK']);
+  applyPlan(p, drop);
+  assert.equal(p.curves.SEK, undefined); assert.ok(p.curves.EUR);
+  const hand = { ...newPortfolio({ valDate: '2026-09-28' }), curves: { SEK: { ...c, source: 'manual' } } };
+  assert.ok(!(planFor(hand, plain)?.drop || []).includes('SEK'), 'a curve given by hand is never dropped');
+  assert.ok(ratesOn({ ...newPortfolio({ valDate: '2026-09-28' }), fxSource: 'ecb-auto' }, '2026-09-25', m).curves.SEK);
+  // Pricing: a SEK option without its own rate is discounted on the SEK curve; a SEK bond gets a spread.
+  const opt = { id: 'o', type: 'option', name: 'OMXS30 call', qty: 10, ccy: 'SEK', optType: 'call', strike: 2500, maturity: '2027-09-28', underlyingPrice: 2500, vol: 20, multiplier: 100 };
+  const pf = newPortfolio({ baseCcy: 'SEK', valDate: '2026-09-28' });
+  assert.notEqual(valuePortfolio({ ...pf, positions: [opt] }).rows[0].r.mv, valuePortfolio({ ...pf, curves: { SEK: c }, positions: [opt] }).rows[0].r.mv);
+  const bond = { id: 'b', type: 'corp_bond', name: 'Corp', qty: 1e6, price: 100, ccy: 'SEK', coupon: 4, freq: '1', maturity: '2031-09-28', issuer: 'X' };
+  close(valuePortfolio({ ...pf, curves: { SEK: c }, positions: [bond] }).rows[0].r.fi.curveSpreadBp, (0.04 - (Math.exp(md.zeroAt(c, 5)) - 1)) * 1e4, 1);
 });
 
 test('market data: a past snapshot is valued with that date\'s ECB rates when the portfolio follows them', async () => {

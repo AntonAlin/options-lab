@@ -113,9 +113,9 @@ function iso(y, m, d) {
 
 // ---- file reading ----------------------------------------------------------------------------------
 export const XLSX_URL = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
-// SheetJS 0.20.x is only published on cdn.sheetjs.com (npm stops at 0.18.5), so its hash has to be
-// taken from that file. Fill in sha384-… after `openssl dgst -sha384 -binary xlsx.full.min.js | openssl base64 -A`.
-export const XLSX_SRI = '';
+// SheetJS 0.20.x is only published on cdn.sheetjs.com (npm stops at 0.18.5). The hash is of that
+// file; the release build (run by CI on every push) downloads it from the CDN and fails on a mismatch.
+export const XLSX_SRI = 'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT';
 
 // Returns { sheets: [{ name, rows: string[][] | any[][] }], decimal }
 export async function readFile(file, loadScript) {

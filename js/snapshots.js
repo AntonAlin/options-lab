@@ -1,11 +1,11 @@
 // Holdings over time for the active portfolio. A portfolio fed by a connected file has one
 // snapshot per date in the file; any other portfolio has the snapshots the user saved (kept in
-// the portfolio, capped so localStorage does not fill up).
+// the portfolio, capped at about a year of business days so the workspace stays quick to save).
 import * as store from './store.js';
 import { snapshotsFor } from './sourcefile.js';
 import { todayISO } from './util.js';
 
-export const MAX_SAVED = 90;
+export const MAX_SAVED = 260;
 
 export function snapshots(p = store.active()) {
   if (!p) return [];

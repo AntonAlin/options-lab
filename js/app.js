@@ -312,8 +312,8 @@ function scheduleRender() {
   queueMicrotask(() => { renderQueued = false; renderRoute(); });
 }
 
-function init() {
-  store.load();
+async function init() {
+  await store.init();
   applyTheme();
   store.subscribe(reason => {
     if (reason === 'settings') applyTheme();

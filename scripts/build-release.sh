@@ -27,7 +27,8 @@ JSPDF_SRI=$(sed -nE "s/^export const JSPDF_SRI = '([^']+)';/\1/p" js/report.js)
 AUTOTABLE=$(sed -nE "s/^export const AUTOTABLE_URL = '([^']+)';/\1/p" js/report.js)
 AUTOTABLE_SRI=$(sed -nE "s/^export const AUTOTABLE_SRI = '([^']+)';/\1/p" js/report.js)
 XLSX=$(sed -nE "s/^export const XLSX_URL = '([^']+)';/\1/p" js/importer.js)
-for v in PLOTLY PLOTLY_SRI JSPDF JSPDF_SRI AUTOTABLE AUTOTABLE_SRI XLSX; do [ -n "${!v}" ] || { echo "could not find $v in the source" >&2; exit 1; }; done
+XLSX_SRI=$(sed -nE "s/^export const XLSX_SRI = '([^']+)';/\1/p" js/importer.js)
+for v in PLOTLY PLOTLY_SRI JSPDF JSPDF_SRI AUTOTABLE AUTOTABLE_SRI XLSX XLSX_SRI; do [ -n "${!v}" ] || { echo "could not find $v in the source" >&2; exit 1; }; done
 
 sri() { echo "sha384-$(openssl dgst -sha384 -binary "$1" | openssl base64 -A)"; }
 fetch() { # url file expected-sri(optional)
@@ -35,11 +36,15 @@ fetch() { # url file expected-sri(optional)
   if [ "$NO_DL" = "--no-download" ]; then echo "/* placeholder: $1 */" > "$f"; return; fi
   curl -fsSL --retry 4 --retry-delay 2 "$1" -o "$f"
   if [ -n "${3:-}" ] && [ "$(sri "$f")" != "$3" ]; then echo "integrity mismatch for $1" >&2; exit 1; fi
+  # A script with an integrity hash is fetched in CORS mode; without the header the browser refuses it.
+  if ! curl -fsSI --retry 4 --retry-delay 2 -H "Origin: https://example.org" "$1" | grep -qi '^access-control-allow-origin:'; then
+    echo "$1 is served without Access-Control-Allow-Origin, so its integrity check would block it in the browser" >&2; exit 1
+  fi
 }
 fetch "$PLOTLY" plotly.min.js "$PLOTLY_SRI"
 fetch "$JSPDF" jspdf.umd.min.js "$JSPDF_SRI"
 fetch "$AUTOTABLE" jspdf.plugin.autotable.min.js "$AUTOTABLE_SRI"
-fetch "$XLSX" xlsx.full.min.js ""
+fetch "$XLSX" xlsx.full.min.js "$XLSX_SRI"
 
 # Point the code at the bundled copies and drop the Google Fonts links (the system font is used).
 sed -i -E "s#${PLOTLY}#vendor/plotly.min.js#; /fonts\.(googleapis|gstatic)\.com/d" "$OUT/offline/index.html"
@@ -64,6 +69,6 @@ gh attestation verify ${NAME}-offline.zip --repo AntonAlin/options-lab
 sha256sum -c SHA256SUMS.txt
 \`\`\`
 
-Library integrity: Plotly and jsPDF were checked against the SRI hashes in the source before bundling.
+Library integrity: Plotly, jsPDF and SheetJS were checked against the SRI hashes in the source before bundling.
 EOF
 ls -l "$OUT"

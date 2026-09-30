@@ -45,7 +45,7 @@ export default {
         <p class="muted small">${esc(t('set.ecbHelp'))}</p>
         <label class="check"><input type="checkbox" id="marketAuto" ${S.marketAuto !== false ? 'checked' : ''}> <span>${esc(t('set.marketAuto'))}</span></label>
         <h3 class="h3 mt">${esc(t('set.curve'))}</h3>
-        <p class="muted small">${esc(t('set.curveBody'))} ${p.curves?.EUR ? esc(t('set.curveOn', { d: fmtDate(p.curves.EUR.date) })) : `<strong>${esc(t('set.curveNone'))}</strong>`}</p>
+        <p class="muted small">${esc(t('set.curveBody'))} ${p.curves && Object.keys(p.curves).length ? Object.entries(p.curves).map(([ccy, c]) => esc(t('set.curveOnCcy', { ccy, d: fmtDate(c.date) }))).join(' ') : `<strong>${esc(t('set.curveNone'))}</strong>`}${p.curves?.EUR && !p.curves?.SEK && marketsync.current() && !marketsync.current().curves?.SEK ? ' ' + esc(t('set.curveSekNone')) : ''}</p>
         <label class="check"><input type="checkbox" id="curveMode" ${p.curveMode !== 'off' ? 'checked' : ''}> <span>${esc(t('set.curveUse'))}</span></label>
         <p class="muted small">${esc(t('set.marketSource'))}</p>`, { sub: esc(t('set.fxSub')) }) : ''}
       ${p ? card(t('set.cma'), `
@@ -55,7 +55,7 @@ export default {
       ${sourceCardHtml()}
       ${card(t('file.title'), fileCardHtml(), { sub: esc(t('file.sub')), id: 'fileCard' })}
       ${card(t('set.data'), `
-        <p class="muted small">${esc(t('set.dataBody'))}</p>
+        <p class="muted small">${esc(t('set.dataBody'))} <span id="storageInfo"></span></p>
         <div class="toolbar wrap settings-strip">
           <span>${esc(t('backup.auto'))}</span>${segmented('autoBackup', [['off', t('backup.off')], ['daily', t('backup.daily')], ['weekly', t('backup.weekly')], ['monthly', t('backup.monthly')]], S.autoBackup || 'weekly')}
           <span class="muted small">${esc(backupAge() == null ? t('backup.never') : t('backup.lastAt', { d: fmtDate(S.lastBackup.slice(0, 10)) }))}</span>
@@ -69,6 +69,13 @@ export default {
         </div>`)}
       ${card(t('set.about'), `<p class="muted small">${esc(t('set.aboutBody'))}</p><p class="muted small">${esc(t('rep.disclaimer'))}</p>`)}
     `;
+
+    store.storageEstimate().then(est => {
+      const el = root.querySelector('#storageInfo');
+      if (!el) return;
+      const mb = x => (x / 1048576).toLocaleString(undefined, { maximumFractionDigits: x < 1048576 * 10 ? 1 : 0 }) + ' MB';
+      el.textContent = est && est.quota ? t('set.storageInfo', { where: store.backend(), used: mb(est.usage || 0), quota: mb(est.quota) }) : t('set.storageInfoShort', { where: store.backend() });
+    });
 
     root.querySelector('#pfForm')?.addEventListener('change', e => {
       const { name, value } = e.target;

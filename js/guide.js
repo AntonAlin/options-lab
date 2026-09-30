@@ -25,7 +25,7 @@ export const GUIDE = [
         { en: 'Every calculation runs in your browser. Valuation, VaR, stress tests, compliance and the PDF report are computed by code on your own computer.' },
         { en: 'The connected file is read where it lies. The browser reads your holdings file directly from your disk or your organisation\'s network share. It is not uploaded anywhere — the file never leaves the machine, and the original stays under your organisation\'s access rights, backup and audit trail. That is why a connected file is the recommended way to work.' },
         { en: '“Upload” in Bulk upload only means reading a file into this browser. Nothing is transmitted.' },
-        { en: 'The workspace is kept in the browser\'s local storage on this computer, and in files you choose to save (linked file, backups, exports, PDFs).' }
+        { en: 'The workspace is kept in the browser\'s own database (IndexedDB) on this computer, and in files you choose to save (linked file, backups, exports, PDFs).' }
       ] },
       { h: { en: 'What does go over the network — and why it carries no portfolio data' } },
       { list: [
@@ -151,7 +151,7 @@ export const GUIDE = [
     id: 'oversight',
     title: { en: 'Daily oversight: changes, pre-trade and attribution' },
     blocks: [
-      { p: { en: 'These pages work on holdings over time. A connected file gives one snapshot per date automatically; for other portfolios, click “Save holdings as snapshot” on Changes & track record each day you update the holdings (the latest 90 are kept).' } },
+      { p: { en: 'These pages work on holdings over time. A connected file gives one snapshot per date automatically; for other portfolios, click “Save holdings as snapshot” on Changes & track record each day you update the holdings (the latest 260, about a year of business days, are kept).' } },
       { h: { en: 'Changes & track record — the morning check' } },
       { list: [
         { en: 'Pick two dates (default: the latest two). You see the holdings-based return, the NAV change, estimated net flows (subscriptions minus redemptions) and turnover.' },
