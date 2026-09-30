@@ -29,7 +29,9 @@ The strategy walks forward one day at a time. The decision at the close of day *
 
 ## Run it
 
-Colab or a Microsoft Fabric notebook:
+**Colab notebook:** [`spx_adaptive_strategy.ipynb`](spx_adaptive_strategy.ipynb) holds the full strategy in its cells, so there is nothing to upload. Open it in Colab (*File → Open notebook → GitHub*, or use the badge in the notebook once it is on `main`) and run *Runtime → Run all*. Besides the backtest, it shows the raw data, the features, year-by-year returns, what each regime delivered, the drift refits, today's decision per expert, a daily update cell (with the option of saving the state on Google Drive) and a look-ahead self-test. The notebook is generated from the script: edit `spx_adaptive_strategy.py`, then run `python build_notebook.py`. A test fails if the two differ.
+
+Importing the script in Colab or a Microsoft Fabric notebook:
 
 ```python
 !pip install yfinance hmmlearn arch scikit-learn scipy matplotlib
@@ -69,7 +71,8 @@ The tests in `test_spx_adaptive_strategy.py` check that:
 - the features are causal;
 - truncating the data does not change a single earlier position, signal or weight (no look-ahead);
 - a pickled and resumed run is identical to one uninterrupted run;
-- the P&L is yesterday's position times today's return, minus costs.
+- the P&L is yesterday's position times today's return, minus costs;
+- the notebook matches the script.
 
 ## Limitations
 

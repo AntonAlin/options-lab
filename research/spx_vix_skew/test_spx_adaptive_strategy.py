@@ -70,3 +70,14 @@ def test_summary_has_both_columns(full_run):
     m = summarize(full_run)
     assert list(m.columns) == ["Strategy", "Buy & hold SPX"]
     assert np.isfinite(m.loc["Sharpe (rf=0)", "Strategy"])
+
+
+def test_notebook_is_built_from_the_current_script():
+    # If this fails, someone edited the .py and forgot: python build_notebook.py
+    nbformat = pytest.importorskip("nbformat")
+    from pathlib import Path
+    import build_notebook
+
+    committed = nbformat.read(Path(__file__).with_name("spx_adaptive_strategy.ipynb"), as_version=4)
+    fresh = build_notebook.build()
+    assert [c.source for c in committed.cells] == [c.source for c in fresh.cells]
