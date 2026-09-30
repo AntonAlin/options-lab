@@ -1,6 +1,6 @@
 """
-Builds spx_adaptive_strategy.ipynb from spx_adaptive_strategy.py, so the notebook and the script
-never drift apart. Edit the .py, then run:  python build_notebook.py
+Builds spx_adaptive_strategy.ipynb from spx_adaptive_strategy.py and weekly_two_stage.py, so the
+notebook and the scripts never drift apart. Edit the .py files, then run:  python build_notebook.py
 
 The notebook is self-contained: every line of the strategy lives in its cells, nothing to upload.
 """
@@ -14,6 +14,7 @@ import nbformat as nbf
 
 HERE = Path(__file__).parent
 SRC = HERE / "spx_adaptive_strategy.py"
+WEEKLY_SRC = HERE / "weekly_two_stage.py"
 OUT = HERE / "spx_adaptive_strategy.ipynb"
 COLAB_URL = ("https://colab.research.google.com/github/AntonAlin/options-lab/blob/main/"
              "research/spx_vix_skew/spx_adaptive_strategy.ipynb")
@@ -231,14 +232,67 @@ pd.DataFrame({
     "weight": [last[f"w_{n}"] for n in EXPERTS],
 }, index=EXPERTS).assign(contribution=lambda d: d.signal * d.weight).round(3)"""
 
-LIVE_MD = """## 16. Daglig uppdatering
+WEEKLY_INTRO = """## 16. Veckostrategi i två steg: en modell för trenden, en för handeln
+
+**Meta-labeling** (López de Prado, *Advances in Financial Machine Learning*, kap. 3). Handlar en
+gång i veckan, vid stängning veckans sista handelsdag, och håller positionen en vecka.
+
+1. **Trendmodellen** (gradient boosting) förutsäger om SPX är högre om 4 veckor. Den bestämmer
+   riktningen: lång eller ute (eller kort, om du tillåter det).
+2. **Handelsmodellen** (gradient boosting) tränas på en enda fråga: *har trendmodellen rätt den här
+   gången?* Den får marknadsläget, trendmodellens sannolikhet och dess träffsäkerhet de senaste
+   13 veckorna, så den lär sig bokstavligen trendmodellens misstag. Den kan lägga in veto.
+
+Båda tränas om var 4:e vecka walk-forward, bara på veckor vars utfall redan är känt (etiketterna
+rensas så att inget träningsexempel tittar förbi beslutsdagen), med mer vikt på senare år.
+Indata är dagsstrategins kausala features och expertsignaler, samplade på fredagar, så kör
+backtesten ovan först."""
+
+WEEKLY_NOTES = {
+    "Weekly data": "### Veckodata",
+    "The two models": "### Modellerna och positionsstorleken",
+    "Walk-forward": "### Walk-forward",
+    "Report card": "### Rapport",
+}
+
+WEEKLY_SETTINGS = """wcfg = WeeklyConfig()
+# wcfg = WeeklyConfig(min_exposure=0.5)        # never fully out: half position when not trading
+# wcfg = WeeklyConfig(sizing="linear")         # size by how sure stage 2 is
+# wcfg = WeeklyConfig(allow_short=True)        # short when the trend model is bearish
+weekly = run_weekly(results, data, wcfg, plot=False)"""
+
+WEEKLY_METRICS = """# Same period, same costs, same vol targeting. The two baselines decide whether the AI earns its
+# keep: if the two-stage line can't beat "trend model alone", the meta model is just a second
+# opinion from someone who doesn't know anything either.
+weekly["metrics"].style.format("{:,.3f}")"""
+
+WEEKLY_DIAG = """# Out-of-sample only. AUC 0.5 = a coin. On weekly equity data, 0.55 is already respectable.
+# If stage 2's AUC is near 0.5, its vetoes are random and cost you exposure for nothing.
+weekly["diagnostics"].to_frame("value").style.format("{:,.3f}")"""
+
+WEEKLY_PLOT = """fig = plot_weekly(weekly["weekly"], weekly["daily"])
+plt.show()"""
+
+WEEKLY_DECISION = """d = weekly["decision"]
+note = "" if d["week_complete"] else "  <- the week isn't over: decide on its last trading day"
+print(f"As of {d['as_of']}: P(trend up) {d['p_trend_up']}, P(call is right) {d['p_trend_call_right']}, "
+      f"target exposure {d['target_exposure']:+.2f}{note}")"""
+
+LIVE_MD = """## 17. Daglig uppdatering
 
 Kör efter stängning. Laddar sparat tillstånd, hämtar ny data, låter modellen lära sig av dagarna
 sedan sist och ger morgondagens exponering. I en ny session: kör alla definitionsceller först
 (avsnitt 1–13), sedan bara den här. Ladda bara tillståndsfiler du skapat själv: pickle kör kod."""
 
 LIVE = """import json
-print(json.dumps(live_signal(STATE_PATH), indent=2))"""
+print(json.dumps(live_signal(STATE_PATH), indent=2))
+
+# The weekly strategy retrains from the updated history (a minute or two). Its decision only
+# counts on the week's last trading day.
+strat = AdaptiveSPXStrategy.load(STATE_PATH)
+weekly = run_weekly(strat.results(), data if USE_SYNTHETIC else load_market_data(cfg.start),
+                    wcfg, plot=False, verbose=False)
+print(json.dumps({k: v for k, v in weekly["decision"].items() if k != "config"}, indent=2))"""
 
 SELF_TEST = """# Look-ahead check: run on less data, then on more. If an old position changes when new data
 # arrives, the model has been reading tomorrow's newspaper and the backtest is fiction.
@@ -279,6 +333,14 @@ def clean_preamble(preamble: str) -> str:
     return code.strip() + "\n"
 
 
+def clean_weekly_preamble(preamble: str) -> str:
+    # In the notebook the daily strategy's names already live in the kernel; importing them
+    # from a file that isn't there would end the fun early.
+    code = clean_preamble(preamble)
+    code = re.sub(r"from spx_adaptive_strategy import [^\n]*\n", "", code)
+    return re.sub(r"\n{3,}", "\n\n", code)
+
+
 def clean_entry_points(body: str) -> str:
     # The CLI is for terminals; the notebook has cells for that.
     return body.split("\ndef main(")[0].rstrip() + "\n"
@@ -286,6 +348,7 @@ def clean_entry_points(body: str) -> str:
 
 def build() -> nbf.NotebookNode:
     preamble, sections = split_sections(SRC.read_text())
+    weekly_pre, weekly_sections = split_sections(WEEKLY_SRC.read_text())
     md, code = nbf.v4.new_markdown_cell, nbf.v4.new_code_cell
     cells = [
         md(INTRO),
@@ -321,9 +384,25 @@ def build() -> nbf.NotebookNode:
         code(TOP),
         code(REPORT),
         code(APPLY),
+        md(WEEKLY_INTRO),
+        code(clean_weekly_preamble(weekly_pre)),
+    ]
+    for title, body in weekly_sections:
+        key = next((k for k in WEEKLY_NOTES if title.startswith(k)), None)
+        if key is None:
+            sys.exit(f"No notebook text for weekly section '{title}'. Add it to WEEKLY_NOTES.")
+        cells += [md(WEEKLY_NOTES[key]), code(body.strip() + "\n")]
+    cells += [
+        md("### Kör veckostrategin\n\nTar ett par minuter: två modeller tränas om var 4:e vecka "
+           "sedan 1990-talet."),
+        code(WEEKLY_SETTINGS),
+        code(WEEKLY_METRICS),
+        code(WEEKLY_DIAG),
+        code(WEEKLY_PLOT),
+        code(WEEKLY_DECISION),
         md(LIVE_MD),
         code(LIVE),
-        md("## 17. Självtest"),
+        md("## 18. Självtest"),
         code(SELF_TEST),
     ]
     nb = nbf.v4.new_notebook(cells=cells)

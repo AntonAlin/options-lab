@@ -45,9 +45,48 @@ The allocation layer (`Allocator`) knows nothing about the models. The expert si
 
 On the synthetic market, the best setting on the design period reached Sharpe 1.05; on the holdout it fell to 0.51, about the same as the untuned defaults. That is the normal outcome, and exactly what the holdout is for.
 
+## Weekly two-stage strategy (meta-labeling)
+
+`weekly_two_stage.py` separates *finding the trend* from *deciding to trade it*, and trades once a week. The approach is meta-labeling, from López de Prado, *Advances in Financial Machine Learning*, chapter 3.
+
+| Stage | Model | Question | Output |
+|---|---|---|---|
+| 1. Trend | Gradient-boosted trees (`HistGradientBoostingClassifier`) on the daily strategy's features and expert signals, sampled on the last trading day of each week | Is SPX higher in 4 weeks? | The side: long, out (or short, with `allow_short=True`) |
+| 2. Trading | Gradient-boosted trees on the same inputs, plus stage 1's probability, how it changed since last week, and stage 1's hit rate over the last 13 weeks | When stage 1 says go, is it right this time? | Trade or veto, and the size |
+
+Stage 2 is trained only on stage 1's real out-of-sample calls, so what it learns is stage 1's mistakes. Both models are retrained walk-forward every 4 weeks. Training uses only weeks whose outcome is already known: the 4-week labels are purged, so no training row reaches past the decision date. Recent weeks weigh more (half-life of 5 years).
+
+**Trading rules:**
+- Decisions are made at the close of the week's last trading day, and the position is held for a week.
+- Positions are vol-targeted with the daily GJR-GARCH forecast.
+- Hysteresis on stage 1 (enter above 0.53, leave below 0.47), a no-trade band of 0.10, and costs of 2 bp.
+
+**Sizing:** `binary` (the default) takes a full position once stage 2 approves. `linear` scales with how sure stage 2 is. `lopez` is López de Prado's 2·N(z)−1; on a single index it is far too timid, sizing p = 0.55 at 8 %.
+
+```python
+from weekly_two_stage import run_weekly, WeeklyConfig
+weekly = run_weekly(results, data, WeeklyConfig())   # results, data from the daily backtest
+weekly["metrics"]       # two-stage vs trend model alone vs weekly vol-managed long vs buy & hold
+weekly["diagnostics"]   # out-of-sample AUC of both stages, and whether the vetoes helped
+weekly["decision"]      # this week's call
+```
+
+It takes about 1.5 minutes on 26 years of weekly data. HistGradientBoosting is run single-threaded, because on data this small, thread start-up cost more than the work itself.
+
+**On the synthetic market it did not help.** Stage 1 reached an out-of-sample AUC of 0.56 and stage 2 only 0.48, so its vetoes were random.
+
+| | Sharpe | CAGR | Max drawdown | Avg exposure |
+|---|---|---|---|---|
+| Two-stage | 0.76 | 7.2 % | −29.7 % | 0.45 |
+| Trend model alone | 0.81 | 9.2 % | −29.7 % | 0.65 |
+| Weekly vol-managed long | 0.63 | 8.9 % | −34.4 % | 0.92 |
+| Buy & hold | 0.25 | 3.1 % | −62.5 % | 1 |
+
+The synthetic SKEW is pure noise, and on real data the result can go either way. The `diagnostics` output tells you: if stage 2's AUC is near 0.5 on real SPX, the second model is only removing exposure.
+
 ## Run it
 
-**Colab notebook:** [`spx_adaptive_strategy.ipynb`](spx_adaptive_strategy.ipynb) holds the full strategy in its cells, so there is nothing to upload. Open it in Colab (*File → Open notebook → GitHub*, or use the badge in the notebook once it is on `main`) and run *Runtime → Run all*. Besides the backtest, it shows the raw data, the features, year-by-year returns, what each regime delivered, the drift refits, today's decision per expert, the allocation optimiser with the expert report, a daily update cell (with the option of saving the state on Google Drive) and a look-ahead self-test. The notebook is generated from the script: edit `spx_adaptive_strategy.py`, then run `python build_notebook.py`. A test fails if the two differ.
+**Colab notebook:** [`spx_adaptive_strategy.ipynb`](spx_adaptive_strategy.ipynb) holds the full strategy in its cells, so there is nothing to upload. Open it in Colab (*File → Open notebook → GitHub*, or use the badge in the notebook once it is on `main`) and run *Runtime → Run all*. Besides the backtest, it shows the raw data, the features, year-by-year returns, what each regime delivered, the drift refits, today's decision per expert, the allocation optimiser with the expert report, a daily update cell (with the option of saving the state on Google Drive) and a look-ahead self-test. The notebook also runs the weekly two-stage strategy. It is generated from the scripts: edit `spx_adaptive_strategy.py` or `weekly_two_stage.py`, then run `python build_notebook.py`. A test fails if the two differ.
 
 Importing the script in Colab or a Microsoft Fabric notebook:
 
@@ -93,7 +132,8 @@ The tests in `test_spx_adaptive_strategy.py` check that:
 - a replayed allocation equals a full rerun, and `set_allocation` carries on exactly like a strategy that used the new knobs from the start;
 - the optimiser's choice does not change when the holdout returns are shuffled;
 - the deflated Sharpe ratio falls as the number of trials grows;
-- the notebook matches the script.
+- the notebook matches the scripts;
+- the weekly strategy: one row per week on its last trading day; cutting the history mid-week leaves every earlier weekly call, probability and position unchanged; positions are held for the week with costs only on decision days; the sizing modes and the no-trade band behave as documented.
 
 ## Limitations
 
