@@ -5,7 +5,7 @@ Everything is downloaded from Yahoo Finance with yfinance (^GSPC, ^VIX, ^SKEW) a
 day, walk-forward, so a decision at the close of day t only uses data up to and including day t
 and earns the return from t to t+1.
 
-Six "experts" each give a signal in [-1, 1]:
+Five "experts" each give a signal in [-1, 1]:
 
     hmm        Gaussian hidden Markov model on (return, log VIX): filtered regime probabilities
                -> expected risk-adjusted return tomorrow. Forward filter only, never smoothed.
@@ -17,7 +17,6 @@ Six "experts" each give a signal in [-1, 1]:
                next `label_horizon` days. Trained every day as labels mature; wrong calls on
                big moves get extra weight.
     momentum   Volatility-scaled time-series momentum (3 and 12 months) and the 200-day gap.
-    long       Always 1. The benchmark, so the ensemble has to earn any deviation from it.
 
 How it learns from its mistakes:
 
@@ -31,8 +30,14 @@ How it learns from its mistakes:
        are pulled halfway back to uniform.
     4. Scheduled refits of HMM, Kalman and GJR-GARCH every `refit_every` days on rolling windows.
 
-Position = clip(signal_scale * ensemble signal, -max_short, 1) * vol_target / GJR-GARCH vol,
-capped at max_leverage, with a no-trade band and transaction costs.
+Position = clip(base_exposure + signal_scale * ensemble signal, -max_short, max_direction)
+           * vol_target / GJR-GARCH vol, capped at max_leverage, smoothed, with a no-trade band
+           and transaction costs. The experts tilt a default long position (base_exposure = 1)
+           rather than having to vote the strategy into the market.
+
+The allocation layer is separate from the models, so `optimize_allocation` can replay hundreds of
+allocation settings on the stored signals in seconds, choose on a design period and report the
+untouched holdout, with a deflated Sharpe ratio for the number of trials.
 
 Usage (Colab / Fabric notebook):
     !pip install yfinance hmmlearn arch scikit-learn statsmodels scipy matplotlib
@@ -55,7 +60,7 @@ import logging
 import math
 import pickle
 import warnings
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, replace
 from pathlib import Path
 
 import numpy as np
@@ -63,7 +68,7 @@ import pandas as pd
 from scipy.optimize import minimize
 
 TICKERS = {"spx": "^GSPC", "vix": "^VIX", "skew": "^SKEW"}
-EXPERTS = ["hmm", "kalman", "vol_skew", "logit", "momentum", "long"]
+EXPERTS = ["hmm", "kalman", "vol_skew", "logit", "momentum"]
 REGIMES = ["calm", "normal", "stress"]
 FEATURE_COLS = [
     "rv_ratio", "vix_z", "vix_chg5", "vix_rv", "vrp_z", "skew_z", "skew_chg5", "skew_vix",
@@ -95,19 +100,32 @@ class Config:
     mistake_boost: float = 2.0
     logit_gain: float = 6.0
 
-    hedge_eta: float = 0.05
+    hedge_eta: float = 0.10
     fixed_share: float = 0.01
 
     drift_delta: float = 0.005
     drift_lambda: float = 10.0
     drift_cooldown: int = 63
 
-    signal_scale: float = 2.0
+    # Allocation: direction = clip(base_exposure + signal_scale * ensemble, -max_short, max_direction)
+    # The experts tilt a default long position instead of having to argue the model into the
+    # market every morning. Set base_exposure=0 for pure market timing, if you like suffering.
+    base_exposure: float = 1.0
+    signal_scale: float = 1.5
+    max_direction: float = 1.0
     vol_target: float = 0.15
     max_leverage: float = 1.5
     max_short: float = 0.0             # SPX drifts up; shorting it is a hobby, not a strategy
+    smooth_halflife: float = 2.0       # days; an EMA on the target so noise doesn't become turnover
     rebalance_band: float = 0.10
     cost_bps: float = 2.0
+
+
+# The knobs the allocator reads. Changing only these never requires refitting a single model,
+# which is what makes optimize_allocation() fast.
+ALLOCATION_FIELDS = ("hedge_eta", "fixed_share", "base_exposure", "signal_scale", "max_direction",
+                     "vol_target", "max_leverage", "max_short", "smooth_halflife",
+                     "rebalance_band", "cost_bps")
 
 
 # --------------------------------------------------------------------------------------------
@@ -484,14 +502,18 @@ class OnlineLogit:
 # --------------------------------------------------------------------------------------------
 
 class HedgeEnsemble:
-    def __init__(self, names: list[str], eta: float, share: float):
+    def __init__(self, names: list[str], eta: float, share: float,
+                 w0: np.ndarray | None = None):
         self.names, self.eta, self.share = names, eta, share
-        self.w = np.full(len(names), 1 / len(names))
+        self.w = np.full(len(names), 1 / len(names)) if w0 is None else np.asarray(w0, float)
+        self.frozen = w0 is not None and eta == 0 and share == 0
 
     def combine(self, s: np.ndarray) -> float:
         return float(self.w @ s)
 
     def update(self, s: np.ndarray, ret: float, vol: float) -> None:
+        if self.frozen:
+            return
         gain = np.clip(s * ret / max(vol, 1e-4), -4, 4)
         logw = np.log(self.w) + self.eta * gain
         logw -= logw.max()
@@ -501,6 +523,8 @@ class HedgeEnsemble:
         self.w = (1 - self.share) * w + self.share / len(w)
 
     def soften(self, amount: float = 0.5) -> None:
+        if self.frozen:
+            return
         self.w = (1 - amount) * self.w + amount / len(self.w)
 
 
@@ -524,6 +548,87 @@ class PageHinkley:
 
 
 # --------------------------------------------------------------------------------------------
+# Allocation: from expert signals to a position. Knows nothing about the models.
+# --------------------------------------------------------------------------------------------
+
+class Allocator:
+    """Everything that depends on the portfolio knobs and nothing that depends on the models.
+
+    The live loop and replay_allocation() both drive this same class, so a replayed setting is
+    exactly what the live strategy would have done with it. No second implementation to drift.
+    """
+
+    def __init__(self, cfg: Config, w0: np.ndarray | None = None):
+        self.cfg = cfg
+        eta, share = (0.0, 0.0) if w0 is not None else (cfg.hedge_eta, cfg.fixed_share)
+        self.ensemble = HedgeEnsemble(EXPERTS, eta, share, w0)
+        self.prev: dict | None = None     # yesterday's decision, waiting to be graded
+        self.smoothed: float | None = None
+
+    def settle(self, r: float) -> tuple[float, float] | None:
+        """Grade yesterday's decision with today's log return r. Returns (return, P&L)."""
+        if self.prev is None:
+            return None
+        p = self.prev
+        self.ensemble.update(p["signals"], r, p["vol"])
+        ret = math.expm1(r)
+        return ret, p["position"] * ret - p["cost"]
+
+    def on_drift(self) -> None:
+        self.ensemble.soften(0.5)
+
+    def decide(self, signals: np.ndarray, vol: float) -> dict:
+        c = self.cfg
+        combined = self.ensemble.combine(signals)
+        direction = float(np.clip(c.base_exposure + c.signal_scale * combined,
+                                  -c.max_short, c.max_direction))
+        sizing = min(c.vol_target / (vol * math.sqrt(TRADING_DAYS)), c.max_leverage)
+        target = float(np.clip(direction * sizing, -c.max_leverage, c.max_leverage))
+        if self.smoothed is None or c.smooth_halflife <= 0:
+            self.smoothed = target
+        else:
+            a = 1 - 0.5 ** (1 / c.smooth_halflife)
+            self.smoothed += a * (target - self.smoothed)
+        old = self.prev["position"] if self.prev else 0.0
+        position = old if abs(self.smoothed - old) < c.rebalance_band else self.smoothed
+        cost = abs(position - old) * c.cost_bps / 1e4
+        self.prev = {"signals": signals, "vol": vol, "position": position, "cost": cost}
+        return {"combined": combined, "target": target, "position": position, "cost": cost}
+
+
+def replay_allocation(results: pd.DataFrame, cfg: Config, w0: np.ndarray | None = None,
+                      return_allocator: bool = False):
+    """Rerun only the allocation layer on stored expert signals. Milliseconds per year.
+
+    Model outputs (signals, GARCH vol, drift dates) don't depend on the allocation knobs, so
+    this gives exactly the result a full rerun with `cfg` would, without refitting anything.
+    """
+    S = results[[f"sig_{n}" for n in EXPERTS]].to_numpy()
+    vol = results["garch_vol"].to_numpy() / math.sqrt(TRADING_DAYS)
+    nxt = results["next_ret"].to_numpy()
+    drift = results["drift_refit"].to_numpy() if "drift_refit" in results else np.zeros(len(S), bool)
+    n = len(S)
+    alloc = Allocator(cfg, w0)
+    out = {k: np.full(n, np.nan) for k in ("signal", "target", "position", "cost", "strategy_ret")}
+    weights = np.empty((n, len(EXPERTS)))
+    for k in range(n):
+        if k > 0:
+            _, pnl = alloc.settle(math.log1p(nxt[k - 1]))
+            out["strategy_ret"][k - 1] = pnl
+        if drift[k]:
+            alloc.on_drift()
+        d = alloc.decide(S[k], vol[k])
+        out["signal"][k], out["target"][k] = d["combined"], d["target"]
+        out["position"][k], out["cost"][k] = d["position"], d["cost"]
+        weights[k] = alloc.ensemble.w
+    res = pd.DataFrame(out, index=results.index)
+    res["next_ret"] = nxt
+    for j, name in enumerate(EXPERTS):
+        res[f"w_{name}"] = weights[:, j]
+    return (res, alloc) if return_allocator else res
+
+
+# --------------------------------------------------------------------------------------------
 # The strategy: walks forward one day at a time and can be pickled and resumed tomorrow
 # --------------------------------------------------------------------------------------------
 
@@ -534,8 +639,8 @@ def vol_skew_signal(row: pd.Series) -> float:
     # Realised above implied: the market is moving more than insurers expected. Not great.
     stress = min(row["vix_rv"], 0.0)
     complacent = max(row["skew_vix"], 0.0)
-    # The +0.2 is the equity risk premium: absent any drama, stocks have paid you to own them.
-    x = 0.5 * vrp + 0.6 * fade + 1.0 * stress - 0.4 * complacent + 0.2
+    # No constant here: the equity premium lives in base_exposure, not smuggled into one expert.
+    x = 0.5 * vrp + 0.6 * fade + 1.0 * stress - 0.4 * complacent
     return math.tanh(0 if not math.isfinite(x) else x)
 
 
@@ -552,7 +657,7 @@ class AdaptiveSPXStrategy:
         self.kalman = KalmanTrend()
         self.garch = GJRGarch()
         self.logit = OnlineLogit(len(FEATURE_COLS), c.sgd_eta0, c.sgd_alpha, c.seed)
-        self.ensemble = HedgeEnsemble(EXPERTS, c.hedge_eta, c.fixed_share)
+        self.alloc = Allocator(c)
         self.drift = PageHinkley(c.drift_delta, c.drift_lambda)
 
         self.last_date: pd.Timestamp | None = None
@@ -560,7 +665,6 @@ class AdaptiveSPXStrategy:
         self.last_refit = -10 ** 9
         self.last_drift = -10 ** 9
         self.pending: list[tuple[pd.Timestamp, np.ndarray, float, float]] = []
-        self.prev: dict | None = None     # yesterday's decision, waiting to be graded
         self.records: list[dict] = []
         self.refit_log: list[tuple[pd.Timestamp, str]] = []
 
@@ -650,6 +754,7 @@ class AdaptiveSPXStrategy:
                 continue
             row = f.iloc[i]
             r = row["ret"]
+            drift_refit = False
 
             if not self.started:
                 self._refit(f, i, "initial fit")
@@ -657,12 +762,9 @@ class AdaptiveSPXStrategy:
                 self.started = True
             else:
                 # 1) Grade yesterday: pay the experts, book the P&L.
-                if self.prev is not None:
-                    p = self.prev
-                    self.ensemble.update(p["signals"], r, p["vol"])
-                    pnl = p["position"] * math.expm1(r) - p["cost"]
-                    self.records[-1]["next_ret"] = math.expm1(r)
-                    self.records[-1]["strategy_ret"] = pnl
+                settled = self.alloc.settle(r)
+                if settled is not None:
+                    self.records[-1]["next_ret"], self.records[-1]["strategy_ret"] = settled
                 # 2) Learn from matured logit calls; maybe the world changed.
                 drift = self._learn_matured(f, i)
                 # 3) Roll the filters forward with today's close.
@@ -675,7 +777,8 @@ class AdaptiveSPXStrategy:
                 if drift and i - self.last_drift >= c.drift_cooldown:
                     self.last_drift = i
                     self._refit(f, i, "drift refit")
-                    self.ensemble.soften(0.5)
+                    self.alloc.on_drift()
+                    drift_refit = True
                 elif i - self.last_refit >= c.refit_every:
                     self._refit(f, i, "scheduled")
 
@@ -690,41 +793,50 @@ class AdaptiveSPXStrategy:
                 vol_skew_signal(row),
                 math.tanh(c.logit_gain * (p_up - 0.5)),
                 momentum_signal(row),
-                1.0,
             ])
-            combined = self.ensemble.combine(signals)
-            direction = float(np.clip(c.signal_scale * combined, -c.max_short, 1.0))
-            sizing = min(c.vol_target / (vol * math.sqrt(TRADING_DAYS)), c.max_leverage)
-            target = float(np.clip(direction * sizing, -c.max_leverage, c.max_leverage))
-            old = self.prev["position"] if self.prev else 0.0
-            position = old if abs(target - old) < c.rebalance_band else target
-            cost = abs(position - old) * c.cost_bps / 1e4
+            d = self.alloc.decide(signals, vol)
+            position = d["position"]
 
             probs = self.hmm.probs()
             rec = {
                 "date": date, "close": float(df["spx"].iat[i]), "vix": float(df["vix"].iat[i]),
-                "skew": float(df["skew"].iat[i]), "signal": combined, "target": target,
-                "position": position, "cost": cost, "garch_vol": vol * math.sqrt(TRADING_DAYS),
-                "p_up": p_up, "kalman_slope": self.kalman.slope(),
+                "skew": float(df["skew"].iat[i]), "signal": d["combined"], "target": d["target"],
+                "position": position, "cost": d["cost"], "garch_vol": vol * math.sqrt(TRADING_DAYS),
+                "p_up": p_up, "kalman_slope": self.kalman.slope(), "drift_refit": drift_refit,
                 "next_ret": np.nan, "strategy_ret": np.nan,
             }
             rec.update({f"sig_{n}": s for n, s in zip(EXPERTS, signals)})
-            rec.update({f"w_{n}": w for n, w in zip(EXPERTS, self.ensemble.w)})
+            rec.update({f"w_{n}": w for n, w in zip(EXPERTS, self.alloc.ensemble.w)})
             rec.update({f"p_{REGIMES[k] if k < len(REGIMES) else k}": probs[k]
                         for k in range(len(probs))})
             self.records.append(rec)
-            self.prev = {"signals": signals, "vol": vol, "position": position, "cost": cost}
             self.last_date = date
             n_new += 1
             if verbose and n_new % 1000 == 0:
                 print(f"  {date.date()}  position {position:+.2f}  "
-                      f"weights {dict(zip(EXPERTS, np.round(self.ensemble.w, 2).tolist()))}")
+                      f"weights {dict(zip(EXPERTS, np.round(self.alloc.ensemble.w, 2).tolist()))}")
         return self.results()
 
     def results(self) -> pd.DataFrame:
         if not self.records:
             return pd.DataFrame()
         return pd.DataFrame(self.records).set_index("date")
+
+    def set_allocation(self, **knobs) -> None:
+        """Switch to new allocation knobs (e.g. from optimize_allocation) without refitting.
+
+        History is replayed with the new knobs so the ensemble weights, the smoothed target and
+        tomorrow's position are what they would have been had you used them all along.
+        """
+        bad = set(knobs) - set(ALLOCATION_FIELDS)
+        if bad:
+            raise ValueError(f"Not allocation knobs: {sorted(bad)}. Those need a full rerun.")
+        self.cfg = replace(self.cfg, **knobs)
+        res, self.alloc = replay_allocation(self.results(), self.cfg, return_allocator=True)
+        cols = ["signal", "target", "position", "cost", "strategy_ret"] + \
+               [f"w_{n}" for n in EXPERTS]
+        for rec, row in zip(self.records, res[cols].itertuples(index=False)):
+            rec.update(zip(cols, row))
 
     def save(self, path: str | Path) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -837,6 +949,152 @@ def plot_results(res: pd.DataFrame, refits: list, out: str | Path | None = None)
 
 
 # --------------------------------------------------------------------------------------------
+# Optimisation: tune the allocation on a design period, judge it on data it never saw
+# --------------------------------------------------------------------------------------------
+
+def _stats(r: pd.Series, pos: pd.Series | None = None) -> dict:
+    m = performance(r, pos)
+    keep = ["CAGR", "Volatility", "Sharpe (rf=0)", "Max drawdown", "Calmar"]
+    out = {k: m.get(k, np.nan) for k in keep}
+    if pos is not None:
+        out["Avg exposure"] = m["Avg exposure"]
+        out["Turnover / year"] = m["Turnover / year"]
+    return out
+
+
+def expert_report(results: pd.DataFrame, cfg: Config, split: pd.Timestamp | None = None
+                  ) -> pd.DataFrame:
+    """Every expert alone, the ensemble, and the two baselines that keep everyone honest.
+
+    "Vol-managed only" is the same sizing with the experts switched off. If an expert can't beat
+    that, it isn't adding information; it's adding turnover.
+    """
+    rows = {}
+    runs = {"Buy & hold SPX": None,
+            "Vol-managed only (no experts)": (replace(cfg, signal_scale=0.0), None),
+            "Ensemble (current knobs)": (cfg, None)}
+    for j, name in enumerate(EXPERTS):
+        w0 = np.zeros(len(EXPERTS))
+        w0[j] = 1.0
+        runs[f"Only {name}"] = (cfg, w0)
+    for label, spec in runs.items():
+        if spec is None:
+            r, pos = results["next_ret"], None
+        else:
+            rep = replay_allocation(results, spec[0], spec[1])
+            r, pos = rep["strategy_ret"], rep["position"]
+        periods = {"all": slice(None)} if split is None else {
+            "design": slice(None, split), "holdout": slice(split + pd.Timedelta(days=1), None)}
+        for per, sl in periods.items():
+            st = _stats(r.loc[sl].dropna(), None if pos is None else pos.loc[sl])
+            rows[(label, per)] = st
+    return pd.DataFrame(rows).T
+
+
+def deflated_sharpe(returns: pd.Series, trial_sharpes: np.ndarray) -> float:
+    """Probability that the best Sharpe is real after trying this many settings.
+
+    Bailey & Lopez de Prado (2014). Try 200 settings on noise and the best one will look like
+    genius; this asks how much better than the expected best-of-noise it actually is.
+    """
+    from scipy.stats import norm
+
+    r = returns.dropna()
+    n = len(trial_sharpes)
+    sr = r.mean() / r.std()
+    var_sr = np.var(trial_sharpes, ddof=1) if n > 1 else 0.0
+    gamma = 0.5772156649
+    if n > 1 and var_sr > 0:
+        sr0 = math.sqrt(var_sr) * ((1 - gamma) * norm.ppf(1 - 1 / n)
+                                   + gamma * norm.ppf(1 - 1 / (n * math.e)))
+    else:
+        sr0 = 0.0
+    skew, kurt = r.skew(), r.kurt() + 3
+    denom = math.sqrt(max(1 - skew * sr + (kurt - 1) / 4 * sr ** 2, 1e-12))
+    return float(norm.cdf((sr - sr0) * math.sqrt(len(r) - 1) / denom))
+
+
+SEARCH_SPACE = {
+    "base_exposure":   lambda g: g.choice([0.0, 0.5, 0.75, 1.0]),
+    "signal_scale":    lambda g: g.uniform(0.25, 3.0),
+    "max_direction":   lambda g: g.choice([1.0, 1.25, 1.5]),
+    "hedge_eta":       lambda g: math.exp(g.uniform(math.log(0.01), math.log(0.5))),
+    "fixed_share":     lambda g: math.exp(g.uniform(math.log(0.001), math.log(0.05))),
+    "vol_target":      lambda g: g.choice([0.10, 0.12, 0.15, 0.18, 0.20]),
+    "max_leverage":    lambda g: g.choice([1.0, 1.25, 1.5, 2.0]),
+    "max_short":       lambda g: g.choice([0.0, 0.0, 0.25, 0.5]),
+    "smooth_halflife": lambda g: g.choice([0.0, 1.0, 2.0, 3.0, 5.0, 10.0]),
+    "rebalance_band":  lambda g: g.uniform(0.02, 0.25),
+}
+OBJECTIVES = {"sharpe": "Sharpe (rf=0)", "calmar": "Calmar", "cagr": "CAGR"}
+
+
+def optimize_allocation(results: pd.DataFrame, cfg: Config, n_trials: int = 200,
+                        design_frac: float = 0.6, objective: str = "sharpe", seed: int = 0,
+                        max_turnover: float | None = 12.0, verbose: bool = True) -> dict:
+    """Random search over the allocation knobs, chosen on the design period only.
+
+    The holdout (the last 1 - design_frac of the history) is scored once per trial but never
+    used to choose. If the winner's holdout falls apart, the "improvement" was curve fitting,
+    and you've learned that for free instead of with money.
+    """
+    if objective not in OBJECTIVES:
+        raise ValueError(f"objective must be one of {list(OBJECTIVES)}")
+    key = OBJECTIVES[objective]
+    done = results.dropna(subset=["next_ret"])
+    split = done.index[int(len(done) * design_frac)]
+    design, hold = slice(None, split), slice(split + pd.Timedelta(days=1), None)
+    rng = np.random.default_rng(seed)
+
+    trials = [{k: getattr(cfg, k) for k in SEARCH_SPACE}]          # trial 0: current settings
+    trials += [{k: float(f(rng)) for k, f in SEARCH_SPACE.items()} for _ in range(n_trials)]
+    rows, daily_sr = [], []
+    for t, knobs in enumerate(trials):
+        rep = replay_allocation(results, replace(cfg, **knobs))
+        r, pos = rep["strategy_ret"], rep["position"]
+        d = _stats(r.loc[design].dropna(), pos.loc[design])
+        h = _stats(r.loc[hold].dropna(), pos.loc[hold])
+        rd = r.loc[design].dropna()
+        daily_sr.append(rd.mean() / rd.std() if rd.std() > 0 else 0.0)
+        ok = max_turnover is None or d["Turnover / year"] <= max_turnover
+        rows.append({"trial": t, **knobs, "eligible": ok,
+                     **{f"design {k}": v for k, v in d.items()},
+                     **{f"holdout {k}": v for k, v in h.items()}})
+        if verbose and (t + 1) % 50 == 0:
+            print(f"  {t + 1}/{len(trials)} settings tried")
+    table = pd.DataFrame(rows).set_index("trial")
+    ranked = table[table["eligible"]].sort_values(f"design {key}", ascending=False)
+    if ranked.empty:
+        raise ValueError("No setting met max_turnover. Loosen it or widen rebalance_band.")
+    best = int(ranked.index[0])
+    best_knobs = {k: float(table.at[best, k]) for k in SEARCH_SPACE}
+    best_rep = replay_allocation(results, replace(cfg, **best_knobs))
+    dsr = deflated_sharpe(best_rep["strategy_ret"].loc[design], np.array(daily_sr))
+
+    bh_d = _stats(done["next_ret"].loc[design])
+    bh_h = _stats(done["next_ret"].loc[hold])
+    summary = pd.DataFrame({
+        ("design", "Buy & hold"): bh_d,
+        ("design", "Current knobs"): {k: table.at[0, f"design {k}"] for k in bh_d},
+        ("design", "Best on design"): {k: table.at[best, f"design {k}"] for k in bh_d},
+        ("holdout", "Buy & hold"): bh_h,
+        ("holdout", "Current knobs"): {k: table.at[0, f"holdout {k}"] for k in bh_h},
+        ("holdout", "Best on design"): {k: table.at[best, f"holdout {k}"] for k in bh_h},
+        ("holdout", "Median of top 10"): ranked.head(10)[[f"holdout {k}" for k in bh_h]]
+            .median().set_axis(list(bh_h)).to_dict(),
+    })
+    out = {"best_knobs": best_knobs, "summary": summary, "table": ranked,
+           "split": split, "deflated_sharpe": dsr, "objective": objective}
+    if verbose:
+        print(f"Design: {done.index[0].date()} to {split.date()}, holdout: after {split.date()}. "
+              f"{len(trials)} settings, objective {objective}.")
+        print(f"Deflated Sharpe ratio of the winner: {dsr:.2f} "
+              f"(chance its design Sharpe beats the best of {len(trials)} lucky tries; "
+              f"below 0.95, treat it as luck)")
+    return out
+
+
+# --------------------------------------------------------------------------------------------
 # Entry points
 # --------------------------------------------------------------------------------------------
 
@@ -859,7 +1117,7 @@ def run_backtest(cfg: Config | None = None, data: pd.DataFrame | None = None,
             print(metrics)
         n_drift = sum(1 for _, r in strat.refit_log if r == "drift refit")
         print(f"Refits: {len(strat.refit_log)} ({n_drift} triggered by drift). "
-              f"Final weights: {dict(zip(EXPERTS, np.round(strat.ensemble.w, 3).tolist()))}")
+              f"Final weights: {dict(zip(EXPERTS, np.round(strat.alloc.ensemble.w, 3).tolist()))}")
     if out:
         Path(out).mkdir(parents=True, exist_ok=True)
         res.to_csv(Path(out) / "spx_adaptive_results.csv")

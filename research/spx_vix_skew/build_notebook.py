@@ -54,13 +54,27 @@ stora rörelser väger upp till 3× mer. Skalningen av features lärs också onl
 mot dem som hade rätt, och ett golv gör att en nedviktad expert kan komma tillbaka.
 **Page-Hinkley** övervakar den logistiska modellens log-loss; när den hoppar görs alla modeller om
 direkt och vikterna dras halvvägs mot lika.""",
-    "The strategy": """## 9. Strategin
+    "Allocation": """## 9. Allokering: från signaler till position
+
+Experterna *lutar* en lång grundposition (`base_exposure = 1`) i stället för att behöva rösta in
+strategin på marknaden varje dag, vilket var det största skälet till svag avkastning i första
+versionen: snittexponeringen låg runt 0,55. Målet glättas med ett EMA och en no-trade-band
+minskar omsättningen. Allokeringen vet inget om modellerna, så `replay_allocation` kan köra om
+den på sparade signaler på bråkdelen av en sekund.""",
+    "The strategy": """## 10. Strategin
 
 Går framåt en dag i taget: betygsätter gårdagen, lär sig av mogna etiketter, rullar filtren,
 gör om modellerna vid behov och bestämmer morgondagens position. Hela objektet kan sparas med
 pickle och fortsätta imorgon.""",
-    "Scorekeeping": """## 10. Nyckeltal och grafer""",
-    "Entry points": """## 11. Körfunktioner
+    "Scorekeeping": """## 11. Nyckeltal och grafer""",
+    "Optimisation": """## 12. Optimering utan självbedrägeri
+
+Slumpsökning över allokeringsinställningarna. Valet görs **bara** på designperioden (de första
+60 %); holdout-perioden poängsätts men används aldrig för att välja. Den deflaterade
+Sharpe-kvoten (Bailey & López de Prado) justerar för hur många inställningar som prövats.
+`expert_report` visar varje expert ensam mot två baslinjer: köp-och-behåll och enbart
+volatilitetsstyrning. Slår en expert inte den senare tillför den brus, inte information.""",
+    "Entry points": """## 13. Körfunktioner
 
 `run_backtest` kör hela historiken, `live_signal` laddar sparat tillstånd, lär sig av nya dagar
 och ger morgondagens exponering.""",
@@ -71,7 +85,7 @@ INTRO = f"""# SPX adaptiv regimstrategi med VIX och SKEW
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]({COLAB_URL})
 
 En självlärande strategi på S&P 500 med data från Yahoo Finance (`^GSPC`, `^VIX`, `^SKEW`).
-Sex experter ger var sin signal i [-1, 1] och en Hedge-ensemble viktar dem efter hur rätt de
+Fem experter ger var sin signal i [-1, 1] och en Hedge-ensemble viktar dem efter hur rätt de
 haft:
 
 | Expert | Modell |
@@ -81,9 +95,10 @@ haft:
 | `vol_skew` | Variansriskpremie, VIX-toppar som klingar av, SKEW mot VIX |
 | `logit` | Online logistisk regression som viktar upp sina misstag |
 | `momentum` | Volatilitetsskalad 3- och 12-månaders momentum |
-| `long` | Alltid lång: jämförelsen de andra måste slå |
 
-Positionen skalas med GJR-GARCH mot 15 % årsvol, max 1,5× hävstång, lång/kassa som standard.
+Experterna lutar en lång grundposition, som skalas med GJR-GARCH mot 15 % årsvol (max 1,5×
+hävstång, lång/kassa som standard). Allokeringsinställningarna kan optimeras på några sekunder
+utan att modellerna körs om, med en holdout-period som aldrig används för valet.
 Allt körs walk-forward: beslutet vid stängning dag *t* använder bara data till och med *t*.
 
 **Kör:** *Runtime → Run all*. Hela backtesten från 1990 tar ett par minuter.
@@ -175,6 +190,38 @@ refits = pd.DataFrame(strat.refit_log, columns=["date", "reason"])
 print(refits["reason"].value_counts().to_string())
 refits[refits["reason"] != "scheduled"].tail(20)"""
 
+OPT_MD = """## 15. Optimera allokeringen
+
+Tar ungefär en halv minut för 200 inställningar: modellerna körs inte om, bara allokeringen.
+Titta på **holdout**-kolumnerna, inte design. Designsiffrorna är alltid bra; det är det som
+är problemet med dem."""
+
+OPTIMIZE = """opt = optimize_allocation(results, cfg, n_trials=200, objective="sharpe", design_frac=0.6)
+opt["summary"].style.format("{:,.3f}")"""
+
+TOP = """# The ten best on design, with what they did afterwards. If the holdout ranking looks random,
+# the search found noise.
+knob_cols = list(SEARCH_SPACE)
+show = knob_cols + ["design Sharpe (rf=0)", "holdout Sharpe (rf=0)", "design CAGR", "holdout CAGR",
+                    "holdout Max drawdown", "design Turnover / year"]
+opt["table"].head(10)[show].round(3)"""
+
+REPORT = """# Who actually earns their keep, before and after the split.
+expert_report(results, cfg, split=opt["split"]).style.format("{:,.3f}")"""
+
+APPLY = """# Adopt the winner only if the holdout held up. It's your money; look before you leap.
+APPLY_BEST = False
+
+if APPLY_BEST:
+    strat.set_allocation(**opt["best_knobs"])   # replays history, no refitting
+    cfg, results = strat.cfg, strat.results()
+    strat.save(STATE_PATH)
+    display(summarize(results).style.format("{:,.3f}"))
+    plot_results(results, strat.refit_log, out="out")
+    plt.show()
+else:
+    print("Not applied. Best knobs on design:", {k: round(v, 3) for k, v in opt["best_knobs"].items()})"""
+
 TODAY = """# The latest decision, i.e. the exposure to hold into the next session.
 last = results.iloc[-1]
 print(f"As of {results.index[-1].date()}: target exposure {last['position']:+.2f} "
@@ -184,11 +231,11 @@ pd.DataFrame({
     "weight": [last[f"w_{n}"] for n in EXPERTS],
 }, index=EXPERTS).assign(contribution=lambda d: d.signal * d.weight).round(3)"""
 
-LIVE_MD = """## 13. Daglig uppdatering
+LIVE_MD = """## 16. Daglig uppdatering
 
 Kör efter stängning. Laddar sparat tillstånd, hämtar ny data, låter modellen lära sig av dagarna
 sedan sist och ger morgondagens exponering. I en ny session: kör alla definitionsceller först
-(avsnitt 1–11), sedan bara den här. Ladda bara tillståndsfiler du skapat själv: pickle kör kod."""
+(avsnitt 1–13), sedan bara den här. Ladda bara tillståndsfiler du skapat själv: pickle kör kod."""
 
 LIVE = """import json
 print(json.dumps(live_signal(STATE_PATH), indent=2))"""
@@ -254,7 +301,7 @@ def build() -> nbf.NotebookNode:
             body = clean_entry_points(body)
         cells += [md(SECTION_NOTES[key]), code(body.strip() + "\n")]
     cells += [
-        md("## 12. Kör backtesten\n\nÄndra inställningarna här, inte i `Config`-cellen."),
+        md("## 14. Kör backtesten\n\nÄndra inställningarna här, inte i `Config`-cellen."),
         code(SETTINGS),
         code(LOAD),
         code(RAW_PLOT),
@@ -269,9 +316,14 @@ def build() -> nbf.NotebookNode:
         code(REFITS),
         md("### Dagens beslut"),
         code(TODAY),
+        md(OPT_MD),
+        code(OPTIMIZE),
+        code(TOP),
+        code(REPORT),
+        code(APPLY),
         md(LIVE_MD),
         code(LIVE),
-        md("## 14. Självtest"),
+        md("## 17. Självtest"),
         code(SELF_TEST),
     ]
     nb = nbf.v4.new_notebook(cells=cells)

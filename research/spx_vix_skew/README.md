@@ -15,9 +15,17 @@ The strategy walks forward one day at a time. The decision at the close of day *
 | `vol_skew` | Variance risk premium (VIX² − realised variance), fading VIX spikes, realised vol above implied, and SKEW high while VIX is low | Options-market view |
 | `logit` | Online logistic regression (SGD) on 13 causal features, predicting the sign of the next 5 days | 2·(p − 0.5), scaled |
 | `momentum` | Volatility-scaled 3- and 12-month momentum and the gap to the 200-day average | Trend |
-| `long` | Always 1 | The benchmark: the ensemble has to earn every deviation from it |
 
-**Sizing:** a GJR-GARCH(1,1) model with Student-t errors (`arch`) forecasts tomorrow's volatility, and the position is scaled to a 15 % annual volatility target, capped at 1.5× leverage. The strategy is long/flat by default (`max_short = 0`). It uses a no-trade band of 0.10 and charges 2 bp per unit of turnover.
+**Allocation:** the experts tilt a default long position instead of having to vote the strategy into the market:
+
+```
+direction = clip(base_exposure + signal_scale × ensemble, −max_short, max_direction)
+position  = direction × min(vol_target / GARCH vol, max_leverage)
+```
+
+The defaults are `base_exposure = 1` and `signal_scale = 1.5`, so the experts can cut the position to zero when they agree it is time to get out. A GJR-GARCH(1,1) model with Student-t errors (`arch`) forecasts tomorrow's volatility, and the position is scaled to a 15 % annual volatility target, capped at 1.5× leverage. The strategy is long/flat by default (`max_short = 0`). The target is smoothed with an EMA (2-day half-life), there is a no-trade band of 0.10, and trading costs 2 bp per unit of turnover.
+
+The first version used pure market timing (`base_exposure = 0`). Its average exposure was about 0.55, so it gave up most of the equity premium in exchange for lower volatility, and its turnover was about 14× per year. Pure timing is still available with `base_exposure=0, signal_scale=2, smooth_halflife=0`.
 
 ## How it learns from its mistakes
 
@@ -27,9 +35,19 @@ The strategy walks forward one day at a time. The decision at the close of day *
 4. **Scheduled refits.** The HMM, Kalman and GARCH models are refitted every 63 days on rolling windows (10, 5 and 10 years).
 5. **Persistent state.** `live_signal()` loads yesterday's pickled strategy, processes and learns from the new days, returns tomorrow's target exposure and saves the state again.
 
+## Optimisation without fooling yourself
+
+The allocation layer (`Allocator`) knows nothing about the models. The expert signals, the GARCH volatility and the drift dates do not depend on the allocation knobs (`ALLOCATION_FIELDS`), so `replay_allocation()` can rerun a different setting on the stored signals in about 0.1 seconds. A test checks that a replay is identical to a full rerun.
+
+- `optimize_allocation(results, cfg)` runs a random search over the knobs, 200 settings in about 30 seconds. It **chooses on the design period only** (the first 60 %). It scores the holdout period for every setting but never uses it to choose; a test shuffles the holdout returns and checks that the winner does not change. It reports the **deflated Sharpe ratio** (Bailey & López de Prado), which asks whether the winner is better than the luckiest of that many random tries. A turnover cap (12× per year by default) keeps it from choosing settings that only work without costs.
+- `expert_report(results, cfg, split)` shows each expert on its own, the ensemble, buy-and-hold, and **vol-managed only**: the same sizing with the experts switched off. An expert that cannot beat vol-managed only adds turnover, not information.
+- `strat.set_allocation(**opt["best_knobs"])` switches a trained strategy to new knobs by replaying its history, so the ensemble weights and tomorrow's position are what they would have been all along.
+
+On the synthetic market, the best setting on the design period reached Sharpe 1.05; on the holdout it fell to 0.51, about the same as the untuned defaults. That is the normal outcome, and exactly what the holdout is for.
+
 ## Run it
 
-**Colab notebook:** [`spx_adaptive_strategy.ipynb`](spx_adaptive_strategy.ipynb) holds the full strategy in its cells, so there is nothing to upload. Open it in Colab (*File → Open notebook → GitHub*, or use the badge in the notebook once it is on `main`) and run *Runtime → Run all*. Besides the backtest, it shows the raw data, the features, year-by-year returns, what each regime delivered, the drift refits, today's decision per expert, a daily update cell (with the option of saving the state on Google Drive) and a look-ahead self-test. The notebook is generated from the script: edit `spx_adaptive_strategy.py`, then run `python build_notebook.py`. A test fails if the two differ.
+**Colab notebook:** [`spx_adaptive_strategy.ipynb`](spx_adaptive_strategy.ipynb) holds the full strategy in its cells, so there is nothing to upload. Open it in Colab (*File → Open notebook → GitHub*, or use the badge in the notebook once it is on `main`) and run *Runtime → Run all*. Besides the backtest, it shows the raw data, the features, year-by-year returns, what each regime delivered, the drift refits, today's decision per expert, the allocation optimiser with the expert report, a daily update cell (with the option of saving the state on Google Drive) and a look-ahead self-test. The notebook is generated from the script: edit `spx_adaptive_strategy.py`, then run `python build_notebook.py`. A test fails if the two differ.
 
 Importing the script in Colab or a Microsoft Fabric notebook:
 
@@ -72,12 +90,17 @@ The tests in `test_spx_adaptive_strategy.py` check that:
 - truncating the data does not change a single earlier position, signal or weight (no look-ahead);
 - a pickled and resumed run is identical to one uninterrupted run;
 - the P&L is yesterday's position times today's return, minus costs;
+- a replayed allocation equals a full rerun, and `set_allocation` carries on exactly like a strategy that used the new knobs from the start;
+- the optimiser's choice does not change when the holdout returns are shuffled;
+- the deflated Sharpe ratio falls as the number of trials grows;
 - the notebook matches the script.
 
 ## Limitations
 
 - **The price index is traded without dividends, and cash earns 0.** Both the strategy and buy-and-hold are affected the same way. A real implementation would trade futures or SPY.
 - **The `vol_skew` weights and the signal scaling are set by hand** from economic reasoning, not fitted. The ensemble decides how much to trust them, but the settings in `Config` are still a choice, and tuning them against the backtest overfits.
-- **Turnover is high**: about 14× per year on synthetic data. Increase `rebalance_band` or `cost_bps` to see how sensitive the result is.
+- **Only the allocation is optimised.** The model settings (HMM states, windows, label horizon) would need a full rerun per setting, about 1.5 minutes each, and more freedom to overfit. They are left at their defaults.
+- **Turnover** is about 4.5× per year on synthetic data with the default knobs. Increase `rebalance_band` or `cost_bps` to see how sensitive the result is.
+- **State files from before the allocation rewrite do not load.** Run the backtest again.
 - **Yahoo's SKEW history has gaps and outliers.** Values outside 90–200 are removed and gaps are forward-filled for at most 5 days.
 - **The logistic model is pre-trained on the warm-up data.** This is in-sample before the first trade, but no trade is taken on that data.

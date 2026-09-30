@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from spx_adaptive_strategy import AdaptiveSPXStrategy, Config, build_features, summarize, \
-    synthetic_market_data
+from spx_adaptive_strategy import AdaptiveSPXStrategy, Config, build_features, deflated_sharpe, \
+    expert_report, optimize_allocation, replay_allocation, summarize, synthetic_market_data
 
 # Small windows so the suite finishes before anyone's patience does.
 FAST = dict(warmup_days=400, refit_every=63, hmm_window=750, hmm_inits=1, hmm_iter=50,
@@ -70,6 +70,66 @@ def test_summary_has_both_columns(full_run):
     m = summarize(full_run)
     assert list(m.columns) == ["Strategy", "Buy & hold SPX"]
     assert np.isfinite(m.loc["Sharpe (rf=0)", "Strategy"])
+
+
+def test_replay_reproduces_the_live_allocation(full_run):
+    # The optimiser is only honest if replaying the signals gives exactly what the loop did.
+    rep = replay_allocation(full_run, Config(**FAST))
+    cols = ["position", "signal", "cost", "strategy_ret"] + [c for c in rep if c.startswith("w_")]
+    np.testing.assert_allclose(rep[cols].to_numpy(), full_run[cols].to_numpy(dtype=float),
+                               rtol=1e-9, atol=1e-12)
+
+
+def test_new_allocation_matches_a_full_rerun(data):
+    knobs = dict(base_exposure=0.5, signal_scale=2.5, smooth_halflife=0.0, hedge_eta=0.3,
+                 rebalance_band=0.05, max_short=0.25)
+    rerun = AdaptiveSPXStrategy(Config(**FAST, **knobs)).process(data.iloc[:1500], verbose=False)
+    s = AdaptiveSPXStrategy(Config(**FAST))
+    s.process(data.iloc[:1500], verbose=False)
+    s.set_allocation(**knobs)
+    cols = ["position", "strategy_ret", "signal"]
+    np.testing.assert_allclose(s.results()[cols].to_numpy(dtype=float),
+                               rerun[cols].to_numpy(dtype=float), rtol=1e-9, atol=1e-12)
+    # ...and tomorrow carries on from the replayed state, not the old one.
+    s.process(data, verbose=False)
+    full = AdaptiveSPXStrategy(Config(**FAST, **knobs)).process(data, verbose=False)
+    np.testing.assert_allclose(s.results()["position"], full["position"], rtol=1e-9, atol=1e-12)
+
+
+def test_set_allocation_refuses_model_knobs(data):
+    s = AdaptiveSPXStrategy(Config(**FAST))
+    s.process(data.iloc[:1200], verbose=False)
+    with pytest.raises(ValueError):
+        s.set_allocation(hmm_states=4)
+
+
+def test_optimizer_chooses_on_design_only(full_run):
+    out = optimize_allocation(full_run, Config(**FAST), n_trials=15, verbose=False)
+    t = out["table"]
+    assert t["design Sharpe (rf=0)"].is_monotonic_decreasing
+    assert 0.0 <= out["deflated_sharpe"] <= 1.0
+    # Shuffle the holdout returns: the chosen setting must not change.
+    shuffled = full_run.copy()
+    after = shuffled.index > out["split"]
+    hold = shuffled.loc[after, "next_ret"]
+    shuffled.loc[after, "next_ret"] = hold.sample(frac=1, random_state=1).to_numpy()
+    again = optimize_allocation(shuffled, Config(**FAST), n_trials=15, verbose=False)
+    assert again["best_knobs"] == out["best_knobs"]
+
+
+def test_expert_report_has_baselines(full_run):
+    rep = expert_report(full_run, Config(**FAST))
+    labels = {i[0] for i in rep.index}
+    assert {"Buy & hold SPX", "Vol-managed only (no experts)", "Ensemble (current knobs)",
+            "Only hmm"} <= labels
+
+
+def test_deflated_sharpe_punishes_many_trials():
+    rng = np.random.default_rng(0)
+    r = pd.Series(rng.normal(0.0004, 0.01, 2000))
+    few = deflated_sharpe(r, rng.normal(0, 0.01, 2))
+    many = deflated_sharpe(r, rng.normal(0, 0.01, 500))
+    assert many < few
 
 
 def test_notebook_is_built_from_the_current_script():
