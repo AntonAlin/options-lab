@@ -14,6 +14,8 @@ The only network requests are downloads of code (the page, Plotly, SheetJS, jsPD
 
 The in-app **User guide** (`#/guide`, content in [`js/guide.js`](js/guide.js)) explains this in full and walks through every page of the platform.
 
+**For IT, risk and compliance:** [docs/IT-RISK-ASSESSMENT.md](docs/IT-RISK-ASSESSMENT.md) answers what a firm's own ICT risk assessment (e.g. under DORA) asks: data flows, storage, supply chain, support, continuity and exit, and suggested controls.
+
 ## What it does
 
 | Area | Contents |

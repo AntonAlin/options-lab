@@ -48,6 +48,8 @@ export const GUIDE = [
       { p: { en: 'The platform is a folder of static files with no back end, and the licence allows your organisation to host an unmodified copy on an internal web server. The one change allowed is pointing the library addresses (in index.html, js/importer.js and js/report.js) and the font link to internal copies. After that the site makes no outbound requests at all.' } },
       { p: { en: 'Easier still: every release on GitHub has an offline zip with all libraries bundled and no web fonts, so it makes no outbound request at all. Each zip carries a signed build provenance attestation — `gh attestation verify <file> --repo AntonAlin/options-lab` proves it was built by the repository\'s own workflow from the tagged source, unchanged. Every change is also tested automatically (unit tests, a browser test of every page, CodeQL security scanning); SECURITY.md says how to report a problem privately.' } },
       { href: REPO_URL + '/releases', label: { en: 'Releases and offline zips' } },
+      { p: { en: 'For your IT, risk and compliance functions there is a separate page with the facts an ICT risk assessment (e.g. under DORA) needs: data flows, storage, supply chain, support, continuity and exit, known limitations and suggested controls.' } },
+      { href: REPO_URL + '/blob/main/docs/IT-RISK-ASSESSMENT.md', label: { en: 'Information for IT, risk and compliance' } },
     ]
   },
   {
