@@ -1,0 +1,24 @@
+# Labels a pull request by the files it changes (.github/workflows/labeler.yml). A change to any
+# calculation module, or to the frozen golden figures, is a methodology change and shows up under
+# "Calculation changes" in the release notes. "regulatory" and "security" are set by hand.
+methodology-change:
+  - changed-files:
+      - any-glob-to-any-file:
+          - js/pricing.js
+          - js/analytics.js
+          - js/riskstats.js
+          - js/globalexposure.js
+          - js/lmt.js
+          - js/rules.js
+          - js/fund.js
+          - js/pnl.js
+          - js/allocation.js
+          - js/instruments.js
+          - js/methodology.js
+          - tests/fixtures/golden-expected.json
+market-data:
+  - changed-files:
+      - any-glob-to-any-file: [js/marketdata.js, js/marketsync.js, scripts/market-data.mjs]
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', scripts/build-release.sh, scripts/assemble-site.sh, scripts/sbom.mjs, .lighthouserc.json]

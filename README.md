@@ -1,6 +1,6 @@
 # Nexus Portfolio Lab
 
-[![CI](https://github.com/AntonAlin/options-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/AntonAlin/options-lab/actions/workflows/ci.yml) [![CodeQL](https://github.com/AntonAlin/options-lab/actions/workflows/codeql.yml/badge.svg)](https://github.com/AntonAlin/options-lab/actions/workflows/codeql.yml) [![Release](https://img.shields.io/github/v/release/AntonAlin/options-lab?include_prereleases&label=release)](https://github.com/AntonAlin/options-lab/releases)
+[![CI](https://github.com/AntonAlin/options-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/AntonAlin/options-lab/actions/workflows/ci.yml) [![CodeQL](https://github.com/AntonAlin/options-lab/actions/workflows/codeql.yml/badge.svg)](https://github.com/AntonAlin/options-lab/actions/workflows/codeql.yml) [![Release](https://img.shields.io/github/v/release/AntonAlin/options-lab?include_prereleases&label=release)](https://github.com/AntonAlin/options-lab/releases) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/AntonAlin/options-lab/badge)](https://scorecard.dev/viewer/?uri=github.com/AntonAlin/options-lab)
 
 Free portfolio analytics for fund managers. It runs entirely in the browser: holdings are stored in the browser's IndexedDB, nothing goes to a server, and there are no accounts.
 
@@ -14,7 +14,7 @@ The only network requests are downloads of code (the page, Plotly, SheetJS, jsPD
 
 The in-app **User guide** (`#/guide`, content in [`js/guide.js`](js/guide.js)) explains this in full and walks through every page of the platform.
 
-**For IT, risk and compliance:** [docs/IT-RISK-ASSESSMENT.md](docs/IT-RISK-ASSESSMENT.md) answers what a firm's own ICT risk assessment (e.g. under DORA) asks: data flows, storage, supply chain, support, continuity and exit, and suggested controls.
+**For IT, risk and compliance:** [docs/IT-RISK-ASSESSMENT.md](docs/IT-RISK-ASSESSMENT.md) answers what a firm's own ICT risk assessment (e.g. under DORA) asks: data flows, storage, supply chain, support, continuity and exit, and suggested controls. Every release also carries an SBOM and a calculation validation report (`VALIDATION.md`); see *Quality, releases and security*.
 
 ## What it does
 
@@ -101,13 +101,21 @@ A scheduled GitHub Action (`pages.yml`, every business day at 15:35 UTC, after t
 - EUR positions without their own rate are discounted on the EUR curve (€STR + AAA curve), SEK positions on the SEK curve (SWESTR + treasury bills + government bond yields): options and structured products, IRS annuities, swaptions, caps/floors, inflation swaps.
 - EUR and SEK fixed-rate bonds show their spread over their government curve (a G-spread) on Fixed income.
 
-Sources: European Central Bank; Sveriges Riksbank. GitHub pauses scheduled workflows after 60 days without activity in the repository; re-enable it under Actions if that happens.
+Sources: European Central Bank; Sveriges Riksbank.
+
+- **Archive.** Every successful download is also committed to the [`market-data` branch](https://github.com/AntonAlin/options-lab/tree/market-data) as `YYYY/YYYY-MM-DD.json`, named by the newest ECB date in the file. So the rates and curves the site served on any past day can be looked up and reproduced.
+- **Alerting.** A failed or invalid download opens an issue labelled `market-data` (or comments on the open one) and closes it again after the next good download.
+- **Keep-alive.** GitHub disables scheduled workflows after 60 days without repository activity. Each scheduled run re-enables the scheduled workflows through the API to reset that clock. If the schedule has stopped anyway, re-enable it under Actions.
 
 ## Quality, releases and security
 
-- **CI** (`ci.yml`) on every push and pull request: unit tests, a browser smoke test that opens every page and fails on any script error or NaN, a download-and-validate run of the ECB and Riksbank data, and a dry run of the release packaging.
-- **Releases** (`release.yml`): push a tag such as `v1.0.0`. The workflow builds two zips — the site as published, and an offline version with Plotly, SheetJS and jsPDF bundled (checked against their integrity hashes) and no web fonts — and attaches a signed build provenance attestation. Verify with `gh attestation verify nexus-portfolio-lab-v1.0.0-offline.zip --repo AntonAlin/options-lab`.
-- **CodeQL** (`codeql.yml`) scans the JavaScript on every change to `main` and weekly.
+- **CI** (`ci.yml`) on every push and pull request: unit tests, the golden figures (below), a browser smoke test that opens every page and fails on any script error or NaN, a Lighthouse accessibility check (`.lighthouserc.json`), a download-and-validate run of the ECB and Riksbank data, and a dry run of the release packaging.
+- **Golden figures** (`tests/golden.test.mjs`): 92 numbers a risk or compliance function would sign off (NAV, parametric/historical/EWMA VaR and ES, Euler contributions, duration, IR01/CS01, every UCITS limit, liquidity buckets, every stress scenario, the VaR backtest and Kupiec test, swing factors) are computed on the seeded demo fund and compared with `tests/fixtures/golden-expected.json`. Any change fails CI until it is accepted with `node scripts/golden.mjs --update`. The PR template then asks which figures moved and why. Five closed-form pricing checks (Black-Scholes, Black-76, Bachelier, CRR American, par bond duration) are tested against textbook values, independently of the fixture. The frozen values prove the numbers did not move, not that they are right.
+- **Change management.** Pull requests that touch a calculation module or the golden fixture are labelled `methodology-change` automatically (`labeler.yml`). Release notes list them first, under *Calculation changes* (`.github/release.yml`).
+- **Releases** (`release.yml`): push a tag such as `v1.0.0`. The workflow builds two zips — the site as published, and an offline version with Plotly, SheetJS and jsPDF bundled (checked against their integrity hashes) and no web fonts — plus a CycloneDX SBOM (`*.cdx.json`) and the calculation validation report (`VALIDATION.md`). Both zips carry a signed build provenance attestation and a signed SBOM attestation. Verify with `gh attestation verify nexus-portfolio-lab-v1.0.0-offline.zip --repo AntonAlin/options-lab`.
+- **Supply chain.** Every GitHub Action is pinned to a full commit SHA, and Dependabot proposes updates weekly. CodeQL (`codeql.yml`) scans the JavaScript and the workflows on every change to `main` and weekly. OpenSSF Scorecard (`scorecard.yml`) publishes an independent score (badge above).
+- **Regulatory review** (`regulatory-watch.yml`): a quarterly issue with the sources the UCITS limits, global exposure and liquidity tools rest on, to be checked and closed.
+- **Repository settings** that cannot live in code (rulesets, secret scanning, immutable releases) are listed in [docs/GITHUB-SETUP.md](docs/GITHUB-SETUP.md).
 - **Issues** use templates that ask for made-up numbers only — never real holdings. Security problems go through private reporting; see [SECURITY.md](SECURITY.md).
 
 ## Development
@@ -115,12 +123,13 @@ Sources: European Central Bank; Sveriges Riksbank. GitHub pauses scheduled workf
 No build step and no dependencies. It uses ES modules, so serve the folder over HTTP rather than opening the file directly:
 
 ```bash
-npm test          # node:test unit tests (pricing, importer, analytics, texts)
+npm test          # node:test unit tests (pricing, importer, analytics, texts) and the golden figures
+node scripts/golden.mjs                  # which golden figures moved; --update accepts them, --report out.md writes the report
 node scripts/train-import-model.mjs      # retrain the import suggestion model after changing FIELDS or TYPE_ALIASES
 npm run serve     # http://localhost:8000
 node tests/smoke.mjs                      # browser smoke test (needs Playwright)
 node scripts/market-data.mjs --check      # download and validate the ECB data
-bash scripts/build-release.sh v0 --no-download   # packaging dry run into dist/
+bash scripts/build-release.sh v0 --no-download   # packaging dry run into dist/ (zips, SBOM, VALIDATION.md)
 ```
 
 The Pages workflow runs the tests, fetches the ECB data and deploys on push to `main` and every business day.

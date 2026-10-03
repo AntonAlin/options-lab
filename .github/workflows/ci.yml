@@ -8,16 +8,26 @@ on:
 permissions:
   contents: read
 
+# Third-party actions are pinned to a full commit SHA (the tag is only a comment) so a moved tag can
+# never change what runs here. Dependabot (.github/dependabot.yml) proposes new pins weekly.
+
 jobs:
   test:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 20
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      # Includes tests/golden.test.mjs: the demo fund's risk, compliance and pricing figures against
+      # the frozen fixture. A change to any of them fails here until it is accepted on purpose.
       - run: npm test
+      - name: Golden figures report
+        if: always()
+        run: node scripts/golden.mjs --report "$GITHUB_STEP_SUMMARY"
       # The import suggestion model must be retrained when the field registry changes.
       - run: node scripts/train-import-model.mjs --check
 
@@ -26,10 +36,12 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 20
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
       - name: Install Playwright and Chromium
         run: |
           npm install --no-save playwright@1.56.1
@@ -39,16 +51,39 @@ jobs:
           bash scripts/assemble-site.sh _site
           SITE_DIR=_site node tests/smoke.mjs
 
+  lighthouse:
+    name: Lighthouse (accessibility)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: bash scripts/assemble-site.sh _site
+      # Thresholds and pages in .lighthouserc.json. Reports are kept as a workflow artifact.
+      - run: npx --yes @lhci/cli@0.15.1 autorun
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: lighthouse
+          path: .lighthouseci
+          if-no-files-found: ignore
+
   market-data:
     name: ECB and Riksbank market data (download and validate)
     runs-on: ubuntu-latest
     # The ECB being down should not turn a code change red; the job still shows as failed.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 20
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
       - run: node scripts/market-data.mjs --check --strict
 
   release-build:
@@ -56,10 +91,12 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 20
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
       # Downloads the bundled libraries and checks their integrity hashes, as a real release does.
       - run: bash scripts/build-release.sh "ci-${GITHUB_SHA::7}"
       - run: cd dist && sha256sum -c SHA256SUMS.txt

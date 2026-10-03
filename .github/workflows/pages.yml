@@ -4,15 +4,13 @@ on:
   push:
     branches: [main]
   # Every business day after the ECB publishes its reference rates (about 16:00 CET), so the site
-  # carries fresh market data. GitHub pauses schedules after 60 days without repository activity.
+  # carries fresh market data.
   schedule:
     - cron: '35 15 * * 1-5'
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -20,41 +18,152 @@ concurrency:
 
 jobs:
   deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    outputs:
+      fresh: ${{ steps.market.outputs.fresh }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 20
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
       - name: Run tests
         run: npm test
       - name: Configure Pages
         id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
         with:
           enablement: true
       - name: Fetch ECB and Riksbank market data
+        id: market
         # A failed or implausible download never replaces good data: keep the file already published.
         run: |
-          if node scripts/market-data.mjs data/market.json; then
-            echo "Fresh ECB data"
+          # The default shell runs with pipefail, so the pipe fails when the script does.
+          if node scripts/market-data.mjs data/market.json 2>&1 | tee market.log; then
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
           else
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
             echo "::warning::ECB download failed or did not validate; keeping the published file"
             mkdir -p data
             curl -fsSL "${{ steps.pages.outputs.base_url }}/data/market.json" -o data/market.json || echo "::warning::No previously published market data either"
           fi
+      - name: Keep the market data for the archive and the alert
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: market-data
+          path: |
+            data/market.json
+            market.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Assemble the site
         # Only what the site serves: no node_modules, tests, build tooling or workflows.
         run: bash scripts/assemble-site.sh _site
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: '_site'
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  # A failed download used to be a warning nobody read. Open an issue (or comment on the open one) when
+  # it fails, close it when the data is fresh again.
+  alert:
+    needs: deploy
+    # On a push, only when the download itself ran (a failing test there is CI's business, not this issue's).
+    if: always() && (github.event_name != 'push' || needs.deploy.outputs.fresh != '')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      FRESH: ${{ needs.deploy.outputs.fresh }}
+      DEPLOY: ${{ needs.deploy.result }}
+    steps:
+      - name: Open, update or close the market data issue
+        run: |
+          TITLE="Market data: daily download failing"
+          gh label create market-data --color FBCA04 --description "ECB / Riksbank market data download" 2>/dev/null || true
+          OPEN=$(gh issue list --label market-data --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+          if [ "$FRESH" = "true" ] && [ "$DEPLOY" = "success" ]; then
+            if [ -n "$OPEN" ]; then gh issue close "$OPEN" --comment "Fresh ECB data published again: $RUN_URL"; fi
+            exit 0
+          fi
+          MSG="The scheduled deploy on $(date -u +%F) did not publish fresh market data (download: ${FRESH:-not reached}, deploy: $DEPLOY). The site keeps serving the last good file, so FX rates and curves get older every business day this stays open. Log: $RUN_URL"
+          if [ -n "$OPEN" ]; then
+            gh issue comment "$OPEN" --body "$MSG"
+          else
+            gh issue create --title "$TITLE" --label market-data --body "$MSG
+
+          Check the ECB and Riksbank endpoints in \`js/marketdata.js\` and run \`node scripts/market-data.mjs --check --strict\` locally. This issue closes itself after the next successful download."
+          fi
+
+  # One file per ECB business day on the market-data branch, so anyone can later see exactly which
+  # rates and curves the site served on a given date.
+  archive:
+    needs: deploy
+    if: needs.deploy.outputs.fresh == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: market-data
+          path: ${{ runner.temp }}/md
+      - name: Commit the day's file to the market-data branch
+        env:
+          MD: ${{ runner.temp }}/md/data/market.json
+        run: |
+          DAY=$(node -p "JSON.parse(require('fs').readFileSync(process.env.MD, 'utf8')).fx.dates.at(-1)")
+          [[ "$DAY" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "::error::no ECB date in market.json: $DAY"; exit 1; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin market-data >/dev/null; then
+            git fetch --depth=1 origin market-data
+            git switch -c market-data FETCH_HEAD
+          else
+            git switch --orphan market-data
+            printf '%s\n' "# Market data archive" "" \
+              "One file per ECB business day: \`YYYY/YYYY-MM-DD.json\`, the exact \`data/market.json\` the site served after that day's" \
+              "download (ECB reference rates, euro curve, €STR and, when available, the Riksbank curve). Written by" \
+              "\`.github/workflows/pages.yml\`; the file name is the newest ECB date in the file. Never edited by hand." > README.md
+          fi
+          mkdir -p "${DAY:0:4}"
+          cp "$MD" "${DAY:0:4}/$DAY.json"
+          git add -A
+          if git diff --cached --quiet; then echo "Already archived: $DAY"; exit 0; fi
+          git commit -m "Market data $DAY"
+          git push origin market-data
+
+  # GitHub disables scheduled workflows after 60 days without repository activity, which would stop
+  # the daily market data silently. Re-enabling them through the API on every run resets that clock.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - run: |
+          for wf in pages.yml codeql.yml scorecard.yml regulatory-watch.yml; do
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$wf/enable" || echo "::warning::could not re-enable $wf"
+          done

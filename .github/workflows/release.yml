@@ -1,8 +1,9 @@
 name: Release
 
 # Push a tag such as v1.0.0 to publish a release. Both zips get a signed build provenance
-# attestation, so anyone can verify they were built here from that tag:
+# attestation and a signed SBOM attestation, so anyone can verify they were built here from that tag:
 #   gh attestation verify nexus-portfolio-lab-v1.0.0-offline.zip --repo AntonAlin/options-lab
+#   gh attestation verify nexus-portfolio-lab-v1.0.0-offline.zip --repo AntonAlin/options-lab --predicate-type https://cyclonedx.org/bom
 on:
   push:
     tags: ['v*']
@@ -16,24 +17,34 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 20
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
       - run: npm test
       - name: Snapshot of the ECB market data
         run: node scripts/market-data.mjs data/market.json || echo "::warning::ECB data not included in this release"
+      # Also writes the SBOM and the calculation validation report (VALIDATION.md).
       - run: bash scripts/build-release.sh "${GITHUB_REF_NAME}"
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: 'dist/*.zip'
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: 'dist/*.zip'
+          sbom-path: dist/nexus-portfolio-lab-${{ github.ref_name }}.cdx.json
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         # Works whether the tag was pushed from git or created with a release on github.com.
+        # --generate-notes appends the merged PRs, grouped by label as set in .github/release.yml
+        # (calculation changes, regulatory, security, ...).
         run: |
+          FILES=(dist/*.zip dist/*.cdx.json dist/VALIDATION.md dist/SHA256SUMS.txt)
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt --clobber
+            gh release upload "$GITHUB_REF_NAME" "${FILES[@]}" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt --title "Nexus Portfolio Lab $GITHUB_REF_NAME" --notes-file dist/RELEASE_NOTES.md --verify-tag
+            gh release create "$GITHUB_REF_NAME" "${FILES[@]}" --title "Nexus Portfolio Lab $GITHUB_REF_NAME" --notes-file dist/RELEASE_NOTES.md --generate-notes --verify-tag
           fi

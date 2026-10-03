@@ -2,3 +2,4 @@ node_modules/
 dist/
 _site/
 data/market.json
+.lighthouseci/

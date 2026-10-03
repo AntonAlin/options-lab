@@ -7,5 +7,5 @@ DIR="${1:?usage: assemble-site.sh <dir>}"
 cd "$(dirname "$0")/.."
 mkdir -p "$DIR"
 git archive HEAD | tar -x -C "$DIR"
-(cd "$DIR" && rm -rf tests scripts .github package.json .gitignore)
+(cd "$DIR" && rm -rf tests scripts .github package.json .gitignore .lighthouserc.json)
 if [ -f data/market.json ]; then mkdir -p "$DIR/data" && cp data/market.json "$DIR/data/"; fi

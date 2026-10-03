@@ -1,0 +1,16 @@
+# Workflow actions are pinned to commit SHAs; Dependabot proposes new pins (and keeps the version
+# comment in sync) once a week, grouped into one PR. The CDN libraries (Plotly, jsPDF, SheetJS) are
+# pinned with SRI hashes in the source and are upgraded by hand: see README → Third-party libraries.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, ci]
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: CI

@@ -1,0 +1,9 @@
+[
+  { "name": "methodology-change", "color": "D93F0B", "description": "Changes a calculation, model or golden figure" },
+  { "name": "regulatory", "color": "5319E7", "description": "Regulatory interpretation or a rule that implements it" },
+  { "name": "security", "color": "B60205", "description": "Security fix or hardening" },
+  { "name": "market-data", "color": "FBCA04", "description": "ECB / Riksbank market data download" },
+  { "name": "dependencies", "color": "0366D6", "description": "Dependency or pinned action update" },
+  { "name": "ci", "color": "BFD4F2", "description": "Workflows and build tooling" },
+  { "name": "skip-changelog", "color": "EEEEEE", "description": "Left out of the release notes" }
+]

@@ -1,0 +1,42 @@
+name: Regulatory review
+
+# The UCITS limits, the VaR approach and the liquidity management tools rest on the developer's
+# reading of the rules "as of" a date (README → Regulation). This opens one issue per quarter so that
+# reading is re-checked against the sources, and the date moves only when someone actually did it.
+on:
+  schedule:
+    - cron: '23 7 2 1,4,7,10 *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  open-review:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - run: |
+          Q="$(date -u +%Y)-Q$(( ($(date -u +%-m) - 1) / 3 + 1 ))"
+          TITLE="Regulatory review $Q"
+          gh label create regulatory --color 5319E7 --description "Regulatory interpretation or a rule that implements it" 2>/dev/null || true
+          if [ -n "$(gh issue list --label regulatory --state all --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')" ]; then
+            echo "$TITLE already exists"; exit 0
+          fi
+          gh issue create --title "$TITLE" --label regulatory --body-file - <<'BODY'
+          Quarterly check that the platform's reading of the rules is still current. For each source, note "no change" or open a PR (label `regulatory`) and link it here.
+
+          - [ ] UCITS Directive 2009/65/EC, consolidated text on EUR-Lex: new consolidated version? (5/10/40, issuer, deposit, fund and OTC counterparty limits in `js/analytics.js` → `compliance`)
+          - [ ] Directive (EU) 2024/927 (AIFMD II / UCITS amendments): transposition and application dates; liquidity management tools in `js/lmt.js`
+          - [ ] ESMA guidelines and RTS on liquidity management tools: final texts, Q&A, application date
+          - [ ] CESR/10-788 (global exposure and counterparty risk) and ESMA's UCITS Q&A: commitment and VaR approach in `js/globalexposure.js`
+          - [ ] ESMA guidelines on liquidity stress testing in UCITS and AIFs: liquidity page
+          - [ ] Finansinspektionen: new regulations (FFFS) or statements for Swedish UCITS and AIFs
+          - [ ] Update the "as of" date in README.md (Regulation), docs/IT-RISK-ASSESSMENT.md and the in-app pages that state it
+
+          Close this issue when every item is checked. Not legal advice: the check records that the developer's reading was reviewed, not that it is right.
+          BODY

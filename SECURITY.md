@@ -11,7 +11,9 @@ Report it privately through **[Security → Report a vulnerability](https://gith
 - Every change runs the unit tests and a browser smoke test (GitHub Actions, `ci.yml`).
 - CodeQL scans the JavaScript for security and quality problems on every change to `main` and weekly (`codeql.yml`).
 - Third-party libraries are pinned to exact versions and loaded with Subresource Integrity hashes (Plotly, jsPDF, jspdf-autotable, SheetJS). The release build, run by CI on every change, refuses to bundle a library whose hash does not match or whose CDN stops sending the CORS header the check needs.
-- Releases carry a signed build provenance attestation: `gh attestation verify <file> --repo AntonAlin/options-lab` proves a zip was built by this repository's workflow from its tagged source.
+- Releases carry a signed build provenance attestation: `gh attestation verify <file> --repo AntonAlin/options-lab` proves a zip was built by this repository's workflow from its tagged source. They also carry a CycloneDX SBOM with its own signed attestation.
+- Every GitHub Action is pinned to a full commit SHA, so a moved tag cannot change what runs. Dependabot proposes updates weekly. CodeQL also scans the workflows themselves.
+- OpenSSF Scorecard rates the repository's supply-chain practices weekly: [scorecard.dev](https://scorecard.dev/viewer/?uri=github.com/AntonAlin/options-lab).
 
 ## For IT, risk and compliance
 

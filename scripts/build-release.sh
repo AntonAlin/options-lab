@@ -3,6 +3,8 @@
 #   nexus-portfolio-lab-<version>.zip          the site exactly as published (libraries from their CDNs)
 #   nexus-portfolio-lab-<version>-offline.zip  the same site with every library bundled in vendor/ and the
 #                                              web fonts dropped, so it makes no outbound request at all
+#   nexus-portfolio-lab-<version>.cdx.json     CycloneDX SBOM of the third-party components
+#   VALIDATION.md                              golden figures and closed-form checks (scripts/golden.mjs)
 #   SHA256SUMS.txt, RELEASE_NOTES.md
 # Usage: scripts/build-release.sh v1.2.3 [--no-download]
 # --no-download fills vendor/ with placeholders to test the packaging without network (never publish that).
@@ -54,8 +56,13 @@ sed -i -E "s#${XLSX}#vendor/xlsx.full.min.js#" "$OUT/offline/js/importer.js"
 if grep -rnE "https://(cdn\.|fonts\.|unpkg|cdnjs)" "$OUT/offline" --include=*.html --include=*.js --exclude-dir=vendor; then echo "offline build still references a CDN" >&2; exit 1; fi
 (cd "$OUT/offline" && zip -qrX "../${NAME}-offline.zip" .)
 
+# ---- SBOM and calculation validation ---------------------------------------------------------------
+node scripts/sbom.mjs "$VERSION" > "$OUT/${NAME}.cdx.json"
+# Fails the release when a golden figure moved without the fixture being updated on purpose.
+node scripts/golden.mjs --report "$OUT/VALIDATION.md"
+
 # ---- checksums and notes ---------------------------------------------------------------------------
-(cd "$OUT" && sha256sum "${NAME}.zip" "${NAME}-offline.zip" > SHA256SUMS.txt)
+(cd "$OUT" && sha256sum "${NAME}.zip" "${NAME}-offline.zip" "${NAME}.cdx.json" VALIDATION.md > SHA256SUMS.txt)
 cat > "$OUT/RELEASE_NOTES.md" <<EOF
 Nexus Portfolio Lab ${VERSION}
 
@@ -70,5 +77,8 @@ sha256sum -c SHA256SUMS.txt
 \`\`\`
 
 Library integrity: Plotly, jsPDF and SheetJS were checked against the SRI hashes in the source before bundling.
+
+- \`${NAME}.cdx.json\` — CycloneDX SBOM of every third-party component, with versions, licences and hashes. It carries a signed SBOM attestation for both zips.
+- \`VALIDATION.md\` — the calculation validation report: the demo fund's risk, compliance and pricing figures against the frozen reference values, and closed-form pricing checks.
 EOF
 ls -l "$OUT"

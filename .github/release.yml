@@ -1,0 +1,18 @@
+# Categories for generated release notes (gh release create --generate-notes, or "Generate release
+# notes" on github.com). A fund documents when a model changed: calculation changes come first.
+changelog:
+  exclude:
+    labels: [skip-changelog]
+  categories:
+    - title: Calculation changes
+      labels: [methodology-change]
+    - title: Regulatory
+      labels: [regulatory]
+    - title: Security
+      labels: [security]
+    - title: Market data
+      labels: [market-data]
+    - title: Dependencies and CI
+      labels: [dependencies, ci]
+    - title: Other changes
+      labels: ['*']

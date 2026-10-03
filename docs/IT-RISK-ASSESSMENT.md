@@ -11,7 +11,8 @@ This page answers the questions an IT, risk or compliance function asks before a
 | Where does portfolio data go? | Nowhere. It stays in the browser on the user's computer and in files the user chooses to save. No request carries portfolio data. |
 | Can it run without internet access? | Yes. Every [release](https://github.com/AntonAlin/options-lab/releases) has an offline zip with all libraries bundled and no web fonts. Hosted internally, it makes no outbound request at all. |
 | Can we check what it does? | Yes. The complete source is public. *How we calculate* in the app links each formula to its module. |
-| Can we verify the files we host? | Yes. Releases carry a signed build provenance attestation and SHA-256 checksums. |
+| Can we verify the files we host? | Yes. Releases carry a signed build provenance attestation, a CycloneDX SBOM with its own signed attestation, and SHA-256 checksums. |
+| How do we know an upgrade did not change our numbers? | Each release has `VALIDATION.md`: 92 risk, compliance and pricing figures on a reference fund, compared with frozen values, plus closed-form pricing checks. Release notes list calculation changes separately. |
 | Who supports it? | Nobody under contract. There is one maintainer, and bugs and security problems are reported on GitHub. Plan on that basis (see *Support and change* below). |
 
 ## How it is classified (a reading, not advice)
@@ -50,6 +51,8 @@ Nothing is ever uploaded. Files the user opens (holdings, prices, transactions) 
 - Unit tests and a browser smoke test run on every change, and the smoke test opens every page. CodeQL scans the JavaScript on every change to `main` and weekly.
 - Releases are built by GitHub Actions from the tagged source and carry a signed build provenance attestation:
   `gh attestation verify nexus-portfolio-lab-vX.Y.Z-offline.zip --repo AntonAlin/options-lab`
+- Each release has a CycloneDX SBOM (`nexus-portfolio-lab-vX.Y.Z.cdx.json`) listing every third-party component with version, licence and hash, for your register of ICT third-party components. It is attested to both zips (`--predicate-type https://cyclonedx.org/bom`).
+- The build pipeline itself is pinned: every GitHub Action is referenced by full commit SHA, not by a tag that could be moved, and Dependabot proposes updates. CodeQL also scans the workflows. OpenSSF Scorecard publishes an independent rating of these practices.
 - There are no runtime dependencies from a package manager: no `node_modules`, no build step, nothing fetched at install.
 
 ## Access, accountability and the control log
@@ -63,17 +66,20 @@ The **Control log** page records who signed off the daily limit check, every bre
 - **Support:** none under contract, and one maintainer. Bugs are reported through GitHub issues, security problems privately through GitHub security advisories (see [SECURITY.md](../SECURITY.md)).
 - **Fixes:** the licence does not allow modifications, so fixes come from new releases only. If your firm needs to be able to patch the code itself, this tool does not meet that need.
 - **Change control:** host a specific tagged release. Upgrade deliberately: read the release notes, verify the attestation, run your own acceptance checks on a copy of your data, then replace the files. Nothing changes on your server unless you change it.
+- **Calculation changes are visible:** a change that moves any of the 92 golden figures fails CI until it is accepted on purpose. The pull request must say which figures moved and why, and is labelled `methodology-change`. Release notes list such changes first, and `VALIDATION.md` in each release shows the figures. Compare it between two versions to see what an upgrade changes.
+- **Regulatory reading:** a quarterly GitHub issue lists the sources (UCITS Directive, Directive (EU) 2024/927, ESMA guidelines and Q&A, CESR/10-788, Finansinspektionen) to re-check. Closed issues are the record that the check happened.
 
 ## Continuity and exit
 
 - There is no supplier that can fail, withdraw the service or change its terms for a copy you already host. An offline release keeps working as long as a current browser can run it.
 - All data can be exported in open formats: the whole workspace as JSON, positions as CSV/Excel, the control log as CSV/JSON, reports as PDF. Leaving the tool means exporting and stopping. There is no lock-in and no data held elsewhere.
-- The market data depends on a scheduled GitHub Action in this repository. If it stops, FX rates can be imported from the ECB file by hand (Settings), and positions can carry their own rates.
+- The market data depends on a scheduled GitHub Action in this repository. A failed download opens a public GitHub issue, and the workflow keeps itself enabled. If it stops anyway, FX rates can be imported from the ECB file by hand (Settings), and positions can carry their own rates.
+- Every published market data file is archived on the repository's `market-data` branch, one file per ECB business day, so the rates used on a past date can be reproduced.
 
 ## Suggested controls for a firm using it
 
 1. Host a tagged offline release on an internal web server and record the version in the ICT asset inventory.
-2. Verify the release's attestation and checksum before you deploy it.
+2. Verify the release's attestation and checksum before you deploy it. Read `VALIDATION.md` and the *Calculation changes* section of the release notes, and file the SBOM with your ICT asset record.
 3. Give each user their own browser profile, and link the workspace to a file on a backed-up, access-controlled share.
 4. Validate the calculations that matter to you (limits, VaR, stress) against your own systems before relying on them. Document the simplifications listed on *How we calculate* that affect your funds.
 5. Use the control log for sign-offs and breach cases, and send its head hash to compliance regularly.
