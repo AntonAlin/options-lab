@@ -4,17 +4,17 @@
   "figures": [
     {
       "key": "valuation.nav",
-      "value": 1314865349.4617143,
+      "value": 1314794595.7299523,
       "what": "Net asset value (SEK)"
     },
     {
       "key": "valuation.gross",
-      "value": 1837514756.015788,
+      "value": 1837594069.313185,
       "what": "Gross exposure (SEK)"
     },
     {
       "key": "valuation.derivCommit",
-      "value": 520952304.9114264,
+      "value": 521179058.149866,
       "what": "Derivative commitment (SEK)"
     },
     {
@@ -24,12 +24,12 @@
     },
     {
       "key": "valuation.leverage",
-      "value": 1.3974927217969797,
+      "value": 1.3976282495236323,
       "what": "Leverage, gross / NAV"
     },
     {
       "key": "valuation.netExposure",
-      "value": 1250293346.1929355,
+      "value": 1249919153.0134528,
       "what": "Net economic exposure (SEK)"
     },
     {
@@ -44,202 +44,202 @@
     },
     {
       "key": "fixedIncome.ytm",
-      "value": 0.02861046739329912,
+      "value": 0.02858568529112763,
       "what": "Yield to maturity, fixed income sleeve"
     },
     {
       "key": "fixedIncome.modDur",
-      "value": 2.91979230565817,
+      "value": 2.9311650442251573,
       "what": "Modified duration, fixed income sleeve"
     },
     {
       "key": "fixedIncome.spreadDur",
-      "value": 1.159450018712212,
+      "value": 1.1656438446646342,
       "what": "Spread duration, fixed income sleeve"
     },
     {
       "key": "fixedIncome.convexity",
-      "value": 17.391000431917316,
+      "value": 17.47878660432646,
       "what": "Convexity, fixed income sleeve"
     },
     {
       "key": "fixedIncome.portfolioDuration",
-      "value": 0.9211349641836672,
+      "value": 0.9246815250384032,
       "what": "Portfolio duration incl. swaps and bond futures"
     },
     {
       "key": "fixedIncome.ir01",
-      "value": -121116.84465827614,
+      "value": -121576.62718918231,
       "what": "IR01 / DV01 (SEK per bp)"
     },
     {
       "key": "fixedIncome.cs01",
-      "value": -41405.28856934467,
+      "value": -41668.38261968407,
       "what": "CS01 (SEK per bp)"
     },
     {
       "key": "fixedIncome.ir01.EUR",
-      "value": -94550.54459726877,
+      "value": -94635.88239057008,
       "what": "IR01 in EUR (SEK per bp)"
     },
     {
       "key": "fixedIncome.ir01.SEK",
-      "value": -37075.47905157774,
+      "value": -37416.575568465116,
       "what": "IR01 in SEK (SEK per bp)"
     },
     {
       "key": "fixedIncome.ir01.USD",
-      "value": 10509.178990570357,
+      "value": 10475.830769852864,
       "what": "IR01 in USD (SEK per bp)"
     },
     {
       "key": "risk.parametric.var",
-      "value": 17053284.683109153,
+      "value": 17050851.14407281,
       "what": "parametric VaR 99 % 1d (SEK)"
     },
     {
       "key": "risk.parametric.es",
-      "value": 19537343.210016333,
+      "value": 19534555.190684482,
       "what": "parametric ES 99 % 1d (SEK)"
     },
     {
       "key": "risk.parametric.volPct",
-      "value": 0.08850185503090625,
+      "value": 0.08849398755008353,
       "what": "parametric annual volatility"
     },
     {
       "key": "risk.historical.var",
-      "value": 16954211.303373273,
+      "value": 16954456.39790335,
       "what": "historical VaR 99 % 1d (SEK)"
     },
     {
       "key": "risk.historical.es",
-      "value": 18515563.3103563,
+      "value": 18515653.70983425,
       "what": "historical ES 99 % 1d (SEK)"
     },
     {
       "key": "risk.historical.volPct",
-      "value": 0.08931721252612265,
+      "value": 0.08932218417594551,
       "what": "historical annual volatility"
     },
     {
       "key": "risk.ewma.var",
-      "value": 13952499.242988529,
+      "value": 13952560.437135588,
       "what": "ewma VaR 99 % 1d (SEK)"
     },
     {
       "key": "risk.ewma.es",
-      "value": 15984883.347297791,
+      "value": 15984953.455260906,
       "what": "ewma ES 99 % 1d (SEK)"
     },
     {
       "key": "risk.ewma.volPct",
-      "value": 0.07240963182564239,
+      "value": 0.07241384604104505,
       "what": "ewma annual volatility"
     },
     {
       "key": "risk.parametric.contrib.commodity",
-      "value": 3722702.3469747882,
+      "value": 3723838.4501390685,
       "what": "Euler risk contribution, commodity (SEK)"
     },
     {
       "key": "risk.parametric.contrib.credit",
-      "value": 406707.58148793597,
+      "value": 420723.6627182639,
       "what": "Euler risk contribution, credit (SEK)"
     },
     {
       "key": "risk.parametric.contrib.currency",
-      "value": -3920699.009444979,
+      "value": -3919735.6668089703,
       "what": "Euler risk contribution, currency (SEK)"
     },
     {
       "key": "risk.parametric.contrib.equity",
-      "value": 104599517.97294703,
+      "value": 104597224.58246827,
       "what": "Euler risk contribution, equity (SEK)"
     },
     {
       "key": "risk.parametric.contrib.rates",
-      "value": -1270134.4064773533,
+      "value": -1272627.9446525616,
       "what": "Euler risk contribution, rates (SEK)"
     },
     {
       "key": "risk.parametric.contrib.specific",
-      "value": 13490330.780772362,
+      "value": 13492256.15366377,
       "what": "Euler risk contribution, specific (SEK)"
     },
     {
       "key": "risk.parametric.contrib.volatility",
-      "value": -660402.7230372578,
+      "value": -690262.6520843355,
       "what": "Euler risk contribution, volatility (SEK)"
     },
     {
       "key": "risk.parametric.diversification",
-      "value": 76741613.86235882,
+      "value": 76822775.84621643,
       "what": "Diversification benefit (SEK)"
     },
     {
       "key": "risk.drivers.top1",
-      "value": 0.9546686354653924,
+      "value": 0.9546837256849777,
       "what": "Share of variance, first principal component"
     },
     {
       "key": "risk.drivers.effective",
-      "value": 1.3530306287041995,
+      "value": 1.3529045876200225,
       "what": "Effective number of risk drivers"
     },
     {
       "key": "concentration.hhi",
-      "value": 0.030653828795092854,
+      "value": 0.030654698127665646,
       "what": "Herfindahl index"
     },
     {
       "key": "concentration.top10",
-      "value": 0.3885209858113353,
+      "value": 0.38850813408814117,
       "what": "Top-10 weight"
     },
     {
       "key": "compliance.issuerMax",
-      "value": 7.514524293307953,
+      "value": 7.513871164427195,
       "what": "UCITS limit issuerMax: value (limit 10)"
     },
     {
       "key": "compliance.issuer5_10_40",
-      "value": 7.514524293307953,
+      "value": 7.513871164427195,
       "what": "UCITS limit issuer5_10_40: value (limit 40)"
     },
     {
       "key": "compliance.govtIssuerMax",
-      "value": 9.557375322864972,
+      "value": 9.55603925352906,
       "what": "UCITS limit govtIssuerMax: value (limit 35)"
     },
     {
       "key": "compliance.bankDepositMax",
-      "value": 4.133109721725866,
+      "value": 4.133332138928936,
       "what": "UCITS limit bankDepositMax: value (limit 20)"
     },
     {
       "key": "compliance.fundMax",
-      "value": 3.422402302899099,
+      "value": 3.422586474430764,
       "what": "UCITS limit fundMax: value (limit 20)"
     },
     {
       "key": "compliance.commitment",
-      "value": 39.620201804290936,
+      "value": 39.639580193171994,
       "what": "UCITS limit commitment: value (limit 100)"
     },
     {
       "key": "compliance.otcCounterparty",
-      "value": 0.0666926353579283,
+      "value": 0.06667469349244033,
       "what": "UCITS limit otcCounterparty: value (limit 10)"
     },
     {
       "key": "compliance.liquidity7d",
-      "value": 95.53666268591104,
+      "value": 95.53618993617353,
       "what": "UCITS limit liquidity7d: value (limit 70)"
     },
     {
       "key": "compliance.illiquidMax",
-      "value": 2.2816024479070456,
+      "value": 2.281725228977268,
       "what": "UCITS limit illiquidMax: value (limit 10)"
     },
     {
@@ -249,22 +249,22 @@
     },
     {
       "key": "liquidity.1d",
-      "value": 0.8300193863346814,
+      "value": 0.8300513206475905,
       "what": "Share liquidated within 1 days, normal"
     },
     {
       "key": "liquidity.7d",
-      "value": 0.9523214584235713,
+      "value": 0.9523187903169623,
       "what": "Share liquidated within 7 days, normal"
     },
     {
       "key": "liquidity.30d",
-      "value": 0.9700286924629921,
+      "value": 0.9700270152589276,
       "what": "Share liquidated within 30 days, normal"
     },
     {
       "key": "liquidity.90d",
-      "value": 0.9828646370630411,
+      "value": 0.9828636781625885,
       "what": "Share liquidated within 90 days, normal"
     },
     {
@@ -274,127 +274,127 @@
     },
     {
       "key": "liquidity.stressed.1d",
-      "value": 0.8068674012932828,
+      "value": 0.8068992021749346,
       "what": "Share liquidated within 1 days, stressed"
     },
     {
       "key": "liquidity.stressed.7d",
-      "value": 0.9356459827289161,
+      "value": 0.935649446226437,
       "what": "Share liquidated within 7 days, stressed"
     },
     {
       "key": "liquidity.stressed.30d",
-      "value": 0.9623298950545484,
+      "value": 0.9623277870232907,
       "what": "Share liquidated within 30 days, stressed"
     },
     {
       "key": "liquidity.stressed.90d",
-      "value": 0.9764466647630167,
+      "value": 0.9764453467107581,
       "what": "Share liquidated within 90 days, stressed"
     },
     {
       "key": "liquidity.stressed.365d",
-      "value": 0.9924189000339515,
+      "value": 0.9924184757931452,
       "what": "Share liquidated within 365 days, stressed"
     },
     {
       "key": "stress.gfc2008",
-      "value": -0.17839155499894463,
+      "value": -0.17837417311551385,
       "what": "Stress scenario gfc2008: P&L / NAV"
     },
     {
       "key": "stress.euro2011",
-      "value": -0.11134215713378116,
+      "value": -0.11128939420675844,
       "what": "Stress scenario euro2011: P&L / NAV"
     },
     {
       "key": "stress.covid2020",
-      "value": -0.15694690249798096,
+      "value": -0.15685825171872098,
       "what": "Stress scenario covid2020: P&L / NAV"
     },
     {
       "key": "stress.rates2022",
-      "value": -0.11039391663715861,
+      "value": -0.11051521596642473,
       "what": "Stress scenario rates2022: P&L / NAV"
     },
     {
       "key": "stress.eq10",
-      "value": -0.05430167817110391,
+      "value": -0.05427286462755373,
       "what": "Stress scenario eq10: P&L / NAV"
     },
     {
       "key": "stress.eq20up",
-      "value": 0.08565377360888272,
+      "value": 0.0856180376370812,
       "what": "Stress scenario eq20up: P&L / NAV"
     },
     {
       "key": "stress.rup100",
-      "value": -0.008957714138221839,
+      "value": -0.008994656693563778,
       "what": "Stress scenario rup100: P&L / NAV"
     },
     {
       "key": "stress.rdn100",
-      "value": 0.009538557438642436,
+      "value": 0.009578496815146999,
       "what": "Stress scenario rdn100: P&L / NAV"
     },
     {
       "key": "stress.cs100",
-      "value": -0.0030769823667043637,
+      "value": -0.0030967418183434183,
       "what": "Stress scenario cs100: P&L / NAV"
     },
     {
       "key": "stress.basestrong",
-      "value": -0.014399478439072006,
+      "value": -0.014396983719530403,
       "what": "Stress scenario basestrong: P&L / NAV"
     },
     {
       "key": "stress.stagflation",
-      "value": -0.08501744800356359,
+      "value": -0.08506020694158571,
       "what": "Stress scenario stagflation: P&L / NAV"
     },
     {
       "key": "performance.cagr",
-      "value": 0.11242037921667336,
+      "value": 0.11242290843863056,
       "what": "Back-cast cagr"
     },
     {
       "key": "performance.vol",
-      "value": 0.08931721252612271,
+      "value": 0.08932218417594551,
       "what": "Back-cast vol"
     },
     {
       "key": "performance.sharpe",
-      "value": 1.0347432102143028,
+      "value": 1.0347139323930692,
       "what": "Back-cast sharpe"
     },
     {
       "key": "performance.sortino",
-      "value": 1.5466461539339267,
+      "value": 1.546600753308948,
       "what": "Back-cast sortino"
     },
     {
       "key": "performance.maxDD",
-      "value": -0.08789185503167496,
+      "value": -0.08789661359904699,
       "what": "Back-cast maxDD"
     },
     {
       "key": "performance.beta",
-      "value": 0.9469861473447029,
+      "value": 0.9470357473044849,
       "what": "Back-cast beta"
     },
     {
       "key": "performance.trackingError",
-      "value": 0.031000852492399096,
+      "value": 0.03100261921746062,
       "what": "Back-cast trackingError"
     },
     {
       "key": "performance.infoRatio",
-      "value": 0.12675514690167838,
+      "value": 0.12682950450502556,
       "what": "Back-cast infoRatio"
     },
     {
       "key": "globalExposure.absVar20d",
-      "value": 4.788465267109488,
+      "value": 4.788588841200859,
       "what": "Absolute VaR 99 % 20d, % of NAV"
     },
     {
@@ -409,27 +409,27 @@
     },
     {
       "key": "lmt.swing.1pct",
-      "value": 19.427261461659874,
+      "value": 19.42770910442005,
       "what": "Swing factor (bp) at 1 % net flow"
     },
     {
       "key": "lmt.swing.2pct",
-      "value": 20.107673994701514,
+      "value": 20.10818220129558,
       "what": "Swing factor (bp) at 2 % net flow"
     },
     {
       "key": "lmt.swing.5pct",
-      "value": 21.4577023259422,
+      "value": 21.45833069918169,
       "what": "Swing factor (bp) at 5 % net flow"
     },
     {
       "key": "lmt.swing.10pct",
-      "value": 22.97915100256613,
+      "value": 22.979914800655177,
       "what": "Swing factor (bp) at 10 % net flow"
     },
     {
       "key": "lmt.swing.20pct",
-      "value": 25.13080435550229,
+      "value": 25.13175967325026,
       "what": "Swing factor (bp) at 20 % net flow"
     },
     {

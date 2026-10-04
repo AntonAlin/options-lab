@@ -13,7 +13,8 @@ export const VAL_DATE = '2026-09-28';
 
 // Each entry: [key, value, description]. Keys are stable identifiers; never reuse one for a new meaning.
 export function computeFigures() {
-  const p = buildDemo(VAL_DATE);
+  // The demo leaves valDate empty ("today" in the app); pin it or the figures move every midnight.
+  const p = { ...buildDemo(VAL_DATE), valDate: VAL_DATE };
   const a = fullAnalysis(p);
   const { v, fi, risk, liq, liqStressed, comp, conc, perf } = a;
   const f = [];
