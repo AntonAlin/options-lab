@@ -14,6 +14,23 @@ const CMA_FIELDS = [
   ['corrEqRegion', 'ρ'], ['corrIgHy', 'ρ'], ['corrEqRates', 'ρ'], ['corrEqCredit', 'ρ'], ['corrEqFx', 'ρ'], ['corrEqCmd', 'ρ'], ['corrEqVol', 'ρ'], ['corrRatesCredit', 'ρ'], ['corrRatesRates', 'ρ'], ['corrFxFx', 'ρ'], ['corrCmdFx', 'ρ'], ['inflationVolBp', 'bp'], ['corrRatesInfl', 'ρ'], ['corrCmdInfl', 'ρ']
 ];
 
+// Where the market data comes from: the file's address (the site's own unless the organisation set
+// another), when it was made and which provider each curve came from.
+function marketStatusHtml() {
+  const m = marketsync.current();
+  if (!m) return marketsync.lastLoadError() ? `<strong class="warn-text">${esc(t('set.marketUrlError', { e: marketsync.lastLoadError() }))}</strong>` : '';
+  const curves = Object.entries(m.curves || {}).map(([ccy, c]) => `${ccy} (${c.source || (ccy === 'SEK' ? 'riksbank' : 'ecb')})`).join(', ');
+  return esc(t('set.marketStatus', { d: fmtDate(String(m.generatedAt || '').slice(0, 10)), c: curves }));
+}
+function marketSourceHtml(S) {
+  return `
+    <form id="marketUrlForm" class="form-grid mt">
+      <label><span>${esc(t('set.marketUrl'))}</span><input name="marketUrl" type="text" inputmode="url" spellcheck="false" placeholder="data/market.json" value="${esc(S.marketUrl || '')}"><small class="muted">${esc(t('set.marketUrlHelp'))}</small></label>
+    </form>
+    <div class="btn-row"><button class="btn btn-sm" type="submit" form="marketUrlForm">${esc(t('set.marketUrlLoad'))}</button>${S.marketUrl ? `<button class="btn btn-sm" data-act="marketUrlReset">${esc(t('set.marketUrlReset'))}</button>` : ''}</div>
+    <p class="muted small" id="marketStatus">${marketStatusHtml()}</p>`;
+}
+
 export default {
   noPortfolio: true,
   render(root) {
@@ -47,7 +64,8 @@ export default {
         <h3 class="h3 mt">${esc(t('set.curve'))}</h3>
         <p class="muted small">${esc(t('set.curveBody'))} ${p.curves && Object.keys(p.curves).length ? Object.entries(p.curves).map(([ccy, c]) => esc(t('set.curveOnCcy', { ccy, d: fmtDate(c.date) }))).join(' ') : `<strong>${esc(t('set.curveNone'))}</strong>`}${p.curves?.EUR && !p.curves?.SEK && marketsync.current() && !marketsync.current().curves?.SEK ? ' ' + esc(t('set.curveSekNone')) : ''}</p>
         <label class="check"><input type="checkbox" id="curveMode" ${p.curveMode !== 'off' ? 'checked' : ''}> <span>${esc(t('set.curveUse'))}</span></label>
-        <p class="muted small">${esc(t('set.marketSource'))}</p>`, { sub: esc(t('set.fxSub')) }) : ''}
+        <p class="muted small">${esc(t('set.marketSource'))}</p>
+        ${marketSourceHtml(S)}`, { sub: esc(t('set.fxSub')) }) : ''}
       ${p ? card(t('set.cma'), `
         <p class="muted small">${esc(t('set.cmaBody'))}</p>
         <div class="cma-grid">${CMA_FIELDS.map(([k, unit]) => `<label><span>${esc(t('cma.' + k))}</span><span class="with-unit"><input data-cma="${k}" inputmode="decimal" value="${p.cma[k]}"><em>${unit}</em></span></label>`).join('')}</div>
@@ -99,6 +117,18 @@ export default {
       if (x != null) store.update(pp => { pp.cma[e.target.dataset.cma] = x; }, t('set.cma'));
     }));
     root.querySelector('#marketAuto')?.addEventListener('change', e => { store.setSetting('marketAuto', e.target.checked); if (e.target.checked) marketsync.syncAll(); });
+    // Changing the setting re-renders the page at once; the status line catches up when the file has loaded.
+    const switchMarket = u => marketsync.setMarketUrl(u)
+      .then(n => toast(t('set.marketUrlLoaded', { n })))
+      .catch(() => toast(t('set.marketUrlError', { e: marketsync.lastLoadError() }), { tone: 'warn' }))
+      .finally(() => { const el = document.getElementById('marketStatus'); if (el) el.innerHTML = marketStatusHtml(); });
+    root.querySelector('#marketUrlForm')?.addEventListener('submit', e => {
+      e.preventDefault();
+      const u = e.target.elements.marketUrl.value;
+      if (marketsync.checkMarketUrl(u) === null) { toast(t('set.marketUrlInvalid'), { tone: 'warn' }); return; }
+      switchMarket(u);
+    });
+    root.querySelector('[data-act="marketUrlReset"]')?.addEventListener('click', () => switchMarket(''));
     root.querySelector('#curveMode')?.addEventListener('change', e => { store.update(pp => { pp.curveMode = e.target.checked ? 'auto' : 'off'; }, t('set.curve')); marketsync.syncAll(); });
     root.querySelector('#ecbFile')?.addEventListener('change', e => { const f = e.target.files[0]; if (f) importEcb(f); e.target.value = ''; });
     root.querySelector('#restoreFile').addEventListener('change', async e => {

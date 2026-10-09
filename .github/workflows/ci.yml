@@ -73,7 +73,7 @@ jobs:
           if-no-files-found: ignore
 
   market-data:
-    name: ECB and Riksbank market data (download and validate)
+    name: Market data, all providers (download and validate)
     runs-on: ubuntu-latest
     # The ECB being down should not turn a code change red; the job still shows as failed.
     continue-on-error: true

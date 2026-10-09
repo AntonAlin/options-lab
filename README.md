@@ -95,13 +95,14 @@ Developed by Anton Ålin with the help of AI. The product idea, requirements, st
 
 ## Market data
 
-A scheduled GitHub Action (`pages.yml`, every business day at 15:35 UTC, after the ECB publishes around 16:00 CET) runs `scripts/market-data.mjs`. It downloads the ECB euro reference rates for the last 90 days, the ECB euro area AAA government spot curve and €STR, and from the Riksbank's open API the Swedish treasury bill and benchmark government bond yields and SWESTR. It validates them (ranges, completeness, age) and publishes `data/market.json` with the site. An ECB download that fails validation is never published; the previous file stays. A Riksbank download that fails only leaves the SEK curve out. In the app:
+A scheduled GitHub Action (`pages.yml`, every business day at 15:35 UTC, after the ECB publishes around 16:00 CET) runs `scripts/market-data.mjs`. It downloads the ECB euro reference rates for the last 90 days, the ECB euro area AAA government spot curve and €STR, and a discount curve per currency from the providers in [`market-sources.json`](market-sources.json): the Riksbank (SEK, with SWESTR), the US Treasury (USD, with SOFR from the New York Fed) and Norges Bank (NOK). Your own sources can be added there too: any HTTPS endpoint that returns CSV or JSON, with API keys from GitHub secrets. It validates everything (ranges, completeness, age) and publishes `data/market.json` with the site. An ECB download that fails validation is never published; the previous file stays. Any other provider that fails is only left out. See [docs/MARKET-DATA-SOURCES.md](docs/MARKET-DATA-SOURCES.md). In the app:
 
 - Portfolios on the placeholder or published rates get the ECB rates for their own valuation date. Rates typed in or imported from your own ECB file are never overwritten. Settings has a switch to turn the automatic update off.
-- EUR positions without their own rate are discounted on the EUR curve (€STR + AAA curve), SEK positions on the SEK curve (SWESTR + treasury bills + government bond yields): options and structured products, IRS annuities, swaptions, caps/floors, inflation swaps.
-- EUR and SEK fixed-rate bonds show their spread over their government curve (a G-spread) on Fixed income.
+- Positions without their own rate are discounted on their currency's curve: EUR (€STR + AAA curve), SEK (SWESTR + treasury bills + government bond yields), USD (SOFR + Treasury par curve), NOK (generic government yields), and any custom currency. This covers options and structured products, IRS annuities, swaptions, caps/floors and inflation swaps.
+- Fixed-rate bonds in those currencies show their spread over the government curve (a G-spread) on Fixed income.
+- **Your own backend.** Settings → *Market data file* points the app at a `market.json` the organisation publishes itself, built by the same script on its own server from its own (licensed) sources.
 
-Sources: European Central Bank; Sveriges Riksbank.
+Sources: European Central Bank; Sveriges Riksbank; U.S. Department of the Treasury; Federal Reserve Bank of New York; Norges Bank.
 
 - **Archive.** Every successful download is also committed to the [`market-data` branch](https://github.com/AntonAlin/options-lab/tree/market-data) as `YYYY/YYYY-MM-DD.json`, named by the newest ECB date in the file. So the rates and curves the site served on any past day can be looked up and reproduced.
 - **Alerting.** A failed or invalid download opens an issue labelled `market-data` (or comments on the open one) and closes it again after the next good download.
@@ -128,7 +129,7 @@ node scripts/golden.mjs                  # which golden figures moved; --update 
 node scripts/train-import-model.mjs      # retrain the import suggestion model after changing FIELDS or TYPE_ALIASES
 npm run serve     # http://localhost:8000
 node tests/smoke.mjs                      # browser smoke test (needs Playwright)
-node scripts/market-data.mjs --check      # download and validate the ECB data
+node scripts/market-data.mjs --check      # download and validate the ECB data and every provider
 bash scripts/build-release.sh v0 --no-download   # packaging dry run into dist/ (zips, SBOM, VALIDATION.md)
 ```
 

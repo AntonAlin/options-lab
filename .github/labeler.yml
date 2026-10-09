@@ -18,7 +18,7 @@ methodology-change:
           - tests/fixtures/golden-expected.json
 market-data:
   - changed-files:
-      - any-glob-to-any-file: [js/marketdata.js, js/marketsync.js, scripts/market-data.mjs]
+      - any-glob-to-any-file: [js/marketdata.js, js/marketsync.js, js/marketsources.js, market-sources.json, scripts/market-data.mjs]
 ci:
   - changed-files:
       - any-glob-to-any-file: ['.github/**', scripts/build-release.sh, scripts/assemble-site.sh, scripts/sbom.mjs, .lighthouserc.json]

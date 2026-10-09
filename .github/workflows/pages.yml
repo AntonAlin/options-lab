@@ -44,9 +44,12 @@ jobs:
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
         with:
           enablement: true
-      - name: Fetch ECB and Riksbank market data
+      - name: Fetch market data (ECB and the providers in market-sources.json)
         id: market
         # A failed or implausible download never replaces good data: keep the file already published.
+        # A custom provider that needs an API key reads it from the environment: add the secret under
+        # Settings → Secrets and variables → Actions and map it here, e.g. FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        env: {}
         run: |
           # The default shell runs with pipefail, so the pipe fails when the script does.
           if node scripts/market-data.mjs data/market.json 2>&1 | tee market.log; then
@@ -97,7 +100,7 @@ jobs:
       - name: Open, update or close the market data issue
         run: |
           TITLE="Market data: daily download failing"
-          gh label create market-data --color FBCA04 --description "ECB / Riksbank market data download" 2>/dev/null || true
+          gh label create market-data --color FBCA04 --description "Market data download (ECB and other providers)" 2>/dev/null || true
           OPEN=$(gh issue list --label market-data --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
           if [ "$FRESH" = "true" ] && [ "$DEPLOY" = "success" ]; then
             if [ -n "$OPEN" ]; then gh issue close "$OPEN" --comment "Fresh ECB data published again: $RUN_URL"; fi
@@ -109,7 +112,7 @@ jobs:
           else
             gh issue create --title "$TITLE" --label market-data --body "$MSG
 
-          Check the ECB and Riksbank endpoints in \`js/marketdata.js\` and run \`node scripts/market-data.mjs --check --strict\` locally. This issue closes itself after the next successful download."
+          Check the ECB endpoints in \`js/marketdata.js\` and the providers in \`js/marketsources.js\` / \`market-sources.json\` and run \`node scripts/market-data.mjs --check --strict\` locally. This issue closes itself after the next successful download."
           fi
 
   # One file per ECB business day on the market-data branch, so anyone can later see exactly which
@@ -143,7 +146,7 @@ jobs:
             git switch --orphan market-data
             printf '%s\n' "# Market data archive" "" \
               "One file per ECB business day: \`YYYY/YYYY-MM-DD.json\`, the exact \`data/market.json\` the site served after that day's" \
-              "download (ECB reference rates, euro curve, €STR and, when available, the Riksbank curve). Written by" \
+              "download (ECB reference rates, euro curve, €STR and, when available, the SEK, USD, NOK and custom curves). Written by" \
               "\`.github/workflows/pages.yml\`; the file name is the newest ECB date in the file. Never edited by hand." > README.md
           fi
           mkdir -p "${DAY:0:4}"

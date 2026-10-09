@@ -4,6 +4,10 @@
 // fetches them and publishes data/market.json with the site; the browser only downloads that public
 // file from the site's own address, so no portfolio data goes anywhere.
 //
+// More curves come from the providers in js/marketsources.js (US Treasury, Norges Bank, or your own
+// CSV/JSON endpoint). Each one hands buildMarket a "part" — one currency's curve and overnight rate —
+// and a part that does not validate is left out without holding back the ECB data.
+//
 // The parsers and the validation are shared by the Action (scripts/market-data.mjs) and the app.
 import { parseCSV } from './importer.js';
 import { isNum } from './util.js';
@@ -84,8 +88,11 @@ export function buildSekCurve({ series = {}, swestr = null } = {}) {
   return { curve, swestr: { name: 'Swedish krona short-term rate (SWESTR), %', dates: sw.map(o => o.date), values: sw.map(o => o.value) } };
 }
 
-// Build the published file from the three downloads (and the Riksbank's, when there are any).
-export function buildMarket({ fxXml, curveCsv, estrCsv, sek = null, now = new Date().toISOString() }) {
+// Build the published file from the three downloads, the Riksbank's (when there are any) and the
+// parts from other providers: [{ id, ccy, curve, overnight?, attribution?, source? }]. A part for a
+// currency that already has a curve (EUR from the ECB, SEK from the Riksbank) is ignored: the first
+// source wins, so a custom feed can never quietly replace the official one.
+export function buildMarket({ fxXml, curveCsv, estrCsv, sek = null, parts = [], now = new Date().toISOString() }) {
   const fxDays = parseFxHistory(fxXml);
   const ccys = [...new Set(fxDays.flatMap(d => Object.keys(d.rates)))].sort();
   const fx = { dates: fxDays.map(d => d.date), rates: Object.fromEntries(ccys.map(c => [c, fxDays.map(d => d.rates[c] ?? null)])) };
@@ -94,36 +101,54 @@ export function buildMarket({ fxXml, curveCsv, estrCsv, sek = null, now = new Da
   for (const o of obs) { if (!byDate.has(o.date)) byDate.set(o.date, {}); byDate.get(o.date)[o.key] = o.value; }
   const keys = Object.keys(TENORS);
   const dates = [...byDate.keys()].filter(d => keys.every(k => isNum(byDate.get(d)[k]))).sort();
-  const curve = { name: 'ECB euro area AAA government, spot rates (Svensson), continuous compounding, %', tenors: keys.map(k => TENORS[k]), dates, zero: dates.map(d => keys.map(k => byDate.get(d)[k])) };
+  const curve = { name: 'ECB euro area AAA government, spot rates (Svensson), continuous compounding, %', source: 'ecb', tenors: keys.map(k => TENORS[k]), dates, zero: dates.map(d => keys.map(k => byDate.get(d)[k])) };
   const est = parseEcbCsv(estrCsv).sort((a, b) => a.date.localeCompare(b.date));
   const estr = { name: 'Euro short-term rate (€STR), %', dates: est.map(o => o.date), values: est.map(o => o.value) };
   const m = { version: 1, generatedAt: now, attribution: 'Source: European Central Bank (ECB). Reused under the ECB\'s terms of use.', sources: { fx: SOURCES.fx, curve: curveUrl(), estr: SOURCES.estr }, fx, curves: { EUR: curve }, estr };
   const se = sek ? buildSekCurve(sek) : null;
-  if (se && se.curve.dates.length) {
-    m.curves.SEK = se.curve;
-    m.swestr = se.swestr;
-    m.attribution += ' Swedish rates: Sveriges Riksbank.';
-    m.sources.sek = RIKSBANK.obs;
+  const all = se ? [{ id: 'riksbank', ccy: 'SEK', curve: se.curve, overnight: se.swestr, attribution: 'Swedish rates: Sveriges Riksbank.', source: RIKSBANK.obs }, ...parts] : parts;
+  for (const part of all) {
+    if (!part?.curve?.dates?.length || !/^[A-Z]{3}$/.test(part.ccy || '') || m.curves[part.ccy]) continue;
+    m.curves[part.ccy] = { ...part.curve, source: part.id };
+    // SWESTR keeps its own key, as in files published before there were other providers.
+    if (part.ccy === 'SEK') m.swestr = part.overnight || { name: 'Swedish krona short-term rate (SWESTR), %', dates: [], values: [] };
+    else if (part.overnight?.dates?.length) (m.overnight ||= {})[part.ccy] = part.overnight;
+    if (part.attribution) m.attribution += ' ' + part.attribution;
+    if (part.source) m.sources[part.id === 'riksbank' ? 'sek' : part.id] = part.source;
   }
+  if (all.length) m.providers = Object.values(m.curves).map(c => c.source).filter(Boolean);
   return m;
 }
+
+// Checks that hold for any published curve: enough tenors with a short and a long end, plausible
+// levels and fresh data. `label` prefixes the messages. Returns a list of problems.
+export function validateCurve(c, now, label = 'curve', { minTenors = 4 } = {}) {
+  if (!c) return [label + ': no curve'];
+  const errs = [];
+  if (!c.dates?.length) return [label + ': no complete day'];
+  const z = c.zero[c.zero.length - 1];
+  if (z.some(x => !(x > -3 && x < 15))) errs.push(label + ': rate out of range ' + z.join(','));
+  if (c.tenors.length < minTenors || !c.tenors.some(t => t <= 0.5) || !c.tenors.some(t => t >= 10)) errs.push(label + ': too few tenors (' + c.tenors.join(',') + ')');
+  if (now && (Date.parse(now) - Date.parse(c.dates[c.dates.length - 1])) / 864e5 > 7) errs.push(label + ': newest date ' + c.dates[c.dates.length - 1] + ' is more than a week old');
+  return errs;
+}
+// An overnight series (€STR, SWESTR, SOFR, …): its latest value must be plausible.
+export function validateOvernight(o, label = 'overnight') {
+  const v = o?.values?.[o.values.length - 1];
+  return o?.values?.length && !(v > -2 && v < 15) ? [label + ': out of range'] : [];
+}
+// One provider's part on its own, before it goes into the file.
+export const validatePart = (part, now) => [...validateCurve(part?.curve, now, part?.id || 'part'), ...validateOvernight(part?.overnight, (part?.id || 'part') + ' overnight')];
+
+// Curve sources the published file can carry. Curves from these are replaced or dropped as the
+// published data changes; any other source (a curve typed in by hand) is never touched.
+export const PUBLISHED_SOURCES = ['ecb', 'riksbank', 'ustreasury', 'norgesbank'];
+export const isPublishedSource = src => PUBLISHED_SOURCES.includes(src) || String(src || '').startsWith('custom:');
 
 // The Swedish part on its own. Problems here drop the SEK curve from the file (see
 // scripts/market-data.mjs); they never hold back the ECB data.
 export function validateSek(m, now = m?.generatedAt) {
-  const c = m?.curves?.SEK;
-  if (!c) return ['sek: no curve'];
-  const errs = [];
-  if (!c.dates?.length) errs.push('sek: no complete day');
-  else {
-    const z = c.zero[c.zero.length - 1];
-    if (z.some(x => !(x > -3 && x < 15))) errs.push('sek: rate out of range ' + z.join(','));
-    if (c.tenors.length < 4 || !c.tenors.some(t => t <= 0.5) || !c.tenors.some(t => t >= 10)) errs.push('sek: too few tenors (' + c.tenors.join(',') + ')');
-    if (now && (Date.parse(now) - Date.parse(c.dates[c.dates.length - 1])) / 864e5 > 7) errs.push('sek: newest date ' + c.dates[c.dates.length - 1] + ' is more than a week old');
-  }
-  const sw = m.swestr;
-  if (sw?.values?.length && !(sw.values[sw.values.length - 1] > -2 && sw.values[sw.values.length - 1] < 15)) errs.push('swestr: out of range');
-  return errs;
+  return [...validateCurve(m?.curves?.SEK, now, 'sek'), ...validateOvernight(m?.swestr, 'swestr')];
 }
 
 // What must hold before the file is published. Returns a list of problems (empty = fine).
@@ -170,7 +195,7 @@ export function fxOn(m, date) {
   for (const [c, s] of Object.entries(m.fx.rates)) if (isNum(s[i])) rates[c] = s[i];
   return { date: m.fx.dates[i], rates };
 }
-// A currency's curve for a date, with its overnight rate (€STR, SWESTR) as the first point:
+// A currency's curve for a date, with its overnight rate (€STR, SWESTR, SOFR, …) as the first point:
 // { date, ccy, t: [years], z: [decimal] }.
 export function curveOn(m, date, ccy = 'EUR') {
   const c = m?.curves?.[ccy];
@@ -178,7 +203,7 @@ export function curveOn(m, date, ccy = 'EUR') {
   if (i < 0) return null;
   if (date && (Date.parse(date) - Date.parse(c.dates[i])) / 864e5 > 7) return null;
   const t = [...c.tenors], z = c.zero[i].map(x => x / 100);
-  const on = ccy === 'EUR' ? m.estr : ccy === 'SEK' ? m.swestr : null;
+  const on = ccy === 'EUR' ? m.estr : ccy === 'SEK' ? m.swestr : m.overnight?.[ccy];
   const j = indexOn(on?.dates, c.dates[i]);
   // Overnight rates are simple (act/360): continuous is close enough at these levels.
   if (j >= 0 && t[0] > 1 / 365) { t.unshift(1 / 365); z.unshift(on.values[j] / 100); }

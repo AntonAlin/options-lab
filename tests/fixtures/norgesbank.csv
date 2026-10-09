@@ -1,0 +1,19 @@
+FREQ;Frequency;TENOR;Tenor;INSTRUMENT_TYPE;Instrument Type;UNIT_MEASURE;Unit of Measure;TIME_PERIOD;OBS_VALUE
+B;Business;3M;3 months;TBIL;Treasury bills;PCT;Percent;2026-09-24;4.3
+B;Business;6M;6 months;TBIL;Treasury bills;PCT;Percent;2026-09-24;4.25
+B;Business;12M;12 months;TBIL;Treasury bills;PCT;Percent;2026-09-24;4.15
+B;Business;3Y;3 years;GBON;Government bonds;PCT;Percent;2026-09-24;3.9
+B;Business;5Y;5 years;GBON;Government bonds;PCT;Percent;2026-09-24;3.85
+B;Business;10Y;10 years;GBON;Government bonds;PCT;Percent;2026-09-24;3.95
+B;Business;3M;3 months;TBIL;Treasury bills;PCT;Percent;2026-09-25;4.3
+B;Business;6M;6 months;TBIL;Treasury bills;PCT;Percent;2026-09-25;4.25
+B;Business;12M;12 months;TBIL;Treasury bills;PCT;Percent;2026-09-25;4.15
+B;Business;3Y;3 years;GBON;Government bonds;PCT;Percent;2026-09-25;3.9
+B;Business;5Y;5 years;GBON;Government bonds;PCT;Percent;2026-09-25;3.85
+B;Business;10Y;10 years;GBON;Government bonds;PCT;Percent;2026-09-25;3.95
+B;Business;3M;3 months;TBIL;Treasury bills;PCT;Percent;2026-09-28;4.3
+B;Business;6M;6 months;TBIL;Treasury bills;PCT;Percent;2026-09-28;4.25
+B;Business;12M;12 months;TBIL;Treasury bills;PCT;Percent;2026-09-28;4.15
+B;Business;3Y;3 years;GBON;Government bonds;PCT;Percent;2026-09-28;3.9
+B;Business;5Y;5 years;GBON;Government bonds;PCT;Percent;2026-09-28;3.85
+B;Business;10Y;10 years;GBON;Government bonds;PCT;Percent;2026-09-28;3.95

@@ -10,6 +10,7 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { buildMarket } from '../js/marketdata.js';
+import { BUILTIN } from '../js/marketsources.js';
 
 const repo = fileURLToPath(new URL('..', import.meta.url));
 // SITE_DIR tests an assembled site (scripts/assemble-site.sh) — exactly what gets published.
@@ -17,7 +18,8 @@ const root = process.env.SITE_DIR ? join(process.cwd(), process.env.SITE_DIR) + 
 const fixture = f => readFileSync(join(repo, 'tests/fixtures', f), 'utf8');
 // The ECB fixture stands in for the published file, so the automatic update is exercised too.
 const rb = JSON.parse(fixture('riksbank.json'));
-const market = JSON.stringify(buildMarket({ fxXml: fixture('ecb-hist-90d.xml'), curveCsv: fixture('ecb-yc.csv'), estrCsv: fixture('ecb-estr.csv'), sek: { series: rb.series, swestr: rb.swestr } }));
+const usd = BUILTIN.ustreasury.build({ curve: [{ text: fixture('ust-2026.csv') }], overnight: [{ text: fixture('nyfed-sofr.json') }] });
+const market = JSON.stringify(buildMarket({ fxXml: fixture('ecb-hist-90d.xml'), curveCsv: fixture('ecb-yc.csv'), estrCsv: fixture('ecb-estr.csv'), sek: { series: rb.series, swestr: rb.swestr }, parts: [usd] }));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 
 const server = createServer(async (req, res) => {
@@ -80,9 +82,24 @@ try {
     store.addPortfolio(store.newPortfolio({ name: 'Smoke', baseCcy: 'SEK', valDate: '2026-09-28' }));
     ms.syncAll();
     const p = store.active();
-    return { fxSource: p.fxSource, fxDate: p.fxDate, curve: p.curves?.EUR?.date, sek: p.curves?.SEK?.date };
+    return { fxSource: p.fxSource, fxDate: p.fxDate, curve: p.curves?.EUR?.date, sek: p.curves?.SEK?.date, usd: p.curves?.USD?.source };
   });
-  if (synced.fxSource !== 'ecb-auto' || synced.fxDate !== '2026-09-28' || synced.curve !== '2026-09-28' || synced.sek !== '2026-09-28') failures.push('market data not applied: ' + JSON.stringify(synced));
+  if (synced.fxSource !== 'ecb-auto' || synced.fxDate !== '2026-09-28' || synced.curve !== '2026-09-28' || synced.sek !== '2026-09-28' || synced.usd !== 'ustreasury') failures.push('market data not applied: ' + JSON.stringify(synced));
+  // Settings names each curve's provider; a market data file of your own that cannot be read is
+  // reported and leaves the portfolio's rates alone; going back to the site's file works.
+  await page.goto(base + 'index.html#/settings');
+  await page.waitForTimeout(400);
+  const status = await page.textContent('#marketStatus');
+  if (!/USD \(ustreasury\)/.test(status || '')) failures.push('settings: market status ' + JSON.stringify(status));
+  await page.fill('#marketUrlForm input[name="marketUrl"]', 'https://127.0.0.1:1/nowhere.json');
+  await page.click('button[form="marketUrlForm"]');
+  await page.waitForTimeout(800);
+  const own = await page.evaluate(async () => { const store = await import('./js/store.js'); return { url: store.settings().marketUrl, usd: store.active().curves?.USD?.source, status: document.getElementById('marketStatus')?.textContent || '' }; });
+  if (own.url !== 'https://127.0.0.1:1/nowhere.json' || own.usd !== 'ustreasury' || !/could not be read/.test(own.status)) failures.push('settings: own market data url ' + JSON.stringify(own));
+  await page.click('[data-act="marketUrlReset"]');
+  await page.waitForTimeout(800);
+  const back = await page.evaluate(async () => { const store = await import('./js/store.js'); return { url: store.settings().marketUrl, status: document.getElementById('marketStatus')?.textContent || '' }; });
+  if (back.url !== '' || !/USD \(ustreasury\)/.test(back.status)) failures.push('settings: back to the site\'s file ' + JSON.stringify(back));
   console.log(`Visited ${routes.length} pages; market data ${JSON.stringify(synced)}`);
 
   // Storage: a workspace saved in localStorage by an older version moves to IndexedDB, and what is

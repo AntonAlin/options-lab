@@ -1,0 +1,5 @@
+{
+  "providers": ["riksbank", "ustreasury", "norgesbank"],
+  "strict": ["riksbank"],
+  "custom": []
+}

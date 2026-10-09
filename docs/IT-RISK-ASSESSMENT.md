@@ -32,7 +32,7 @@ Using the public site at `antonalin.github.io/options-lab` is different. The cod
 | jsPDF, jspdf-autotable (PDF, on demand) | `cdn.jsdelivr.net`, pinned, SRI | No | Yes, bundled |
 | SheetJS (Excel, on demand) | `cdn.sheetjs.com`, pinned 0.20.3, SRI | No | Yes, bundled |
 | Inter font | `fonts.googleapis.com`, `fonts.gstatic.com` | No | Yes, dropped (system font used) |
-| Market data | `data/market.json` from the site's own address: public ECB and Riksbank rates | No | Included as a snapshot at release time. Rates can also be imported by hand |
+| Market data | `data/market.json` from the site's own address: public ECB, Riksbank, US Treasury/New York Fed and Norges Bank rates. Optionally the organisation's own file instead (Settings → *Market data file*, an https address the organisation chooses; a plain GET without cookies) | No | Included as a snapshot at release time. Rates can also be imported by hand |
 | Import model | `js/models/import-model.json` from the site's own address | No | Included |
 
 Nothing is ever uploaded. Files the user opens (holdings, prices, transactions) are read by the browser locally.
@@ -73,7 +73,7 @@ The **Control log** page records who signed off the daily limit check, every bre
 
 - There is no supplier that can fail, withdraw the service or change its terms for a copy you already host. An offline release keeps working as long as a current browser can run it.
 - All data can be exported in open formats: the whole workspace as JSON, positions as CSV/Excel, the control log as CSV/JSON, reports as PDF. Leaving the tool means exporting and stopping. There is no lock-in and no data held elsewhere.
-- The market data depends on a scheduled GitHub Action in this repository. A failed download opens a public GitHub issue, and the workflow keeps itself enabled. If it stops anyway, FX rates can be imported from the ECB file by hand (Settings), and positions can carry their own rates.
+- The market data depends on a scheduled GitHub Action in this repository (or, with a market data file of the organisation's own, on the organisation's server). Providers other than the ECB are optional: one that fails is left out of the file and positions in that currency fall back to their own rate. A failed download opens a public GitHub issue, and the workflow keeps itself enabled. If it stops anyway, FX rates can be imported from the ECB file by hand (Settings), and positions can carry their own rates.
 - Every published market data file is archived on the repository's `market-data` branch, one file per ECB business day, so the rates used on a past date can be reproduced.
 
 ## Suggested controls for a firm using it
