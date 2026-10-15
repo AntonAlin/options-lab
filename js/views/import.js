@@ -11,6 +11,7 @@ import {
 } from '../importer.js';
 import { downloadBlob, loadScript, slug, todayISO } from '../util.js';
 import { datedLayout, splitSnapshots, snapshotHistory } from '../sourcefile.js';
+import { attachNew, recordChange } from '../sources.js';
 import { MAX_SAVED } from '../snapshots.js';
 import { sourceCardHtml, bindSourceCard } from './source-card.js';
 
@@ -492,7 +493,7 @@ async function importDated(D, p, app) {
   for (const { g, target } of plan) {
     let pf = target;
     if (!pf) {
-      pf = store.newPortfolio({ name: g.key, baseCcy: p.baseCcy, manager: p.manager, fundType: p.fundType, fxEur: p.fxEur, fxSource: p.fxSource, fxDate: p.fxDate });
+      pf = attachNew(store.newPortfolio({ name: g.key, baseCcy: p.baseCcy, manager: p.manager, fundType: p.fundType, fxEur: p.fxEur, fxSource: p.fxSource, fxDate: p.fxDate }));
       store.upsertPortfolio(pf);
       created++;
     }
@@ -500,6 +501,7 @@ async function importDated(D, p, app) {
     const use = [...g.dates].reverse().find(d => d.date <= st.date) || g.dates[0];
     const chosen = holdings(use.rows);
     const hist = snapshotHistory(g, st.mapping, opts);
+    const before = JSON.parse(JSON.stringify(store.listPortfolios().find(x => x.id === pf.id)?.positions || []));
     store.mutatePortfolio(pf.id, pp => {
       const res = mergePositions(pp.positions, chosen, st.mode);
       pp.positions = res.positions; added += res.added; updated += res.updated;
@@ -509,6 +511,8 @@ async function importDated(D, p, app) {
       pp.snapshots = list.sort((a, b) => a.date.localeCompare(b.date)).slice(-MAX_SAVED);
       if (hist) pp.history = mergeHistory(pp.history, hist);
     });
+    // A portfolio fed by a data source gets the imported holdings as rows (the chosen date's only).
+    recordChange(pf.id, before, store.listPortfolios().find(x => x.id === pf.id)?.positions || [], 'import');
   }
   // The empty placeholder the welcome page creates is not needed when the file names its portfolios.
   if (!plan.some(x => x.target === p) && !p.positions.length && !(p.snapshots || []).length) store.deletePortfolio(p.id);

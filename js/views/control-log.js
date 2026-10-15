@@ -56,6 +56,9 @@ export function describe(e) {
     }
     case 'ge': return t('cl.d.ge') + undo;
     case 'lmt': return t('cl.d.lmt') + undo;
+    case 'source.connect': return t('cl.d.sourceConnect', { source: d.source || '', p: d.portfolios ?? 0, d: d.dates ?? 0 }) + (d.access === 'read' ? ' ' + t('cl.d.sourceReadOnly') : '');
+    case 'source.write': return t('cl.d.sourceWrite', { source: d.source || '', d: fmtDate(d.date), a: d.added ?? 0, r: d.removed ?? 0, c: d.changed ?? 0 }) + (d.copied ? ' ' + t('cl.d.sourceCopied', { n: d.copied }) : '') + (d.columns?.length ? ' ' + t('cl.d.sourceColumns', { list: d.columns.join(', ') }) : '') + (d.missing ? ' ' + t('cl.d.sourceMissing', { n: d.missing }) : '');
+    case 'portfolio.removed': return t(d.reason === 'source_removed' ? 'cl.d.removedSource' : 'cl.d.removed', { name: d.name || '', source: d.source || '', n: d.positions ?? 0 });
     default: return e.kind;
   }
 }
@@ -131,6 +134,7 @@ export default {
           { key: 'd', label: t('cl.what'), fmt: e => esc(describe(e)) }
         ], [...st.log].reverse(), { dense: true, maxRows: 300 }) : `<p class="muted small">${esc(t('cl.logEmpty'))}</p>`}
         <p class="muted small">${esc(t('cl.logHelp'))}</p>`, { sub: esc(t('cl.logSub')) })}
+      ${archiveCard()}
     `;
 
     root.querySelector('#clName').addEventListener('change', e => { store.setSetting('userName', e.target.value.trim()); });
@@ -145,6 +149,11 @@ export default {
       }
       if (act === 'csv') downloadBlob(toCSV(exportRows(st.log, describe)), 'text/csv', `${slug(p.name)}-control-log-${todayISO()}.csv`);
       if (act === 'json') downloadBlob(JSON.stringify({ app: 'nexus-portfolio-lab', portfolio: p.name, exportedAt: new Date().toISOString(), head: st.chain.head, intact: st.chain.ok, entries: st.log }, null, 2), 'application/json', `${slug(p.name)}-control-log-${todayISO()}.json`);
+      if (b.dataset.arch) {
+        const [kind, i] = b.dataset.arch.split(':');
+        const x = store.archive()[+i];
+        if (x) exportArchived(x, kind);
+      }
       if (b.dataset.open) {
         const [rule, start] = b.dataset.open.split('|');
         const x = st.todo.find(y => y.rule === rule && y.start === start);
@@ -187,4 +196,21 @@ function caseDialog({ mode, item = null, c = null }) {
     closeModal();
     toast(t('cl.saved'));
   });
+}
+
+// The control logs of deleted portfolios (and of portfolios whose source was removed), kept in the workspace.
+function archiveCard() {
+  const list = store.archive();
+  if (!list.length) return '';
+  return card(t('cl.archive'), table([
+    { key: 'n', label: t('col.name'), fmt: x => `<strong>${esc(x.name)}</strong>${x.source ? `<div class="cell-sub">${esc(x.source)}</div>` : ''}` },
+    { key: 'at', label: t('cl.archiveAt'), fmt: x => esc(when(x.removedAt)) + `<div class="cell-sub">${esc(x.by || t('cl.noName'))} · ${esc(t(x.reason === 'source_removed' ? 'cl.archiveSource' : 'cl.archiveDeleted'))}</div>` },
+    { key: 'e', label: t('cl.chain'), fmt: x => { const v = verify(x.controlLog || []); return `${statusChip(v.ok ? 'ok' : 'breach')} ${esc(t('cl.entries', { n: v.n }))}`; } },
+    { key: 'x', label: '', align: 'right', fmt: x => { const i = list.indexOf(x); return `<span class="btn-row"><button class="btn btn-sm" data-arch="csv:${i}">CSV</button><button class="btn btn-sm" data-arch="json:${i}">JSON</button></span>`; } }
+  ], [...list].reverse(), { dense: true }), { sub: esc(t('cl.archiveSub')) });
+}
+function exportArchived(x, kind) {
+  const log = x.controlLog || [], v = verify(log), name = `${slug(x.name)}-control-log-archived-${String(x.removedAt).slice(0, 10)}`;
+  if (kind === 'csv') downloadBlob(toCSV(exportRows(log, describe)), 'text/csv', name + '.csv');
+  else downloadBlob(JSON.stringify({ app: 'nexus-portfolio-lab', portfolio: x.name, removedAt: x.removedAt, removedBy: x.by, reason: x.reason, source: x.source, exportedAt: new Date().toISOString(), head: v.head, intact: v.ok, entries: log }, null, 2), 'application/json', name + '.json');
 }

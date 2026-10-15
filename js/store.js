@@ -55,7 +55,7 @@ export function newPortfolio(o = {}) {
 }
 
 function freshState() {
-  return { version: 1, settings: { theme: 'auto', autoBackup: 'weekly', lastBackup: '' }, activeId: null, portfolios: {}, templates: [] };
+  return { version: 1, settings: { theme: 'auto', autoBackup: 'weekly', lastBackup: '', srcWriteMode: 'inplace', srcDefault: '' }, activeId: null, portfolios: {}, templates: [], archive: [] };
 }
 
 let state = freshState();
@@ -102,7 +102,7 @@ function readAll(d) {
   });
 }
 // Stored as JSON text: the state is plain data, and a string can never fail to clone.
-const metaOf = s => JSON.stringify({ version: s.version, settings: s.settings, activeId: s.activeId, templates: s.templates });
+const metaOf = s => JSON.stringify({ version: s.version, settings: s.settings, activeId: s.activeId, templates: s.templates, archive: s.archive || [] });
 function writeDb(d, { all, ids, removed }) {
   return new Promise((resolve, reject) => {
     const tx = d.transaction(OS, 'readwrite');
@@ -290,14 +290,15 @@ export function upsertPortfolio(p, { activate = false } = {}) {
   persist({ id: p.id }); emit('active');
   return p;
 }
-// Change any portfolio, not only the active one. Not undoable: used when a connected file
-// refreshes, and the undo snapshots taken before that would bring back stale holdings.
-export function mutatePortfolio(id, fn, { silent = false } = {}) {
+// Change any portfolio, not only the active one. Not undoable: used when a data source refreshes,
+// and the undo snapshots taken before that would bring back stale holdings. keepUndo: the change
+// does not touch what the undo stack restores (the source said what the portfolio already holds).
+export function mutatePortfolio(id, fn, { silent = false, keepUndo = false } = {}) {
   const p = state.portfolios[id];
   if (!p) return;
   fn(p);
   p.updatedAt = new Date().toISOString();
-  if (id === state.activeId) undoStack = [];
+  if (id === state.activeId && !keepUndo) undoStack = [];
   persist({ id });
   if (!silent) emit('data');
 }
@@ -308,6 +309,31 @@ export function deletePortfolio(id) {
   persist({ removed: id }); emit('active');
 }
 
+// Control logs outlive their portfolios. Deleting a portfolio (or removing the source that fed it)
+// first closes its log with a 'portfolio.removed' entry, then keeps the whole chained log here, in
+// the workspace, where the Control log page lists and exports it. A workspace reset keeps it too.
+export const archive = () => (Array.isArray(state.archive) ? state.archive : []);
+export function archivePortfolio(id, data = {}) {
+  const p = state.portfolios[id];
+  if (!p) return null;
+  if (!Array.isArray(p.controlLog)) p.controlLog = [];
+  append(p.controlLog, [{ kind: 'portfolio.removed', data: { name: p.name, positions: p.positions.length, ...data } }], { by: state.settings.userName || '', valDate: valuationDate(p) });
+  const entry = { id: p.id, name: p.name, removedAt: new Date().toISOString(), by: state.settings.userName || '', reason: data.reason || 'deleted', source: data.source || '', controlLog: p.controlLog };
+  state.archive = [...archive(), entry];
+  deletePortfolio(id);
+  emit('log');
+  return entry;
+}
+
+// Changes the user makes to a portfolio's holdings (update, undo), for the data source to write.
+const changeHooks = new Set();
+export function onUserChange(fn) { changeHooks.add(fn); return () => changeHooks.delete(fn); }
+function userChanged(id, before, after, label) {
+  if (!changeHooks.size) return;
+  const ev = { id, before, after: JSON.parse(JSON.stringify(after)), label };
+  changeHooks.forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
+}
+
 // Mutate the active portfolio. `label` goes on the undo stack so the toast can say what it undid.
 // A change to a limit, fund rule or global exposure / LMT setting is written to the control log.
 export function update(fn, label = '') {
@@ -316,10 +342,12 @@ export function update(fn, label = '') {
   undoStack.push({ label, snap: JSON.stringify(p) });
   if (undoStack.length > 30) undoStack.shift();
   const before = controlsOf(p);
+  const holdingsBefore = JSON.parse(JSON.stringify(p.positions || []));
   fn(p);
   logChanges(p, before, controlsOf(p));
   p.updatedAt = new Date().toISOString();
   persist({ id: p.id }); emit('data');
+  userChanged(p.id, holdingsBefore, p.positions || [], label);
 }
 // Undo brings back the holdings and settings, never an earlier control log: the log only grows, and
 // a limit that undo puts back is logged as a change of its own.
@@ -330,10 +358,12 @@ export function undo() {
   const cur = state.portfolios[p.id];
   if (cur) {
     p.controlLog = cur.controlLog || [];
+    p.source = cur.source;
     logChanges(p, controlsOf(cur), controlsOf(p), { undo: true });
   }
   state.portfolios[p.id] = p;
   persist({ id: p.id }); emit('data');
+  if (cur) userChanged(p.id, JSON.parse(JSON.stringify(cur.positions || [])), p.positions || [], last.label);
   return last.label;
 }
 function logChanges(p, before, after, extra = null) {
@@ -392,9 +422,10 @@ export function importWorkspace(obj, { merge = true } = {}) {
   return incoming.length;
 }
 export function resetWorkspace() {
-  const s = state.settings;
+  const s = state.settings, arch = archive();
   state = freshState();
   state.settings = s;
+  state.archive = arch;
   undoStack = [];
   persist(); emit('active');
 }

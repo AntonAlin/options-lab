@@ -8,8 +8,8 @@ This page answers the questions an IT, risk or compliance function asks before a
 |---|---|
 | What is it? | A folder of static files (HTML, JavaScript, CSS). Everything is calculated in the user's browser. There is no back end, no database server and no user accounts. |
 | Is it bought? Is there a contract? | No. It is free to use and it is not sold. There is no contract, no SLA and no supplier relationship, only the [licence](../LICENSE). |
-| Where does portfolio data go? | Nowhere. It stays in the browser on the user's computer and in files the user chooses to save. No request carries portfolio data. |
-| Can it run without internet access? | Yes. Every [release](https://github.com/AntonAlin/options-lab/releases) has an offline zip with all libraries bundled and no web fonts. Hosted internally, it makes no outbound request at all. |
+| Where does portfolio data go? | To the data source the user connects, and nowhere else. A file source is read and written in place on the user's computer or network share. An API source is called from the browser at the address the user enters, and holdings go to and from that address only. Otherwise data stays in the browser and in files the user chooses to save. |
+| Can it run without internet access? | Yes. Every [release](https://github.com/AntonAlin/options-lab/releases) has an offline zip with all libraries bundled and no web fonts. Hosted internally, it makes no outbound request at all, except to an API the user connects as a data source. |
 | Can we check what it does? | Yes. The complete source is public. *How we calculate* in the app links each formula to its module. |
 | Can we verify the files we host? | Yes. Releases carry a signed build provenance attestation, a CycloneDX SBOM with its own signed attestation, and SHA-256 checksums. |
 | How do we know an upgrade did not change our numbers? | Each release has `VALIDATION.md`: 92 risk, compliance and pricing figures on a reference fund, compared with frozen values, plus closed-form pricing checks. Release notes list calculation changes separately. |
@@ -34,8 +34,11 @@ Using the public site at `nexus.alin.one` is different. The code is then served 
 | Inter font | `fonts.googleapis.com`, `fonts.gstatic.com` | No | Yes, dropped (system font used) |
 | Market data | `data/market.json` from the site's own address: public ECB and Riksbank rates | No | Included as a snapshot at release time. Rates can also be imported by hand |
 | Import model | `js/models/import-model.json` from the site's own address | No | Included |
+| API data source (only if the user connects one) | The address the user enters: GET to read, PUT/POST to write back if allowed | **Yes**, to that address only | No: it is the firm's own endpoint, typically internal |
 
-Nothing is ever uploaded. Files the user opens (holdings, prices, transactions) are read by the browser locally.
+Nothing is ever uploaded to the developer or any third party. Files the user opens (holdings, prices, transactions) are read by the browser locally.
+
+**Data sources.** The app does not work without one. A *file* source is read and written in place through the browser's File System Access API (Chrome/Edge desktop): changes made in the app become row additions, edits and deletions in that file, each logged in the portfolio's control log. An *API* source is an HTTP endpoint the user enters (HTTPS only; plain HTTP only for localhost). The browser calls it with GET at the interval the user sets and, if the user allows writing, sends the whole updated document back with PUT or POST, with `If-Match` on the ETag. Holdings travel in those requests, to that address only. Headers the user enters (API keys, bearer tokens) are kept in the browser's IndexedDB in plain form, like the rest of the workspace, so issue a token limited to the holdings endpoint. The endpoint must allow the site's origin (CORS). Controls for the firm: decide which endpoints may be connected, and restrict outbound traffic from the hosting origin if needed.
 
 ## Where data is stored
 
@@ -90,4 +93,7 @@ The **Control log** page records who signed off the daily limit check, every bre
 - No authentication, no roles and no four-eyes enforcement in the software itself.
 - One user per workspace at a time. Several people working on the same linked file can overwrite each other's changes; the app warns when the file changed elsewhere.
 - Model estimates with documented simplifications (see *How we calculate*). Regulatory checks are one reading of the rules as of September 2026 and may be incomplete or wrong.
-- Browser support: current Chrome, Edge, Firefox and Safari. The linked file needs Chrome or Edge on desktop.
+- The app writes into its data source. Point it at a file or endpoint the firm versions and backs up (a network share with previous versions, SharePoint version history, an API with an audit trail), and not at a downstream system's only copy without that. Every write is in the control log, but the log is tamper-evident, not access control.
+- Writing a workbook rewrites the holdings sheet as values: formulas and cell formatting on that sheet are not kept (other sheets are). A CSV keeps its delimiter, decimal sign and encoding; a JSON document keeps everything outside its list of records. XML sources are read only.
+- API tokens entered for a data source are stored unencrypted in the browser profile, like the rest of the workspace.
+- Browser support: current Chrome, Edge, Firefox and Safari. File data sources and the linked file need Chrome or Edge on desktop; other browsers can only use an API as the data source.
