@@ -8,6 +8,7 @@ import { toCSV, positionRows, XLSX_URL, XLSX_SRI } from '../importer.js';
 import { checkHoldings } from '../datachecks.js';
 import { snapshots } from '../snapshots.js';
 import { dataChecksCard } from './datachecks-card.js';
+import { isSourced, canWrite, connOf, sourceName } from '../sources.js';
 
 // Today's holdings against the latest earlier snapshot (a connected file's previous date, or a
 // saved snapshot): the checks that catch a bad daily file. Cached per portfolio version.
@@ -79,7 +80,7 @@ export default {
     root.innerHTML = `
       ${pageHead(t('nav.holdings'), esc(t('hold.sub', { n: v.rows.length, nav: fmtMoney(v.nav, base, { compact: true }) })),
         `<button class="btn" data-act="csv">${esc(t('hold.exportCsv'))}</button><button class="btn" data-act="xlsx">${esc(t('hold.exportXlsx'))}</button><a class="btn" href="#/import">${esc(t('nav.import'))}</a><button class="btn btn-primary" data-act="add">+ ${esc(t('hold.add'))}</button>`)}
-      ${p.source && p.source.file ? `<div class="alert alert-info"><span>${esc(t('src.holdingsNote', { name: p.source.fileName, d: p.source.shown || p.valDate }))}</span></div>` : ''}
+      ${isSourced(p) ? `<div class="alert alert-info"><span>${esc(t(canWrite(connOf(p)) ? 'src.holdingsNote' : 'src.holdingsNoteRead', { name: sourceName(p), d: p.source.shown || p.valDate || '—' }))}</span></div>` : ''}
       ${(() => { const c = holdingChecks(p); return dataChecksCard(c.res, { sub: t('dc.subHoldings', { d: c.prevDate }), compact: true }); })()}
       <div class="toolbar">
         <input type="search" id="hq" placeholder="${esc(t('hold.search'))}" value="${esc(ui.q)}" aria-label="${esc(t('hold.search'))}">

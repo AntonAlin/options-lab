@@ -149,7 +149,7 @@ export function parseText(text, name = '') {
 }
 
 // SheetJS → 2-D array, with percent-formatted cells scaled to percent and dates as Date.
-function sheetRows(ws) {
+export function sheetRows(ws) {
   if (!ws || !ws['!ref']) return [];
   const XLSX = window.XLSX;
   const range = XLSX.utils.decode_range(ws['!ref']);

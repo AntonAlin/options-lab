@@ -8,6 +8,13 @@
 import * as store from './store.js';
 import { positionRows, toCSV, XLSX_URL, XLSX_SRI } from './importer.js';
 import { loadScript, debounce } from './util.js';
+import { fileHandles } from './sources.js';
+
+// A connected data source is written row by row by js/sources.js; linking the same file here would
+// overwrite it with a workspace copy that has no date column.
+async function notASource(h) {
+  for (const src of fileHandles()) if (src && typeof h.isSameEntry === 'function' && await h.isSameEntry(src).catch(() => false)) throw Object.assign(new Error('same_file'), { code: 'same_file' });
+}
 
 const DB = 'nexus-filelink', OS = 'meta', KEY = 'main';
 export const KINDS = ['json', 'csv', 'xlsx'];
@@ -88,6 +95,7 @@ export async function linkNew(kind) {
   const p = store.active();
   const base = (p ? p.name : 'nexus-portfolio-lab').replace(/[\\/:*?"<>|]+/g, '-');
   const handle = await window.showSaveFilePicker({ id: 'nexus-workspace', suggestedName: `${kind === 'json' ? 'nexus-portfolio-lab' : base}.${kind}`, types: [TYPES[kind]] });
+  await notASource(handle);
   await adopt(handle, kind);
   await save();
   return status;
@@ -99,6 +107,7 @@ export async function linkExisting() {
   const [handle] = await window.showOpenFilePicker({ id: 'nexus-workspace', multiple: false, types: KINDS.map(k => TYPES[k]) });
   const kind = kindOfName(handle.name);
   if (!kind) throw new Error('kind');
+  await notASource(handle);
   if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') throw new Error('permission');
   let workspace = null;
   if (kind === 'json') {

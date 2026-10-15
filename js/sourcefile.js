@@ -1,18 +1,16 @@
-// A connected source file: a CSV or Excel file on the user's disk that the app reads (never writes)
-// and keeps reading when it changes. The first column holds a date, so one file can carry many
-// snapshots — a daily holdings dump appended to over time — and, with a portfolio column, many
-// portfolios. Each portfolio in the file becomes a portfolio here; it shows the latest date unless
-// the user pins another one, and the prices across dates feed its price history.
+// The data in a connected source, as rows: where the date, portfolio and field columns are, how the
+// rows split into portfolios and dates, and how a change made in the app becomes row operations
+// written back in the source's own format. Pure functions only (no browser APIs), so the tests run
+// them under Node; js/sources.js owns the connections and js/connectors.js the transports.
 //
-// Reading uses the File System Access API (Chrome and Edge on desktop). The handle is kept in
-// IndexedDB; after a browser restart one click re-grants read access.
-import * as store from './store.js';
-import { readFile, autoMapping, rowsToPositions, detectTemplate, applyTemplateMapping, parseDate, parseNumber, mergeHistory, guessField } from './importer.js';
-import { normKey } from './instruments.js';
+// The first column holds a date, so one source can carry many snapshots — a daily holdings dump
+// appended to over time — and, with a portfolio column, many portfolios.
+import { autoMapping, rowsToPositions, detectTemplate, applyTemplateMapping, parseDate, guessField, parseHistory } from './importer.js';
+import { normKey, INSTRUMENTS, FIELDS, typeLabel, resolveType } from './instruments.js';
 import { posKey as key } from './insights.js';
-import { loadScript, uid, isNum } from './util.js';
+import { uid, isNum } from './util.js';
 
-// ---- pure helpers (also used by the tests) -----------------------------------------------------------
+// ---- reading -------------------------------------------------------------------------------------------
 
 // Only cells that are unmistakably dates count: a Date, an Excel serial in a sane range, or text
 // shaped like 2026-09-29 / 29.09.2026 / 20260929. "Total" or a bare 1234 must not pass.
@@ -28,6 +26,7 @@ const PF_ALIASES = new Set(['portfolio', 'portfolioname', 'portfolioid', 'portfo
   'fund', 'fundname', 'fundid', 'fundcode', 'fond', 'fondnamn', 'fondid', 'account', 'accountname', 'accountid', 'accountnumber', 'konto', 'kontonamn', 'kontonummer',
   'depå', 'depa', 'depot', 'depånummer', 'mandate', 'mandat', 'mandatename', 'client', 'kund', 'clientname', 'kundnamn']);
 export const isPortfolioHeader = h => PF_ALIASES.has(normKey(h));
+export const PORTFOLIO_HEADER = 'Portfolio', DATE_HEADER = 'Date';
 
 // Headers that name the date a row applies to. A column whose header is a position field (Maturity,
 // Förfallodag, …) is never the snapshot date, however date-like its cells are.
@@ -52,7 +51,12 @@ export function detectLayout(rows) {
   };
   let dateCol = ok(0) ? 0 : -1;
   for (let c = 1; c < width && dateCol < 0; c++) if (ok(c)) dateCol = c;
-  if (dateCol < 0) return { error: dateRatio(sample, 0) >= 0.5 && headerFor(0) < 0 ? 'no_header' : 'no_date' };
+  if (dateCol < 0) {
+    // A template with headers and no rows yet: a date header in a row that also names two fields.
+    const hr = rows.slice(0, 15).findIndex(r => r.some(isDateHeader) && r.filter(h => guessField(h)).length >= 2);
+    if (hr >= 0) return { headerRow: hr, header: rows[hr].map(headerText), dateCol: rows[hr].findIndex(isDateHeader), pfCol: rows[hr].findIndex(h => !isDateHeader(h) && isPortfolioHeader(h)) };
+    return { error: dateRatio(sample, 0) >= 0.5 && headerFor(0) < 0 ? 'no_header' : 'no_date' };
+  }
   const headerRow = headerFor(dateCol);
   const header = rows[headerRow].map(headerText);
   const pfCol = header.findIndex((h, c) => c !== dateCol && isPortfolioHeader(h));
@@ -70,7 +74,7 @@ export function datedLayout(rows, headerRow) {
 }
 
 // Split the rows below the header into portfolios and dates:
-//   [{ key, dates: [{ date, rows }] }] with dates ascending. key is '' when the file has no portfolio column.
+//   [{ key, dates: [{ date, rows }] }] with dates ascending. key is '' when there is no portfolio column.
 export function splitSnapshots(rows, layout) {
   const groups = new Map();
   let skipped = 0;
@@ -88,9 +92,9 @@ export function splitSnapshots(rows, layout) {
   return { groups: out, skipped };
 }
 
-// Column → field mapping for the file: a saved import template that matches the headers wins
-// (so the bulk-upload page is where an odd layout gets taught once), otherwise the auto-mapping.
-// The date and portfolio columns never map to a position field.
+// Column → field mapping: a saved import template that matches the headers wins (so the bulk-upload
+// page is where an odd layout gets taught once), otherwise the auto-mapping. The date and portfolio
+// columns never map to a position field.
 export function sourceMapping(layout, templates = []) {
   const hit = detectTemplate(templates, [{ rows: [layout.header] }]);
   const tpl = hit ? hit.template : null;
@@ -108,16 +112,34 @@ export function sourceMapping(layout, templates = []) {
 export function snapshotPositions(rows, mapping, opts) {
   return rowsToPositions(rows, mapping, opts).map(r => r.pos);
 }
+// Rows reported with quantity 0 (closed that day) price the close in the history, but are not holdings.
+export const isHeld = x => x.type === 'cash' || !(x.qty === 0 || (x.qty == null && x.buyAmount === 0));
 
-const posKey = x => { const k = key(x); return k.startsWith('x:') ? '' : k; };
+// ISIN, then ticker, then name; '' when a position has none of them.
+export const posKey = x => { const k = key(x); return k.startsWith('x:') ? '' : k; };
+const canon = v => {
+  if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+  return JSON.stringify(v ?? null);
+};
+const terms = x => { const { id, ...rest } = x; return canon(rest); };
 
-// Keep position ids stable across refreshes so selections and transaction links survive.
+// Keep position ids stable across refreshes so selections, transactions and pending writes keep
+// pointing at the right holding. A position without a key keeps its id if one with exactly the same
+// terms had one.
 export function carryIds(prev, next) {
-  const ids = new Map();
-  (prev || []).forEach(x => { const k = posKey(x); if (k && !ids.has(k)) ids.set(k, x.id); });
+  const ids = new Map(), byTerms = new Map();
+  (prev || []).forEach(x => {
+    const k = posKey(x);
+    if (k) { if (!ids.has(k)) ids.set(k, x.id); return; }
+    const tm = terms(x);
+    if (!byTerms.has(tm)) byTerms.set(tm, []);
+    byTerms.get(tm).push(x.id);
+  });
   const used = new Set();
   return next.map(x => {
-    const id = ids.get(posKey(x));
+    const k = posKey(x);
+    let id = k ? ids.get(k) : (byTerms.get(terms(x)) || []).find(i => !used.has(i)) || null;
     if (id && !used.has(id)) { used.add(id); return { ...x, id }; }
     return x.id ? x : { ...x, id: uid() };
   });
@@ -139,238 +161,245 @@ export function snapshotHistory(group, mapping, opts) {
   return Object.keys(series).length ? { dates, series } : null;
 }
 
-// Parse a whole file into { layout, mapping, opts, template, groups, skipped } or { error }.
-export function analyseRows(rows, { decimal = '.', templates = [] } = {}) {
+// Parse a whole sheet into { layout, mapping, opts, template, groups, skipped } or { error }.
+// allowEmpty: a template with headers only is a valid (empty) source, to be filled from the app.
+export function analyseRows(rows, { decimal = '.', templates = [], allowEmpty = false } = {}) {
   const layout = detectLayout(rows);
   if (layout.error) return layout;
   const { mapping, opts, template } = sourceMapping(layout, templates);
   if (mapping.filter(Boolean).length < 2) return { error: 'no_fields' };
   const { groups, skipped } = splitSnapshots(rows, layout);
-  if (!groups.length) return { error: 'no_rows' };
+  if (!groups.length && !allowEmpty) return { error: 'no_rows' };
   return { layout, mapping, opts: { decimal, ...opts }, template, groups, skipped };
 }
 
-// ---- state -------------------------------------------------------------------------------------------------
-const DB = 'nexus-sourcefile', OS = 'meta', KEY = 'main';
-const POLL_MS = 4000;
-const TYPES = [{ description: 'CSV or Excel', accept: { 'text/csv': ['.csv', '.txt', '.tsv'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx', '.xlsm'], 'application/vnd.ms-excel': ['.xls'] } }];
-
-const status = { state: 'none', name: '', lastRead: null, lastModified: 0, error: '', portfolios: 0, dates: 0, template: '', skipped: 0 };
-const listeners = new Set();
-export const supported = () => typeof window !== 'undefined' && typeof window.showOpenFilePicker === 'function';
-export const getStatus = () => status;
-export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
-function set(patch) { Object.assign(status, patch); listeners.forEach(fn => { try { fn(status); } catch (e) { console.error(e); } }); }
-
-function idb() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(OS);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function idbGet() {
-  try {
-    const db = await idb();
-    return await new Promise((resolve, reject) => { const r = db.transaction(OS).objectStore(OS).get(KEY); r.onsuccess = () => resolve(r.result || null); r.onerror = () => reject(r.error); });
-  } catch (e) { return null; }
-}
-// Remembering the handle is a convenience (no reconnect after a reload); failing to store it, e.g.
-// in a private window, must not break the connection itself.
-async function idbSet(val) {
-  try {
-    const db = await idb();
-    await new Promise((resolve, reject) => { const tx = db.transaction(OS, 'readwrite'); tx.objectStore(OS).put(val, KEY); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
-  } catch (e) { console.warn('Connected file could not be remembered', e); }
-}
-async function idbDel() {
-  try { const db = await idb(); await new Promise((resolve, reject) => { const tx = db.transaction(OS, 'readwrite'); tx.objectStore(OS).delete(KEY); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); } catch (e) { /* nothing to forget */ }
+// The holdings sheet of a parsed source: the first sheet with a date column and fields.
+export function analyseSheets(sheets, opts = {}) {
+  const usable = sheets.filter(s => s.rows.length >= 1);
+  for (const sh of usable) { const x = analyseRows(sh.rows, opts); if (!x.error) return { ...x, sheet: sh.name }; }
+  for (const sh of usable) { const x = analyseRows(sh.rows, { ...opts, allowEmpty: true }); if (!x.error) return { ...x, sheet: sh.name }; }
+  return usable.length ? analyseRows(usable[0].rows, opts) : { error: 'no_rows' };
 }
 
-let rec = null;      // { id, handle, name, lastModified }
-let parsed = null;   // last analyseRows() result, so switching dates needs no re-read
-let timer = null;
-
-// The portfolios fed by the connected file.
-export const sourced = () => (rec ? store.listPortfolios().filter(p => p.source && p.source.file === rec.id) : []);
-// Holdings on every date in the file for one portfolio: [{ date, positions }], oldest first.
-// Built on demand and cached until the file (or the mapping) changes.
-let snapCache = { parsed: null, map: new Map() };
-export function snapshotsFor(p) {
-  if (!parsed || !p?.source?.file || !rec || p.source.file !== rec.id) return null;
-  if (snapCache.parsed !== parsed) snapCache = { parsed, map: new Map() };
-  if (snapCache.map.has(p.source.key)) return snapCache.map.get(p.source.key);
-  const g = parsed.groups.find(x => x.key === p.source.key);
-  const out = g ? g.dates.map(d => ({ date: d.date, positions: snapshotPositions(d.rows, parsed.mapping, parsed.opts) })) : null;
-  snapCache.map.set(p.source.key, out);
-  return out;
-}
-export const datesFor = p => (parsed && p?.source ? parsed.groups.find(g => g.key === p.source.key)?.dates.map(d => d.date) || [] : p?.source?.dates || []);
-
-// ---- connect / disconnect --------------------------------------------------------------------------------
-export async function connect({ sameAs = null } = {}) {
-  if (!supported()) throw new Error('unsupported');
-  const [handle] = await window.showOpenFilePicker({ id: 'nexus-source', multiple: false, types: TYPES });
-  // Reading the file the linked-file feature writes to would make the app feed itself.
-  if (sameAs && typeof handle.isSameEntry === 'function' && await handle.isSameEntry(sameAs).catch(() => false)) throw Object.assign(new Error('same_file'), { code: 'same_file' });
-  if ((await handle.queryPermission?.({ mode: 'read' })) !== 'granted' && (await handle.requestPermission({ mode: 'read' })) !== 'granted') throw Object.assign(new Error('permission'), { code: 'permission' });
-  const file = await handle.getFile();
-  const result = await parseFile(file);
-  if (result.error) throw Object.assign(new Error(result.error), { code: result.error });
-  // A new file is a new source: portfolios fed by the previous one keep their data but stop following.
-  if (rec) detachAll();
-  rec = { id: uid('src'), handle, name: handle.name, lastModified: file.lastModified };
-  await idbSet(rec);
-  const created = apply(result, { activateFirst: true });
-  set({ state: 'linked', name: rec.name, lastRead: new Date().toISOString(), lastModified: file.lastModified, error: '' });
-  startPolling();
-  return { created, portfolios: result.groups.length, dates: new Set(result.groups.flatMap(g => g.dates.map(d => d.date))).size };
-}
-
-// Keep the portfolios, stop following the file.
-export async function disconnect() {
-  detachAll();
-  rec = null; parsed = null;
-  stopPolling();
-  await idbDel();
-  set({ state: supported() ? 'none' : 'unsupported', name: '', lastRead: null, lastModified: 0, error: '', portfolios: 0, dates: 0, template: '', skipped: 0 });
-}
-function detachAll() {
-  for (const p of sourced()) store.mutatePortfolio(p.id, pp => { pp.source = { ...pp.source, detached: true, file: '' }; });
-}
-
-// ---- reading ------------------------------------------------------------------------------------------------
-async function parseFile(file) {
-  const r = await readFile(file, loadScript);
-  const sheets = r.sheets.filter(s => s.rows.length > 1);
-  // Excel: the first sheet that has a date column and a header.
+// Other sheets of a workbook: a price history (sheet named History / Prices / Historik / Kurser,
+// wide or long, the layout the bulk upload's history import reads). Read, never written.
+const HISTORY_SHEET = /^(price\s*)?histor(y|ik)$|^prices?$|^priser$|^kurser$|^prishistorik$|^kurshistorik$/i;
+export function parseExtras(sheets, { skip = '', decimal = '.' } = {}) {
+  let history = null;
   for (const sh of sheets) {
-    const res = analyseRows(sh.rows, { decimal: r.decimal, templates: store.templates() });
-    if (!res.error) return res;
+    if (sh.name === skip || !HISTORY_SHEET.test(String(sh.name || '').trim())) continue;
+    try { history = parseHistory(sh.rows, decimal); } catch (e) { /* too few dates: ignore */ }
+    if (history) break;
   }
-  return sheets.length ? analyseRows(sheets[0].rows, { decimal: r.decimal, templates: store.templates() }) : { error: 'no_rows' };
+  return { history };
 }
 
-// Push the parsed file into the workspace. Returns how many portfolios were created.
-function apply(result, { activateFirst = false } = {}) {
-  parsed = result;
-  const base = rec.name.replace(/\.[a-z0-9]+$/i, '');
-  const existing = sourced();
-  let created = 0, firstId = null;
-  for (const g of result.groups) {
-    let p = existing.find(x => x.source.key === g.key);
-    // Connecting the same file again picks its old portfolios back up instead of duplicating them.
-    const old = !p && activateFirst ? store.listPortfolios().find(x => x.source?.detached && x.source.fileName === rec.name && x.source.key === g.key) : null;
-    if (old) {
-      store.mutatePortfolio(old.id, pp => { pp.source = { ...pp.source, file: rec.id, detached: false, sig: '' }; });
-      p = old;
-    }
-    if (!p) {
-      p = store.newPortfolio({ name: g.key || base });
-      p.source = { file: rec.id, fileName: rec.name, key: g.key, date: '' };
-      store.upsertPortfolio(p, { activate: activateFirst && !created });
-      created++;
-    }
-    firstId ||= p.id;
-    syncPortfolio(p.id, g);
+// ---- writing: changes in the app as row operations ---------------------------------------------------------
+
+// The difference between two versions of a portfolio's holdings: removals, edits, additions.
+export function diffPositions(before = [], after = []) {
+  const a = new Map(before.map(x => [x.id, x])), b = new Map(after.map(x => [x.id, x]));
+  const ops = [];
+  for (const [id, y] of a) if (!b.has(id)) ops.push({ kind: 'remove', pos: y });
+  for (const [id, x] of b) {
+    const y = a.get(id);
+    if (!y) continue;
+    const fields = [...new Set([...Object.keys(x), ...Object.keys(y)])].filter(k => k !== 'id' && canon(x[k] ?? null) !== canon(y[k] ?? null));
+    if (fields.length) ops.push({ kind: 'change', before: y, after: x, fields });
   }
-  // A portfolio that has vanished from the file keeps its last data and says so.
-  for (const p of existing) if (!result.groups.some(g => g.key === p.source.key) && !p.source.missing) store.mutatePortfolio(p.id, pp => { pp.source.missing = true; });
-  set({ portfolios: result.groups.length, dates: new Set(result.groups.flatMap(g => g.dates.map(d => d.date))).size, template: result.template, skipped: result.skipped });
-  if (activateFirst && firstId && !created) store.setActive(firstId);
-  return created;
+  for (const [id, x] of b) if (!a.has(id)) ops.push({ kind: 'add', pos: x });
+  return ops;
 }
 
-function syncPortfolio(id, g) {
-  const p = store.listPortfolios().find(x => x.id === id);
-  if (!p) return;
-  const dates = g.dates.map(d => d.date);
-  const pinned = p.source.date && dates.includes(p.source.date) ? p.source.date : '';
-  const date = pinned || dates[dates.length - 1];
-  const snap = g.dates.find(d => d.date === date);
-  // Cheap fingerprint of what this portfolio would show; skip the write (and the re-render) if unchanged.
-  const sig = date + '|' + dates.length + '|' + JSON.stringify(snap.rows).length + '|' + hash(JSON.stringify(snap.rows)) + '|' + hash(JSON.stringify(parsed.mapping));
-  if (p.source.sig === sig && !p.source.missing) return;
-  // Rows reported with quantity 0 (closed that day) price the close in the history, but are not holdings.
-  const positions = carryIds(p.positions, snapshotPositions(snap.rows, parsed.mapping, parsed.opts).filter(x => x.type === 'cash' || !(x.qty === 0 || (x.qty == null && x.buyAmount === 0))));
-  const hist = snapshotHistory(g, parsed.mapping, parsed.opts);
-  store.mutatePortfolio(id, pp => {
-    pp.positions = positions;
-    pp.valDate = date;
-    if (hist) pp.history = mergeHistory(pp.history, hist);
-    pp.source = { ...pp.source, date: pinned, dates, shown: date, sig, syncedAt: new Date().toISOString(), missing: false, fileName: rec.name };
-  });
-}
-function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
-
-// Show another date for one portfolio ('' = follow the latest).
-export async function setDate(portfolioId, date) {
-  const p = store.listPortfolios().find(x => x.id === portfolioId);
-  if (!p || !p.source) return;
-  if (!parsed && rec && status.state === 'linked') await refresh({ force: true });
-  const g = parsed?.groups.find(x => x.key === p.source.key);
-  if (!g) return;
-  const latest = g.dates[g.dates.length - 1].date;
-  store.mutatePortfolio(p.id, pp => { pp.source.date = date === latest ? '' : date; pp.source.sig = ''; }, { silent: true });
-  syncPortfolio(p.id, g);
+export const headerOf = f => (f === 'type' ? 'Instrument type' : FIELDS[f]?.en || f);
+const empty = v => v === undefined || v === null || v === '';
+// A value as the source holds it: a column's scale undone.
+function encode(field, v, opts = {}) {
+  if (empty(v)) return '';
+  const sc = opts.transforms?.[field]?.scale;
+  if (isNum(v) && isNum(sc) && sc !== 0 && sc !== 1) return v / sc;
+  return v;
 }
 
-let reading = null;
-export async function refresh({ force = false } = {}) {
-  if (!rec || status.state !== 'linked') return false;
-  if (reading) return reading;
-  reading = (async () => {
-    try {
-      const file = await rec.handle.getFile();
-      if (!force && parsed && file.lastModified === rec.lastModified) return false;
-      const result = await parseFile(file);
-      if (result.error) { set({ error: result.error }); return false; }
-      rec.lastModified = file.lastModified;
-      await idbSet(rec);
-      apply(result);
-      set({ lastRead: new Date().toISOString(), lastModified: file.lastModified, error: '' });
-      return true;
-    } catch (e) {
-      const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
-      // NotReadableError while Excel is mid-save: leave it, the next poll catches up.
-      if (denied) { stopPolling(); set({ state: 'needs-permission' }); }
-      else if (e && e.name === 'NotFoundError') set({ state: 'error', error: 'not_found' });
-      else if (!(e && e.name === 'NotReadableError')) set({ error: (e && e.message) || String(e) });
-      return false;
-    } finally { reading = null; }
-  })();
-  return reading;
+// Apply one portfolio's operations to the rows of the holdings sheet. Pure: returns new rows and the
+// (possibly widened) layout and mapping, plus what was done.
+//   key         the portfolio's value in the Portfolio column ('' when there is none)
+//   sourceDate  the date the app showed when the change was made ('' for a portfolio with no rows yet)
+//   targetDate  the date the change is written on: the same date (edit in place) or a later one, in
+//               which case the source date's rows are first copied to it (a new dated snapshot)
+//   ops         [{ kind: 'add', pos } | { kind: 'remove', pos } | { kind: 'change', before, after, fields }]
+export function applyOps(rowsIn, { layout: layoutIn, mapping: mapIn, opts = {}, key = '', sourceDate = '', targetDate, ops = [] }) {
+  const rows = rowsIn.map(r => (Array.isArray(r) ? [...r] : []));
+  const layout = { ...layoutIn };
+  const mapping = [...mapIn];
+  const header = rows[layout.headerRow];
+  // Cells to the right of the last header belong to no column; new columns start after them.
+  const width = Math.max(...rows.map(r => r.length));
+  while (header.length < width) header.push('');
+  while (mapping.length < header.length) mapping.push('');
+  const stats = { added: 0, removed: 0, changed: 0, copied: 0, missing: 0, columns: [] };
+  const addColumn = (title, field) => { header.push(title); mapping.push(field); return header.length - 1; };
+  if (layout.pfCol < 0 && key) layout.pfCol = addColumn(PORTFOLIO_HEADER, '');
+  const rowKey = r => (layout.pfCol >= 0 ? String(r[layout.pfCol] ?? '').trim() : '');
+  const blockIdx = date => (date ? rows.map((_, i) => i).filter(i => i > layout.headerRow && cellDate(rows[i][layout.dateCol]) === date && rowKey(rows[i]) === key) : []);
+
+  let idx = blockIdx(targetDate);
+  if (!idx.length && sourceDate && sourceDate !== targetDate) {
+    for (const i of blockIdx(sourceDate)) { const r = [...rows[i]]; r[layout.dateCol] = targetDate; rows.push(r); stats.copied++; }
+    idx = blockIdx(targetDate);
+  }
+
+  // The type column: reuse the source's own spelling of a type (a template's code, the English
+  // name, the id), so the rows the app adds look like the ones already there.
+  const typeCol = () => { let c = mapping.indexOf('type'); if (c < 0) c = addColumn(headerOf('type'), 'type'); return c; };
+  const typeRaw = type => {
+    for (const [raw, id] of Object.entries(opts.typeMap || {})) if (id === type) return raw;
+    const c = mapping.indexOf('type');
+    if (c >= 0) for (const r of rows.slice(layout.headerRow + 1)) { const raw = String(r[c] ?? '').trim(); if (raw && (opts.typeMap?.[raw] || resolveType(raw)) === type) return raw; }
+    const label = typeLabel(type);
+    return resolveType(label) === type ? label : type;
+  };
+  const constant = (f, v, type) => canon(opts.constants?.[f] ?? INSTRUMENTS[type]?.defaults?.[f] ?? null) === canon(v ?? null);
+  const setCell = (r, f, v, type) => {
+    if (!FIELDS[f] || f === 'type') return;
+    let c = mapping.indexOf(f);
+    if (c < 0) {
+      if (empty(v) || constant(f, v, type)) return; // nothing to keep that the reader would not supply anyway
+      c = addColumn(headerOf(f), f);
+      stats.columns.push(f);
+    }
+    while (r.length <= c) r.push('');
+    r[c] = encode(f, v, opts);
+  };
+
+  // The rows on the target date, parsed the way the reader parses them, to find each position's row.
+  const entries = rowsToPositions(idx.map(i => rows[i]), mapping, opts).map(e => ({ pos: e.pos, i: idx[e.line - 1] }));
+  const pool = new Set(entries);
+  const score = (a, b) => { const ks = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(k => k !== 'id'); return ks.length ? ks.filter(k => canon(a[k] ?? null) === canon(b[k] ?? null)).length / ks.length : 0; };
+  const find = (pos, { exactOnly = false } = {}) => {
+    const k = posKey(pos);
+    if (exactOnly && !k) return null;
+    const cands = [...pool].filter(e => posKey(e.pos) === k).sort((a, b) => score(b.pos, pos) - score(a.pos, pos));
+    const hit = cands[0];
+    if (!hit || (!k && score(hit.pos, pos) < 0.999)) return null; // without a key only an exact match counts
+    pool.delete(hit);
+    return hit;
+  };
+  const write = (r, pos, fields) => {
+    for (const f of fields) {
+      if (f === 'type') { const c = typeCol(); while (r.length <= c) r.push(''); r[c] = pos.type === 'unknown' ? pos.rawType || '' : typeRaw(pos.type); }
+      else setCell(r, f, pos[f], pos.type);
+    }
+  };
+
+  const dropped = new Set(), added = [];
+  const newRow = pos => {
+    const r = new Array(header.length).fill('');
+    r[layout.dateCol] = targetDate;
+    if (layout.pfCol >= 0) r[layout.pfCol] = key;
+    write(r, pos, ['type', ...(INSTRUMENTS[pos.type]?.fields || Object.keys(pos))]);
+    return r;
+  };
+  const allFields = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(k => k !== 'id');
+  for (const op of ops) {
+    if (op.kind === 'remove') {
+      const e = find(op.pos);
+      if (e) { dropped.add(e.i); stats.removed++; } else stats.missing++;
+    } else if (op.kind === 'change') {
+      const e = find(op.before);
+      if (!e) { added.push(newRow(op.after)); stats.added++; stats.missing++; continue; }
+      write(rows[e.i], op.after, op.fields);
+      stats.changed++;
+    } else if (op.kind === 'add') {
+      // The source may already have a row for it on that date (closed out with quantity 0, or added
+      // by someone else meanwhile): that row is updated, never doubled.
+      const e = find(op.pos, { exactOnly: true });
+      if (e) { write(rows[e.i], op.pos, allFields(e.pos, op.pos)); stats.changed++; }
+      else { added.push(newRow(op.pos)); stats.added++; }
+    }
+  }
+  // New rows go right after the portfolio's block on the target date, so the sheet stays readable.
+  const after = idx.length ? Math.max(...idx) : rows.length - 1;
+  const out = [];
+  rows.forEach((r, i) => { if (!dropped.has(i)) out.push(r); if (i === after) out.push(...added); });
+  return { rows: out, layout: { ...layout, header: out[layout.headerRow].map(headerText) }, mapping, stats };
 }
 
-function startPolling() {
-  stopPolling();
-  timer = setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, POLL_MS);
-}
-function stopPolling() { if (timer) clearInterval(timer); timer = null; }
-if (typeof window !== 'undefined') {
-  window.addEventListener('focus', () => { if (status.state === 'linked') refresh(); });
-  document.addEventListener?.('visibilitychange', () => { if (document.visibilityState === 'visible' && status.state === 'linked') refresh(); });
+// Every row of one portfolio, on every date, gone (a portfolio deleted in the app).
+export function dropPortfolioRows(rowsIn, layout, key) {
+  let n = 0;
+  const rows = rowsIn.filter((r, i) => { const hit = i > layout.headerRow && cellDate(r[layout.dateCol]) && (layout.pfCol >= 0 ? String(r[layout.pfCol] ?? '').trim() : '') === key; if (hit) n++; return !hit; });
+  return { rows, removed: n };
 }
 
-// ---- startup ----------------------------------------------------------------------------------------------------
-export async function init() {
-  if (!supported()) { set({ state: 'unsupported' }); return status; }
-  rec = await idbGet();
-  if (!rec || !rec.handle) { rec = null; set({ state: 'none' }); return status; }
-  let perm = 'prompt';
-  try { perm = await rec.handle.queryPermission({ mode: 'read' }); } catch (e) { perm = 'prompt'; }
-  set({ name: rec.name, lastModified: rec.lastModified, state: perm === 'granted' ? 'linked' : 'needs-permission' });
-  if (perm === 'granted') { await refresh({ force: true }); startPolling(); }
-  return status;
+// ---- serialising rows back into the source's format -------------------------------------------------------
+
+// CSV out: the source's own delimiter and decimal sign, every row padded to the header's width.
+export function rowsToCSV(rows, { delim = ',', decimal = '.', bom = true } = {}) {
+  const width = Math.max(...rows.map(r => r.length));
+  const cell = v => (v instanceof Date ? parseDate(v) : typeof v === 'number' && decimal === ',' ? String(v).replace('.', ',') : v);
+  // Quote only what the delimiter needs, so 1,5 in a semicolon file stays a number to Excel.
+  const q = v => { const x = String(v ?? ''); return x.includes(delim) || /["\r\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+  return (bom ? '﻿' : '') + rows.map(r => Array.from({ length: width }, (_, i) => q(cell(r[i] ?? ''))).join(delim)).join('\r\n') + '\r\n';
 }
-// After the click on the banner.
-export async function reconnect() {
-  if (!rec) return status;
-  const perm = await rec.handle.requestPermission({ mode: 'read' });
-  if (perm !== 'granted') { set({ state: 'needs-permission' }); return status; }
-  set({ state: 'linked', error: '' });
-  await refresh({ force: true });
-  startPolling();
-  return status;
+
+// JSON: where the records sit in the document. Same search as importer.parseJSONRows (the largest
+// array of objects or arrays, depth first), so the rows read and the rows written are the same list.
+export function jsonLocate(root) {
+  const isRecords = a => Array.isArray(a) && a.length && a.every(x => x && typeof x === 'object');
+  const find = (o, path, depth = 0) => {
+    if (isRecords(o)) return { path, n: o.length };
+    if (depth > 6 || !o || typeof o !== 'object') return null;
+    let best = null;
+    for (const [k, v] of Object.entries(o)) { const f = find(v, [...path, k], depth + 1); if (f && (!best || f.n > best.n)) best = f; }
+    return best;
+  };
+  const hit = find(root, []);
+  if (!hit) return null;
+  const arr = hit.path.reduce((o, k) => o[k], root);
+  return { path: hit.path, arrays: Array.isArray(arr[0]) };
+}
+// The records rebuilt from rows (header row first): dotted headers become nested objects again,
+// empty cells are left out, dates are ISO text. With no records found (a new source) the document
+// is a plain array.
+export function rowsToJSON(rows, { headerRow = 0, root = null, loc = null } = {}) {
+  const val = v => (v instanceof Date ? parseDate(v) : v);
+  const header = (rows[headerRow] || []).map(headerText);
+  const body = rows.slice(headerRow + 1);
+  let records;
+  if (loc?.arrays) records = [rows[headerRow], ...body].map(r => r.map(v => (v === '' ? null : val(v))));
+  else {
+    records = body.map(r => {
+      const o = {};
+      header.forEach((h, c) => {
+        const v = r[c];
+        if (!h || v === '' || v === undefined || v === null) return;
+        const parts = h.split('.');
+        let t = o;
+        parts.slice(0, -1).forEach(p => { if (!t[p] || typeof t[p] !== 'object') t[p] = {}; t = t[p]; });
+        t[parts.at(-1)] = val(v);
+      });
+      return o;
+    });
+  }
+  let doc = records;
+  if (root && loc && loc.path.length) {
+    doc = JSON.parse(JSON.stringify(root));
+    let t = doc;
+    loc.path.slice(0, -1).forEach(k => { t = t[k]; });
+    t[loc.path.at(-1)] = records;
+  }
+  return JSON.stringify(doc, null, 2) + '\n';
+}
+
+// Rows with real dates for a workbook: the date column and every date field.
+export function rowsForWorkbook(rows, layout, mapping) {
+  const dateCols = new Set([layout.dateCol, ...mapping.map((f, c) => (FIELDS[f]?.type === 'date' ? c : -1)).filter(c => c >= 0)]);
+  const width = Math.max(...rows.map(r => r.length));
+  return rows.map((r, ri) => Array.from({ length: width }, (_, c) => {
+    const v = r[c] ?? '';
+    if (v === '') return null; // no cell at all, rather than an empty string cell
+    if (ri > layout.headerRow && dateCols.has(c) && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) { const [y, m, d] = v.split('-').map(Number); return new Date(y, m - 1, d); }
+    return v;
+  }));
 }

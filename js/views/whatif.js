@@ -6,6 +6,7 @@ import { valuePortfolio } from '../analytics.js';
 import { whatIf, sizeOf, posKey } from '../insights.js';
 import { metricsTable, rulesTable } from './compare-ui.js';
 import { openForm } from './holdings.js';
+import { isSourced, canWrite, connOf } from '../sources.js';
 
 // Trades survive re-renders but not a reload, and are per portfolio.
 const ui = { pf: '', trades: [], cash: 'auto' };
@@ -24,7 +25,8 @@ export default {
     const cashRows = v.valid.filter(x => x.pos.type === 'cash');
     const trades = ui.trades.map(tr => (tr.pos ? { pos: tr.pos } : { id: tr.id, mode: tr.mode, value: tr.mode === 'weight' ? num(tr.value) / 100 : num(tr.value) }));
     const res = trades.length ? whatIf(p, trades, { cashId: ui.cash === 'auto' ? null : ui.cash }) : null;
-    const sourced = !!(p.source && p.source.file);
+    // Applied trades are written back into a writable source; a read-only one cannot take them.
+    const sourced = isSourced(p) && !canWrite(connOf(p));
 
     const tradeRow = (tr, i) => {
       const applied = res?.applied[i];

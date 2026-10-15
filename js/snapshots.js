@@ -2,7 +2,7 @@
 // snapshot per date in the file; any other portfolio has the snapshots the user saved (kept in
 // the portfolio, capped at about a year of business days so the workspace stays quick to save).
 import * as store from './store.js';
-import { snapshotsFor } from './sourcefile.js';
+import { snapshotsFor } from './sources.js';
 import { todayISO } from './util.js';
 
 export const MAX_SAVED = 260;

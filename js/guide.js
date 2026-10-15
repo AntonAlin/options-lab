@@ -23,19 +23,20 @@ export const GUIDE = [
       { h: { en: 'How it is done' } },
       { list: [
         { en: 'Every calculation runs in your browser. Valuation, VaR, stress tests, compliance and the PDF report are computed by code on your own computer.' },
-        { en: 'The connected file is read where it lies. The browser reads your holdings file directly from your disk or your organisation\'s network share. It is not uploaded anywhere — the file never leaves the machine, and the original stays under your organisation\'s access rights, backup and audit trail. That is why a connected file is the recommended way to work.' },
+        { en: 'The data source is used where it lies. The browser reads and writes your holdings file directly on your disk or your organisation\'s network share, or calls your organisation\'s own API. Nothing is uploaded to us — the source stays under your organisation\'s access rights, backup and audit trail, and it is where the portfolios live.' },
         { en: '“Upload” in Bulk upload only means reading a file into this browser. Nothing is transmitted.' },
         { en: 'The workspace is kept in the browser\'s own database (IndexedDB) on this computer, and in files you choose to save (linked file, backups, exports, PDFs).' }
       ] },
       { h: { en: 'What does go over the network — and why it carries no portfolio data' } },
       { list: [
         { en: 'Loading the page itself, the Inter font (Google Fonts) and code libraries from public CDNs: Plotly for charts, SheetJS when you read or write Excel, jsPDF when you export a PDF. These are downloads of code; nothing is sent with them. Plotly and jsPDF are pinned to exact versions and checked with integrity hashes.' },
-        { en: 'One public data file from the site itself: data/market.json, the ECB exchange rates and euro yield curve that a scheduled job publishes with the site every business day. The browser only downloads it; the request carries nothing about you or your portfolios, and it goes to the same address as the page. Nothing else — and you can switch the automatic update off in Settings and import the ECB file by hand instead.' }
+        { en: 'One public data file from the site itself: data/market.json, the ECB exchange rates and euro yield curve that a scheduled job publishes with the site every business day. The browser only downloads it; the request carries nothing about you or your portfolios, and it goes to the same address as the page. Nothing else — and you can switch the automatic update off in Settings and import the ECB file by hand instead.' },
+        { en: 'An API you connect yourself as a data source: the browser calls the address you enter — normally your organisation\'s own PMS or data service — with the headers you enter, and sends changes back to it if you allow writing. That request does carry holdings, by design, and only to the address you chose. Nothing is sent anywhere else, and no API is connected unless you add one.' }
       ] },
       { h: { en: 'Your part: keep the files inside the organisation' } },
       { p: { en: 'Where you save files decides where the data is. The platform cannot see that for you.' } },
       { list: [
-        { en: 'Keep the connected file, the linked file and backups on storage your organisation controls: a network share, the company OneDrive/SharePoint or another approved location — not a personal cloud account or a USB stick.' },
+        { en: 'Keep data source files, the linked file and backups on storage your organisation controls: a network share, the company OneDrive/SharePoint or another approved location — not a personal cloud account or a USB stick.' },
         { en: 'The automatic backup is saved to your Downloads folder. Move it to approved storage, or turn it off in Settings if a linked file already covers you.' },
         { en: 'PDF reports and CSV/Excel exports are ordinary files. Treat them like any other client or fund document.' },
         { en: 'On a shared computer, use “Delete everything” in Settings when you are done, or use your own browser profile.' }
@@ -56,18 +57,18 @@ export const GUIDE = [
     id: 'start',
     title: { en: 'Getting started' },
     blocks: [
-      { p: { en: 'Open the site in Chrome or Edge on a desktop computer — that is where every feature works, including the connected file. Firefox and Safari work too, but without the connected or linked file.' } },
+      { p: { en: 'Open the site in Chrome or Edge on a desktop computer — that is where every feature works, including file data sources. Firefox and Safari can only use an API as the data source.' } },
       { steps: [
         { en: 'Switch between light and dark theme in the top bar.' },
-        { en: 'Try the demo fund first if you want to see every page filled in: “Explore the demo fund” on the start page, or ⋮ → Load demo portfolio.' },
-        { en: 'Get your own holdings in: connect a file (recommended), upload one, or start an empty portfolio with “New” and add instruments by hand. See the next section.' },
+        { en: 'Connect a data source: the app shows the setup page until one is connected. To try it first, download the demo file there (Excel or CSV), save it, and connect it like a real file.' },
+        { en: 'Your own holdings: connect your holdings file or your organisation\'s API. To start from nothing, download the empty template, connect it, and add instruments with “New” — they are written into the file. See the next section.' },
         { en: 'Check the base currency and FX rates in Settings. Download the ECB reference rates file from the ECB and import it; the fallback rates are placeholders.' },
         { en: 'Load price history if you want performance, historical VaR and correlations.' }
       ] },
       { h: { en: 'The top bar' } },
       { list: [
-        { en: 'Portfolio selector: every portfolio in the workspace. “New” creates one; ⋮ renames, duplicates, exports as JSON, loads the demo or deletes.' },
-        { en: 'Valuation date: the date bonds, options and swaps are valued at. Empty means today. For a portfolio fed by a connected file this becomes “Snapshot”: the date in the file you are looking at.' },
+        { en: 'Portfolio selector: every portfolio in the workspace. “New” creates one (in the data source); ⋮ renames, duplicates, exports as JSON or deletes (deleting removes the portfolio\'s rows from the source).' },
+        { en: 'Valuation date: the date bonds, options and swaps are valued at. Empty means today. For a portfolio fed by a data source this becomes “Snapshot”: the date in the source you are looking at.' },
         { en: 'The chip next to it is the base currency; change it in Settings.' }
       ] },
       { p: { en: 'Ctrl+Z (⌘Z) undoes the last change to holdings or settings. The sidebar footer always shows where your data is saved and how old the last backup is.' } }
@@ -75,35 +76,49 @@ export const GUIDE = [
   },
   {
     id: 'connect',
-    title: { en: 'Connected file — the recommended way to work' },
+    title: { en: 'Data sources — where the portfolios live' },
     blocks: [
-      { note: { en: 'The browser reads the file directly from your computer or network share and never sends it anywhere. The file stays where your organisation keeps it, and the platform follows it.' }, tone: 'ok' },
-      { h: { en: 'The file' } },
-      { p: { en: 'CSV or Excel (.xlsx, .xls), one row per holding per date, with a header row. Title rows above the header are fine.' } },
+      { note: { en: 'The app always works on a data source: a file on your computer or network share, or your organisation\'s own API. It reads the source, keeps following it, and writes your changes back into it. Nothing goes through us.' }, tone: 'ok' },
+      { h: { en: 'The layout' } },
+      { p: { en: 'One row per holding per date, with a header row. Title rows above the header are fine.' } },
       { list: [
         { en: 'First column: the date the row applies to — 2026-09-29, 29.09.2026, 20260929 or an Excel date. Rows without a date (totals, notes) are skipped and counted.' },
-        { en: 'Optional portfolio column: Portfolio, Fund, Account, Mandate, Client (or Portfölj, Fond, Konto, Depå, Mandat, Kund). Each value becomes its own portfolio. Without it, the whole file is one portfolio named after the file.' },
-        { en: 'The other columns as in Bulk upload: name, ISIN, ticker, type, quantity, price, currency, maturity, coupon and so on, with English or Swedish headers.' }
+        { en: 'Optional portfolio column: Portfolio, Fund, Account, Mandate, Client (or Portfölj, Fond, Konto, Depå, Mandat, Kund). Each value becomes its own portfolio. Without it, the whole source is one portfolio named after it.' },
+        { en: 'The other columns as in Bulk upload: name, ISIN, ticker, type, quantity, price, currency, maturity, coupon and so on, with English or Swedish headers.' },
+        { en: 'An Excel or ODS workbook may add a sheet named History (Date | one column per price series) for VaR and performance. It is read, never written.' }
       ] },
       { p: { en: 'Example:' } },
       { code: 'Date;Portfolio;Name;ISIN;Type;Quantity;Price;Currency\n2026-09-28;Fund A;Volvo B;SE0000115446;Equity;1000;250,5;SEK\n2026-09-28;Fund B;Apple;US0378331005;Equity;10;230;USD\n2026-09-29;Fund A;Volvo B;SE0000115446;Equity;1200;255;SEK\n2026-09-29;Fund B;Apple;US0378331005;Equity;12;232;USD' },
+      { h: { en: 'Formats' } },
+      { list: [
+        { en: 'Files (Chrome and Edge on desktop): CSV, TSV, TXT, JSON, Excel (.xlsx, .xlsm, .xls) and OpenDocument (.ods) are read and written. XML is read only.' },
+        { en: 'APIs: JSON (a list of records anywhere in the document; nested objects become dotted columns), CSV or XML, over HTTPS. The API must allow this site\'s origin (CORS).' }
+      ] },
       { h: { en: 'Connecting' } },
       { steps: [
-        { en: 'Go to Bulk upload (or Settings, or the start page) and click “Connect a file…”.' },
-        { en: 'Pick the file. The browser asks once for permission to read it.' },
+        { en: 'On the setup page (or Bulk upload, or Settings) click “Connect a file…” or “Connect an API…”. Add more sources the same way; each portfolio follows one.' },
+        { en: 'A file: pick it; the browser asks for permission to read and write it. Refuse writing and it is connected read only. An API: enter the address, any headers it needs (an API key or bearer token), how often to read it, and whether to write changes back with PUT or POST.' },
         { en: 'One portfolio per value in the portfolio column appears in the portfolio selector, each showing its latest date.' }
+      ] },
+      { h: { en: 'Writing back' } },
+      { list: [
+        { en: 'A holding added in the app becomes a new row on the date you are looking at; an edit changes only the cells that changed; a deleted holding loses its row. A new portfolio becomes a new value in the portfolio column; a deleted one loses all its rows.' },
+        { en: '“Write changes”: “Into the date shown” edits that date; “As a new dated snapshot” copies the latest date to today first, so every earlier version stays in the source.' },
+        { en: 'The source is read again just before each write and the change merged into what is there, so someone else\'s edit is kept. An API gets the ETag back as If-Match, so a concurrent change is refused instead of overwritten, and retried.' },
+        { en: 'If Excel has the file open, or the API is down, changes wait (they survive a reload) and are retried; the sidebar and a banner say how many. “Discard changes” throws them away and reloads from the source.' },
+        { en: 'Every write is logged in the portfolio\'s control log. Notes that only the app keeps (a price series matched to a holding) stay in the app.' },
+        { en: 'Rewriting a CSV keeps its delimiter, decimal sign and encoding; a workbook keeps its other sheets, but the holdings sheet is rewritten as values, so formulas and cell formatting on that sheet are not kept. A JSON document keeps everything outside the list of records.' }
       ] },
       { h: { en: 'Day to day' } },
       { list: [
-        { en: 'Save the file as usual (from Excel, your PMS or the custodian export). The platform checks it every few seconds while the tab is visible, and when you return to the tab. New dates and new portfolios appear on their own.' },
-        { en: '“Snapshot” in the top bar picks the date. “Latest” follows new dates; pick an older date to pin it (“date pinned”). Pick “Latest” again to follow the file.' },
-        { en: 'Prices across the dates in the file are added to each portfolio\'s price history, so performance and historical risk build up as the file grows.' },
-        { en: 'Holdings in a connected portfolio are replaced whenever the file changes. Correct the file, not the Holdings page.' },
-        { en: 'After a browser restart a banner asks you to click “Reconnect” — the browser requires fresh permission once per session.' },
-        { en: '“Disconnect” stops following the file. The portfolios stay with the data they have. Connecting the same file again picks them up.' }
+        { en: 'A file is checked every few seconds while the tab is visible, and when you return to the tab; an API at the interval you set. New dates and new portfolios appear on their own.' },
+        { en: '“Snapshot” in the top bar picks the date. “Latest” follows new dates; pick an older date to pin it (“date pinned”) — edits then correct that date. Pick “Latest” again to follow the source.' },
+        { en: 'Prices across the dates are added to each portfolio\'s price history, so performance and historical risk build up as the source grows.' },
+        { en: 'After a browser restart a banner asks you to click “Reconnect” for a file — the browser requires fresh permission once per session. APIs reconnect on their own.' },
+        { en: '“Disconnect” stops following a source; its portfolios stay with the data they have, and connecting it again picks them up. “Remove” takes it out with its portfolios; their control logs are kept in the archive on the Control log page.' }
       ] },
       { h: { en: 'When the columns are not recognised' } },
-      { p: { en: 'Load the same file once in Bulk upload, map the columns and save an import template. The connected file uses a matching template automatically (the card says which one). Rows with validation errors are kept and flagged on the Holdings page, so nothing disappears silently.' } },
+      { p: { en: 'Load the same file once in Bulk upload, map the columns and save an import template. The source uses a matching template automatically (the card says which one), for reading and for writing. Rows with validation errors are kept and flagged on the Holdings page, so nothing disappears silently.' } },
       { link: 'import', label: { en: 'Go to Bulk upload' } }
     ]
   },
@@ -166,7 +181,7 @@ export const GUIDE = [
         { en: 'Add a trade on a holding (target weight, change in quantity or new quantity) or a new instrument.' },
         { en: 'Choose which cash account pays for it.' },
         { en: 'Read the impact: risk, duration, liquidity, largest issuer and every limit before and after. A limit the trade would breach shows in red — that is an active breach you would be creating.' },
-        { en: 'Apply the trades to the holdings if you want (undo is one click). For a portfolio fed by a connected file, put the trades in the file instead.' }
+        { en: 'Apply the trades to the holdings if you want (undo is one click); they are written into the data source like any other change. A read-only source cannot take them — put the trades in the source instead.' }
       ] },
       { h: { en: 'Attribution — explaining the result' } },
       { steps: [
@@ -253,7 +268,7 @@ export const GUIDE = [
         { en: 'Portfolio: name, base currency, manager, fund type, valuation date and risk-free rate.' },
         { en: 'FX rates: import the ECB reference rates file (CSV or XML from the ECB) or type your own. Rates are stored per portfolio.' },
         { en: 'Risk model assumptions: the long-run volatilities and correlations the parametric model uses when there is no price history.' },
-        { en: 'Connected file: the read side — see above.' },
+        { en: 'Data sources: where the portfolios live — see above.' },
         { en: 'Linked file: the save side. The whole workspace (JSON) or the active portfolio (CSV/Excel) is written to a file on your organisation\'s storage about a second after every change. Recommended so the browser is not the only copy.' },
         { en: 'Backups: “Download backup” saves a JSON of everything; “Restore from backup” merges one back. The automatic backup (daily, weekly, monthly or off) downloads when no linked file is set.' }
       ] },
@@ -266,16 +281,18 @@ export const GUIDE = [
     blocks: [
       { list: [
         { en: 'Something is calculated wrong or does not work — use “Report a problem” at the bottom of the menu. Never paste real holdings or client data: the report is public. Made-up numbers that reproduce the problem are perfect.' },
-        { en: '“Connect a file” is missing — you are not in Chrome or Edge on a desktop. Use Bulk upload instead.' },
+        { en: '“Connect a file” is missing — you are not in Chrome or Edge on a desktop. Connect an API instead, or switch browser.' },
+        { en: 'An API says it cannot be reached — check the address, the network (VPN) and that the API allows requests from this site (CORS). A 401/403 means the headers are wrong.' },
+        { en: 'Changes are “waiting to be written” — the file is open in Excel (close it) or the API refused; they are retried automatically.' },
         { en: '“No date column found” — the first column must hold a date on every holding row. Check that Excel has not turned dates into text in an unusual format.' },
         { en: '“Column headers were not recognised” — map the file once in Bulk upload and save an import template, then connect again.' },
-        { en: 'The connected file is not updating — the file must be saved (not only edited) and the tab visible. Click “Read now” on the card to force it.' },
-        { en: 'My edits on Holdings disappeared — the portfolio comes from a connected file, which replaces holdings on every change. Edit the file.' },
+        { en: 'The source is not updating — a file must be saved (not only edited) and the tab visible. Click “Read now” on the card to force it.' },
+        { en: 'My edits on Holdings disappeared — the source is read only (the card says so), so a change there replaces them. Connect it with write access, or edit the source.' },
         { en: 'A position is valued at zero — its currency has no FX rate, or a required field is missing (see the error on the row).' },
-        { en: 'Performance and historical VaR are empty — load price history, or connect a file with at least two dates.' },
-        { en: 'Changes & track record says it needs two dates — connect a file with several dates, or save a snapshot today and another on a later valuation date.' },
+        { en: 'Performance and historical VaR are empty — load price history, add a History sheet, or use a source with at least two dates.' },
+        { en: 'Changes & track record says it needs two dates — use a source with several dates (or the “As a new dated snapshot” write mode), or save a snapshot today and another later.' },
         { en: 'Attribution shows a segment as “not in benchmark” — the names differ. Use the names shown in the table, or download the template.' },
-        { en: 'The same file cannot be both connected (read) and linked (save) as CSV/Excel — the platform would read its own output. Use different files.' }
+        { en: 'The same file cannot be both a data source and the linked workspace file — the platform would overwrite the one with the other. Use different files.' }
       ] }
     ]
   }

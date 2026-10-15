@@ -2,7 +2,7 @@ import * as store from '../store.js';
 import { t } from '../i18n.js';
 import { esc, card, pageHead, toast, selectHtml, confirmDialog, fmtDate, segmented, numIn, privacyCallout } from '../ui.js';
 import { todayISO } from '../util.js';
-import { loadDemo } from '../app.js';
+import { demoButtons, bindDemoButtons } from './setup.js';
 import { downloadBackup, backupAge } from '../backup.js';
 import * as filelink from '../filelink.js';
 import { sourceCardHtml, bindSourceCard } from './source-card.js';
@@ -52,7 +52,8 @@ export default {
         <p class="muted small">${esc(t('set.cmaBody'))}</p>
         <div class="cma-grid">${CMA_FIELDS.map(([k, unit]) => `<label><span>${esc(t('cma.' + k))}</span><span class="with-unit"><input data-cma="${k}" inputmode="decimal" value="${p.cma[k]}"><em>${unit}</em></span></label>`).join('')}</div>
         <div class="btn-row"><button class="btn btn-sm" data-act="cmaReset">${esc(t('set.cmaReset'))}</button></div>`) : ''}
-      ${sourceCardHtml()}
+      ${sourceCardHtml({ steps: false })}
+      ${card(t('setup.demoTitle'), `<p class="muted small">${esc(t('setup.demoBody'))}</p>${demoButtons()}`, { sub: esc(t('setup.demoSub')) })}
       ${card(t('file.title'), fileCardHtml(), { sub: esc(t('file.sub')), id: 'fileCard' })}
       ${card(t('set.data'), `
         <p class="muted small">${esc(t('set.dataBody'))} <span id="storageInfo"></span></p>
@@ -64,7 +65,6 @@ export default {
           <button class="btn" data-act="backup">${esc(t('set.backup'))}</button>
           <button class="btn" data-act="restore">${esc(t('set.restore'))}</button>
           <input type="file" id="restoreFile" accept=".json,application/json" hidden>
-          <button class="btn" data-act="demo">${esc(t('pf.loadDemo'))}</button>
           <button class="btn btn-danger" data-act="reset">${esc(t('set.reset'))}</button>
         </div>`)}
       ${card(t('set.about'), `<p class="muted small">${esc(t('set.aboutBody'))}</p><p class="muted small">${esc(t('rep.disclaimer'))}</p>`)}
@@ -128,11 +128,10 @@ export default {
       if (act === 'backup') { downloadBackup(); toast(t('backup.done')); }
       if (act?.startsWith('file:')) fileAction(act.slice(5), root);
       if (act === 'restore') root.querySelector('#restoreFile').click();
-      if (act === 'demo') loadDemo();
       if (act === 'reset' && await confirmDialog(t('set.resetConfirm'), { danger: true, ok: t('set.reset') })) { store.resetWorkspace(); toast(t('set.resetDone')); }
     };
-    const offSrc = bindSourceCard(root);
-    return () => { off(); offSrc(); };
+    const offSrc = bindSourceCard(root, { steps: false }), offDemo = bindDemoButtons(root);
+    return () => { off(); offSrc(); offDemo(); };
   }
 };
 
@@ -190,7 +189,7 @@ async function fileAction(act, root) {
   } catch (err) {
     if (err && err.name === 'AbortError') return; // picker closed
     console.error(err);
-    toast(t('file.failed'), { tone: 'warn', ms: 7000 });
+    toast(err?.code === 'same_file' ? t('file.isSource') : t('file.failed'), { tone: 'warn', ms: 7000 });
   }
 }
 

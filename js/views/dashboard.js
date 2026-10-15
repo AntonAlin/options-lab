@@ -7,22 +7,22 @@ import { ASSET_CLASSES, typeLabel } from '../instruments.js';
 import * as charts from '../charts.js';
 import * as filelink from '../filelink.js';
 import { backupAge } from '../backup.js';
-import { loadDemo, newPortfolioDialog } from '../app.js';
-import * as source from '../sourcefile.js';
-import { connectFlow } from './source-card.js';
+import { newPortfolioDialog } from '../app.js';
+import * as sources from '../sources.js';
 
+// Connected, but the source holds no portfolio yet (the empty template): the first portfolio is a
+// name in its Portfolio column.
 function welcome(root) {
+  const names = sources.list().filter(s => s.status.state === 'linked').map(s => s.name).join(', ');
   root.innerHTML = `
     <section class="hero">
       <div class="hero-text">
         <p class="eyebrow">${esc(t('welcome.eyebrow'))}</p>
         <h1>${esc(t('welcome.title'))}</h1>
-        <p class="lead">${esc(t('welcome.lead'))}</p>
+        <p class="lead">${esc(t('welcome.connectedLead', { name: names }))}</p>
         <div class="hero-actions">
-          <button class="btn btn-primary btn-lg" data-act="demo">${esc(t('welcome.demo'))}</button>
-          <button class="btn btn-lg" data-act="new">${esc(t('welcome.new'))}</button>
-          <button class="btn btn-lg" data-act="import">${esc(t('welcome.import'))}</button>
-          ${source.supported() ? `<button class="btn btn-lg" data-act="connect">${esc(t('welcome.connect'))}</button>` : ''}
+          <button class="btn btn-primary btn-lg" data-act="new">${esc(t('welcome.new'))}</button>
+          <a class="btn btn-lg" href="#/import">${esc(t('welcome.import'))}</a>
         </div>
         <p class="hero-note">${esc(t('welcome.note'))} <a href="#/guide?s=privacy">${esc(t('privacy.more'))}</a> · <a href="#/guide">${esc(t('welcome.guide'))}</a></p>
       </div>
@@ -31,13 +31,7 @@ function welcome(root) {
           <li class="feature"><h3>${esc(t('feature.' + k))}</h3><p>${esc(t('feature.' + k + '.body'))}</p></li>`).join('')}
       </ul>
     </section>`;
-  root.addEventListener('click', e => {
-    const a = e.target.closest('[data-act]')?.dataset.act;
-    if (a === 'demo') loadDemo();
-    if (a === 'new') newPortfolioDialog();
-    if (a === 'connect') connectFlow();
-    if (a === 'import') { if (!store.active()) store.addPortfolio(store.newPortfolio({ name: t('pf.defaultName') })); location.hash = '#/import'; }
-  });
+  root.onclick = e => { if (e.target.closest('[data-act]')?.dataset.act === 'new') newPortfolioDialog(); };
 }
 
 export default {
@@ -123,7 +117,7 @@ export default {
 
 // One line on where the data lives until a file is linked or a fresh backup exists.
 function dataAlert(p) {
-  if (p.demo || !p.positions.length) return '';
+  if (p.demo || !p.positions.length || sources.isSourced(p)) return '';
   const fs = filelink.getStatus();
   if (fs.state === 'linked') return '';
   const age = backupAge();

@@ -1457,3 +1457,130 @@ test('control log: limit changes through the store are logged, and undo never re
   store.deletePortfolio(p.id);
   await store.flushed();
 });
+
+// ---- data sources: demo file, writing changes back, formats ----------------------------------------------------
+test('demo holdings file: two funds on six month-ends, every row valid, the latest date is the demo fund', async () => {
+  const D = await import('../js/demofile.js');
+  const S = await import('../js/sourcefile.js');
+  assert.equal(D.demoDate('2026-10-15'), '2026-09-30');
+  assert.equal(D.demoDate('2026-09-30'), '2026-09-30');
+  assert.equal(D.demoDate('2026-03-15'), '2026-02-27', 'a Saturday month-end moves back to Friday');
+  const t = parseText(D.demoCSV('2026-09-30').slice(1), 'demo.csv');
+  const a = S.analyseRows(t.sheets[0].rows, { decimal: t.decimal });
+  assert.ok(!a.error, a.error);
+  assert.deepEqual(a.groups.map(g => [g.key, g.dates.length]), [[D.DEMO_FUNDS[0], 6], [D.DEMO_FUNDS[1], 6]]);
+  for (const g of a.groups) for (const d of g.dates) assert.equal(rowsToPositions(d.rows, a.mapping, a.opts).filter(r => r.errors.length).length, 0, `${g.key} ${d.date}`);
+  const demo = buildDemo('2026-09-30');
+  const read = S.snapshotPositions(a.groups[0].dates.at(-1).rows, a.mapping, a.opts);
+  assert.equal(read.length, demo.positions.length);
+  const pick = (list, tk) => list.find(x => x.ticker === tk);
+  for (const k of ['qty', 'price', 'maturity', 'coupon', 'optType', 'strike']) assert.deepEqual(pick(read, 'SGB 29')[k], pick(demo.positions, 'SGB 29')[k], k);
+  assert.deepEqual(pick(read, 'OMXS30P2400').strike, 2400);
+  // The empty template still has a layout the app can connect to.
+  const e = parseText(D.demoCSV('2026-09-30', { empty: true }).slice(1), 'tpl.csv');
+  const ea = S.analyseRows(e.sheets[0].rows, { decimal: e.decimal, allowEmpty: true });
+  assert.ok(!ea.error && ea.layout.pfCol === 1 && ea.groups.length === 0);
+  assert.equal(S.analyseRows(e.sheets[0].rows, { decimal: e.decimal }).error, 'no_rows');
+});
+
+test('data source: changes in the app become row additions, edits and removals', async () => {
+  const S = await import('../js/sourcefile.js');
+  const rows = [
+    ['Date', 'Portfolio', 'Instrument type', 'Name', 'ISIN', 'Quantity', 'Price', 'Currency'],
+    ['2026-08-31', 'A', 'Equity', 'Volvo B', 'SE0000115446', 100, 250, 'SEK'],
+    ['2026-09-30', 'A', 'Equity', 'Volvo B', 'SE0000115446', 100, 260, 'SEK'],
+    ['2026-09-30', 'A', 'Equity', 'Ericsson B', 'SE0000108656', 500, 80, 'SEK'],
+    ['2026-09-30', 'B', 'Equity', 'Volvo B', 'SE0000115446', 900, 260, 'SEK']
+  ].map(r => r.map(String));
+  const a = S.analyseRows(rows);
+  const read = (b, key, date) => S.snapshotPositions(b.groups.find(g => g.key === key).dates.find(d => d.date === date).rows, b.mapping, b.opts);
+  const before = S.carryIds([], read(a, 'A', '2026-09-30'));
+  const after = JSON.parse(JSON.stringify(before));
+  after.find(x => x.isin === 'SE0000115446').qty = 150;
+  after.splice(after.findIndex(x => x.isin === 'SE0000108656'), 1);
+  after.push({ id: 'new', type: 'govt_bond', name: 'SGB 1060', isin: 'SE0004517290', issuer: 'Kingdom of Sweden', qty: 1e6, price: 101.2, ccy: 'SEK', coupon: 0.75, freq: '1', rating: 'AAA', maturity: '2028-05-12' });
+  const ops = S.diffPositions(before, after);
+  assert.deepEqual(ops.map(o => o.kind), ['remove', 'change', 'add']);
+  const reparse = out => S.analyseRows(out.map(r => r.map(c => (c instanceof Date ? c : String(c ?? '')))));
+
+  // In place: A's 2026-09-30 rows change; the earlier date and fund B are untouched.
+  const r = S.applyOps(rows, { layout: a.layout, mapping: a.mapping, opts: a.opts, key: 'A', sourceDate: '2026-09-30', targetDate: '2026-09-30', ops });
+  assert.deepEqual({ ...r.stats, columns: r.stats.columns.sort() }, { added: 1, removed: 1, changed: 1, copied: 0, missing: 0, columns: ['coupon', 'issuer', 'maturity'] });
+  const b = reparse(r.rows);
+  const now = S.carryIds(after, read(b, 'A', '2026-09-30'));
+  assert.deepEqual(S.diffPositions(after, now), [], 'the source now says what the app says');
+  assert.equal(read(b, 'A', '2026-08-31')[0].qty, 100, 'earlier date untouched');
+  assert.equal(read(b, 'B', '2026-09-30')[0].qty, 900, 'other portfolio untouched');
+  assert.equal(r.rows.find(x => x[4] === 'SE0004517290')[2], 'Government bond', 'the type is written the way the reader reads types');
+  assert.deepEqual(r.rows.slice(1).map(x => x[1] + ':' + x[3]), ['A:Volvo B', 'A:Volvo B', 'A:SGB 1060', 'B:Volvo B'], 'new rows follow their portfolio');
+
+  // New dated snapshot: the portfolio is copied to the new date, then changed; the old date stays.
+  const s = S.applyOps(rows, { layout: a.layout, mapping: a.mapping, opts: a.opts, key: 'A', sourceDate: '2026-09-30', targetDate: '2026-10-15', ops });
+  assert.equal(s.stats.copied, 2);
+  assert.deepEqual(reparse(s.rows).groups.find(g => g.key === 'A').dates.map(d => [d.date, d.rows.length]), [['2026-08-31', 1], ['2026-09-30', 2], ['2026-10-15', 2]]);
+
+  // Someone removed Ericsson meanwhile: the removal finds nothing and says so.
+  const g2 = S.applyOps(rows.filter(x => x[3] !== 'Ericsson B'), { layout: a.layout, mapping: a.mapping, opts: a.opts, key: 'A', sourceDate: '2026-09-30', targetDate: '2026-09-30', ops });
+  assert.equal(g2.stats.missing, 1);
+  // Adding a holding the date already has (closed out at quantity 0) updates that row, never doubles it.
+  const closed = [...rows, ['2026-09-30', 'A', 'Equity', 'Apple', 'US0378331005', '0', '230', 'USD']];
+  const c2 = S.applyOps(closed, { layout: a.layout, mapping: a.mapping, opts: a.opts, key: 'A', sourceDate: '2026-09-30', targetDate: '2026-09-30', ops: [{ kind: 'add', pos: { id: 'x', type: 'equity', name: 'Apple', isin: 'US0378331005', qty: 10, price: 231, ccy: 'USD' } }] });
+  assert.equal(c2.rows.filter(x => x[4] === 'US0378331005').length, 1);
+  assert.equal(String(c2.rows.find(x => x[4] === 'US0378331005')[5]), '10');
+
+  // A new portfolio in a source without a Portfolio column gets one.
+  const noPf = rows.map(x => x.filter((_, i) => i !== 1)).filter((x, i) => i === 0 || i < 4);
+  const np = S.analyseRows(noPf);
+  assert.equal(np.layout.pfCol, -1);
+  const w = S.applyOps(noPf, { layout: np.layout, mapping: np.mapping, opts: np.opts, key: 'New fund', sourceDate: '', targetDate: '2026-10-15', ops: [{ kind: 'add', pos: after.at(-1) }] });
+  assert.deepEqual(reparse(w.rows).groups.map(g => [g.key, g.dates.length]), [['', 2], ['New fund', 1]]);
+
+  // A deleted portfolio loses every row on every date.
+  const dropped = S.dropPortfolioRows(rows, a.layout, 'A');
+  assert.equal(dropped.removed, 3);
+  assert.deepEqual(dropped.rows.slice(1).map(x => x[1]), ['B']);
+
+  // CSV keeps a decimal comma and the semicolon.
+  assert.equal(S.rowsToCSV([['Date', 'Price'], ['2026-09-30', 1.5]], { delim: ';', decimal: ',', bom: false }), 'Date;Price\r\n2026-09-30;1,5\r\n');
+});
+
+test('data source: JSON is written back where the records were, nested keys and other content kept', async () => {
+  const S = await import('../js/sourcefile.js');
+  const { parseJSONRows } = await import('../js/importer.js');
+  const doc = { meta: { generated: '2026-09-30', by: 'PMS' }, data: { holdings: [
+    { date: '2026-09-30', portfolio: 'A', name: 'Volvo B', isin: 'SE0000115446', quantity: 100, price: 260, currency: 'SEK', classification: { sector: 'Industrials' } },
+    { date: '2026-09-30', portfolio: 'A', name: 'Ericsson B', isin: 'SE0000108656', quantity: 500, price: 80, currency: 'SEK', classification: { sector: 'IT' } }
+  ] } };
+  const text = JSON.stringify(doc);
+  const rows = parseJSONRows(text);
+  const loc = S.jsonLocate(doc);
+  assert.deepEqual(loc, { path: ['data', 'holdings'], arrays: false });
+  const a = S.analyseRows(rows);
+  assert.ok(!a.error, a.error);
+  const before = S.carryIds([], S.snapshotPositions(a.groups[0].dates[0].rows, a.mapping, a.opts));
+  const after = before.map(x => (x.isin === 'SE0000115446' ? { ...x, qty: 120 } : x));
+  const r = S.applyOps(rows, { layout: a.layout, mapping: a.mapping, opts: a.opts, key: 'A', sourceDate: '2026-09-30', targetDate: '2026-09-30', ops: S.diffPositions(before, after) });
+  const out = JSON.parse(S.rowsToJSON(r.rows, { headerRow: a.layout.headerRow, root: doc, loc }));
+  assert.deepEqual(out.meta, doc.meta, 'the rest of the document is kept');
+  assert.equal(out.data.holdings[0].quantity, 120);
+  assert.deepEqual(out.data.holdings[0].classification, { sector: 'Industrials' }, 'dotted columns are nested again');
+  assert.deepEqual(out.data.holdings[1], doc.data.holdings[1]);
+  // A plain array stays a plain array.
+  assert.ok(Array.isArray(JSON.parse(S.rowsToJSON(rows, { headerRow: 0, root: doc.data.holdings, loc: S.jsonLocate(doc.data.holdings) }))));
+});
+
+test('data source connectors: formats, writability, addresses', async () => {
+  const C = await import('../js/connectors.js');
+  assert.equal(C.formatOf('a.xlsx'), 'xlsx'); assert.equal(C.formatOf('a.ods'), 'xlsx'); assert.equal(C.formatOf('a.TSV'), 'csv');
+  assert.equal(C.formatOf('/api/holdings', 'application/json; charset=utf-8'), 'json');
+  assert.equal(C.formatOf('/x', 'text/xml'), 'xml');
+  assert.ok(C.writable('csv') && C.writable('json') && C.writable('xlsx') && !C.writable('xml'));
+  assert.ok(C.validUrl('https://pms.example/api') && C.validUrl('http://localhost:8080/h'));
+  assert.ok(!C.validUrl('http://pms.example/api') && !C.validUrl('ftp://x') && !C.validUrl('nonsense'));
+  const p = await C.parseBytes({ name: '/api/h', text: '﻿Date;Name;Quantity;Price;Currency\n2026-09-30;Volvo;1;2,5;SEK\n', contentType: 'text/csv' });
+  assert.equal(p.format, 'csv'); assert.equal(p.delim, ';'); assert.equal(p.decimal, ','); assert.ok(p.bom);
+  const j = await C.parseBytes({ name: '/api/h', text: '[{"date":"2026-09-30","name":"Volvo","quantity":1}]', contentType: 'application/json' });
+  assert.equal(j.format, 'json'); assert.deepEqual(j.loc, { path: [], arrays: false });
+  const out = await C.serialise(p, { sheet: 'CSV', rows: p.sheets[0].rows, layout: { headerRow: 0, dateCol: 0 }, mapping: [] });
+  assert.equal(out.body, '﻿Date;Name;Quantity;Price;Currency\r\n2026-09-30;Volvo;1;2,5;SEK\r\n', 'a CSV comes back byte for byte');
+});

@@ -6,10 +6,9 @@ import { fullAnalysis } from './analytics.js';
 import { fundAnalysis } from './fund.js';
 import { allocationAnalysis, derivativesBook } from './allocation.js';
 import { purgeAll } from './charts.js';
-import { buildDemo } from './demo.js';
 import { todayISO, debounce } from './util.js';
 import * as filelink from './filelink.js';
-import * as source from './sourcefile.js';
+import * as sources from './sources.js';
 import { errorText as sourceError } from './views/source-card.js';
 import { REPO_URL } from './guide.js';
 import { backupAge, maybeAutoBackup, BACKUP_WARN_DAYS } from './backup.js';
@@ -41,10 +40,13 @@ import pnlView from './views/pnl.js';
 import globalExposureView from './views/global-exposure.js';
 import lmtView from './views/liquidity-tools.js';
 import controlLogView from './views/control-log.js';
+import setupView from './views/setup.js';
 import { unhandled } from './auditlog.js';
 import { pnlAnalysis } from './pnl.js';
 
-const VIEWS = { dashboard, holdings, import: importView, history, exposure, risk, 'fixed-income': fixedIncome, performance, stress, liquidity, compliance, report, settings, cashflow, nav: navView, allocation: allocationView, derivatives: derivativesView, methodology: methodologyView, pnl: pnlView, guide: guideView, changes: changesView, whatif: whatifView, attribution: attributionView, 'global-exposure': globalExposureView, 'liquidity-tools': lmtView, 'control-log': controlLogView };
+const VIEWS = { dashboard, holdings, import: importView, history, exposure, risk, 'fixed-income': fixedIncome, performance, stress, liquidity, compliance, report, settings, cashflow, nav: navView, allocation: allocationView, derivatives: derivativesView, methodology: methodologyView, pnl: pnlView, guide: guideView, changes: changesView, whatif: whatifView, attribution: attributionView, 'global-exposure': globalExposureView, 'liquidity-tools': lmtView, 'control-log': controlLogView, setup: setupView };
+// Pages that work without a connected data source: reading about the app, and connecting one.
+const OPEN_ROUTES = new Set(['guide', 'methodology', 'setup']);
 
 const NAV = [
   { group: 'nav.g.overview', items: [['dashboard', 'nav.dashboard', 'M3 12l9-9 9 9M5 10v10h14V10'], ['guide', 'nav.guide', 'M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 21V5M8 7h7M8 11h7']] },
@@ -109,7 +111,7 @@ function renderSidebar() {
     </nav>
     <div class="sidebar-foot">
       <a class="privacy-note" href="#/guide?s=privacy" title="${esc(t('privacy.more'))}">${icon('M12 11c1.7 0 3-1.3 3-3V6a3 3 0 10-6 0v2c0 1.7 1.3 3 3 3zM5 11h14v10H5z')}<span>${esc(t('app.privacy'))}</span></a>
-      ${sourceStatusHtml()}
+      ${sourcesStatusHtml()}
       ${dataStatusHtml()}
       <div class="copyright">© 2026 Anton Ålin · <a href="#/settings">${esc(t('nav.settings'))}</a> · <a href="${REPO_URL}" target="_blank" rel="noopener noreferrer">${esc(t('app.source'))}</a> · <a href="${REPO_URL}/issues/new/choose" target="_blank" rel="noopener noreferrer">${esc(t('app.report'))}</a></div>
     </div>`;
@@ -134,14 +136,18 @@ function dataStatusHtml() {
   return `<a class="data-status ${tone}" href="#/settings">${icon('M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3')}<span><strong>${esc(t('backup.label'))}</strong><br>${esc(text)}</span></a>`;
 }
 
-// The connected source file (read side), when there is one.
-function sourceStatusHtml() {
-  const s = source.getStatus();
-  if (s.state === 'none' || s.state === 'unsupported') return '';
+// The connected data sources: read, written, or waiting.
+function sourcesStatusHtml() {
   const time = iso => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  const bad = s.state !== 'linked' || !!s.error;
-  const text = s.state === 'needs-permission' ? t('src.needsPermission') : bad ? sourceError(s.error) : t('src.readAt', { t: s.lastRead ? time(s.lastRead) : '—' });
-  return `<a class="data-status ${bad ? 'warn' : 'ok'}" href="#/import" title="${esc(s.name)}">${icon('M4 4h10l6 6v10H4zM14 4v6h6M8 14l3 3 5-6')}<span><strong>${esc(s.name)}</strong><br>${esc(text)}</span></a>`;
+  return sources.list().map(s => {
+    const st = s.status;
+    const bad = st.state !== 'linked' || !!st.error || st.write === 'blocked';
+    const busy = st.write === 'pending' || st.write === 'writing';
+    const text = st.state === 'init' ? t('src.checking') : st.state === 'needs-permission' ? t('src.needsPermission') : st.state !== 'linked' || st.error ? sourceError(st.error, st.status)
+      : st.write === 'blocked' ? t('src.writeBlockedShort', { n: st.queued }) : busy ? t('src.writing') : st.lastWrite ? t('src.writtenAt', { t: time(st.lastWrite) }) : t('src.readAt', { t: st.lastRead ? time(st.lastRead) : '—' });
+    const d = s.kind === 'api' ? 'M4 12h4m8 0h4M8 8l-4 4 4 4M16 8l4 4-4 4M13 5l-2 14' : 'M4 4h10l6 6v10H4zM14 4v6h6M8 14l3 3 5-6';
+    return `<a class="data-status ${bad ? 'warn' : busy ? 'pending' : 'ok'}" href="#/import" title="${esc(s.kind === 'api' ? s.url : s.name)}">${icon(d)}<span><strong>${esc(s.name)}</strong><br>${esc(text)}</span></a>`;
+  }).join('');
 }
 
 // Banner above the page: the linked file needs a click to reconnect, or holds newer data.
@@ -149,23 +155,30 @@ function renderBanner() {
   const el = document.getElementById('banner');
   if (!el) return;
   const fs = filelink.getStatus();
-  const ss = source.getStatus();
   let html = '';
-  if (ss.state === 'needs-permission') html = `<div class="alert alert-warn"><span>${esc(t('src.bannerPermission', { name: ss.name }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="src-reconnect">${esc(t('src.reconnect'))}</button><button class="btn btn-sm" data-file="src-disconnect">${esc(t('src.disconnect'))}</button></span></div>`;
-  else if (ss.state === 'error') html = `<div class="alert alert-breach"><span>${esc(t('src.bannerError', { name: ss.name, err: sourceError(ss.error) }))}</span><span class="btn-row"><button class="btn btn-sm" data-file="src-connect">${esc(t('src.connectOther'))}</button><button class="btn btn-sm" data-file="src-disconnect">${esc(t('src.disconnect'))}</button></span></div>`;
-  if (html) { /* the source file comes first; the linked-file banner shows once that is sorted */ }
+  // A data source that needs a click comes first; the linked-file banner shows once that is sorted.
+  const all = sources.list();
+  const blocked = all.find(s => s.status.state === 'linked' && s.status.write === 'blocked');
+  const perm = all.find(s => s.status.state === 'needs-permission');
+  const failed = all.find(s => s.status.state === 'error' || (s.status.state === 'linked' && s.status.error));
+  if (blocked) html = `<div class="alert alert-warn"><span>${esc(t('src.bannerWriteBlocked', { name: blocked.name, n: blocked.status.queued, err: blocked.status.writeError }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="src-flush" data-id="${esc(blocked.id)}">${esc(t('src.retry'))}</button><button class="btn btn-sm" data-file="src-discard" data-id="${esc(blocked.id)}">${esc(t('src.discard'))}</button></span></div>`;
+  else if (perm) html = `<div class="alert alert-warn"><span>${esc(t('src.bannerPermission', { name: perm.name }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="src-reconnect" data-id="${esc(perm.id)}">${esc(t('src.reconnect'))}</button><button class="btn btn-sm" data-file="src-disconnect" data-id="${esc(perm.id)}">${esc(t('src.disconnect'))}</button></span></div>`;
+  else if (failed) html = `<div class="alert alert-breach"><span>${esc(t('src.bannerError', { name: failed.name, err: sourceError(failed.status.error, failed.status.status) }))}</span><span class="btn-row"><a class="btn btn-sm" href="#/import">${esc(t('src.open'))}</a><button class="btn btn-sm" data-file="src-disconnect" data-id="${esc(failed.id)}">${esc(t('src.disconnect'))}</button></span></div>`;
+  if (html) { /* shown */ }
   else if (fs.state === 'needs-permission') html = `<div class="alert alert-warn"><span>${esc(t('file.bannerPermission', { name: fs.name }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="reconnect">${esc(t('file.reconnect'))}</button><button class="btn btn-sm" data-file="unlink">${esc(t('file.unlink'))}</button></span></div>`;
   else if (fs.state === 'error') html = `<div class="alert alert-breach"><span>${esc(t('file.bannerError', { name: fs.name, err: fs.error }))}</span><span class="btn-row"><button class="btn btn-sm" data-file="retry">${esc(t('file.retry'))}</button><button class="btn btn-sm" data-file="unlink">${esc(t('file.unlink'))}</button></span></div>`;
   else if (fs.conflict) html = `<div class="alert alert-info"><span>${esc(fs.conflict.empty ? t('file.bannerLoad', { name: fs.name, n: fs.conflict.n }) : t('file.bannerNewer', { name: fs.name, n: fs.conflict.n, d: fs.conflict.fileAt ? new Date(fs.conflict.fileAt).toLocaleString('en-GB') : '' }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="load">${esc(t('file.loadFromFile'))}</button><button class="btn btn-sm" data-file="keep">${esc(t('file.keepLocal'))}</button></span></div>`;
   el.innerHTML = html;
   el.hidden = !html;
   el.onclick = async e => {
-    const act = e.target.closest('[data-file]')?.dataset.file;
+    const b = e.target.closest('[data-file]');
+    const act = b?.dataset.file, id = b?.dataset.id;
     if (!act) return;
     try {
-      if (act === 'src-reconnect') await source.reconnect();
-      if (act === 'src-disconnect' && await confirmDialog(t('src.disconnectConfirm'))) await source.disconnect();
-      if (act === 'src-connect') { const { connectFlow } = await import('./views/source-card.js'); await connectFlow(); }
+      if (act === 'src-reconnect') await sources.reconnect(id);
+      if (act === 'src-flush' && !(await sources.flush(id))) toast(t('src.writeBlockedShort', { n: sources.queued(id) }), { tone: 'warn' });
+      if (act === 'src-discard' && await confirmDialog(t('src.discardConfirm', { n: sources.queued(id) }), { danger: true, ok: t('src.discard') })) await sources.discardPending(id);
+      if (act === 'src-disconnect' && await confirmDialog(t('src.disconnectConfirm'))) await sources.disconnect(id);
       if (act === 'reconnect') await filelink.reconnect();
       if (act === 'retry') await filelink.save();
       if (act === 'unlink' && await confirmDialog(t('file.unlinkConfirm'))) await filelink.unlink();
@@ -186,7 +199,7 @@ function renderTopbar() {
       ${p ? `<button class="icon-btn" id="pfMenu" aria-label="${esc(t('top.more'))}" title="${esc(t('top.more'))}">${icon('M12 6h.01M12 12h.01M12 18h.01')}</button>` : ''}
     </div>
     <div class="top-right">
-      ${p && p.source && p.source.file ? snapshotSelect(p) : p ? `<label class="valdate" title="${esc(t('top.valdateHelp'))}"><span>${esc(t('top.valdate'))}</span><input type="date" id="valDate" value="${esc(p.valDate || todayISO())}"></label>` : ''}
+      ${p && p.source && p.source.file && (p.source.dates || []).length ? snapshotSelect(p) : p ? `<label class="valdate" title="${esc(t('top.valdateHelp'))}"><span>${esc(t('top.valdate'))}</span><input type="date" id="valDate" value="${esc(p.valDate || todayISO())}"></label>` : ''}
       ${p ? `
         <span class="base-chip" title="${esc(t('top.base'))}">${esc(p.baseCcy)}</span>` : ''}
       <button class="icon-btn" id="themeBtn" aria-label="${esc(t('top.theme'))}" title="${esc(t('top.theme'))}: ${esc(t('theme.' + (store.settings().theme || 'auto')))}">${icon(document.documentElement.dataset.resolvedTheme === 'dark' ? 'M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z' : 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.4-6.4l-.7.7M6.3 17.7l-.7.7m12.8 0l-.7-.7M6.3 6.3l-.7-.7M16 12a4 4 0 11-8 0 4 4 0 018 0z')}</button>
@@ -196,7 +209,7 @@ function renderTopbar() {
   $('pfSelect')?.addEventListener('change', e => store.setActive(e.target.value));
   $('pfNew').onclick = newPortfolioDialog;
   $('pfMenu')?.addEventListener('click', portfolioMenu);
-  $('srcDate')?.addEventListener('change', e => { source.setDate(p.id, e.target.value).catch(err => { console.error(err); toast(t('src.err.other', { err: err.message || '' }), { tone: 'warn' }); }); });
+  $('srcDate')?.addEventListener('change', e => { sources.setDate(p.id, e.target.value).catch(err => { console.error(err); toast(t('src.err.other', { err: err.message || '' }), { tone: 'warn' }); }); });
   $('valDate')?.addEventListener('change', e => {
     const v = e.target.value;
     store.update(pp => { pp.valDate = v === todayISO() ? '' : v; }, t('top.valdate'));
@@ -210,7 +223,7 @@ function renderTopbar() {
 
 // A portfolio fed by the connected file picks a snapshot date from the file instead of a free date.
 function snapshotSelect(p) {
-  const dates = source.datesFor(p).slice().reverse();
+  const dates = sources.datesFor(p).slice().reverse();
   const latest = dates[0] || p.source.shown || p.valDate;
   const opts = [['', t('src.latest', { d: latest || '—' })], ...dates.slice(1).map(d => [d, d])];
   return `<label class="valdate" title="${esc(t('src.dateHelp'))}"><span>${esc(t('src.date'))}</span>${selectHtml('id="srcDate"', opts, p.source.date || '')}</label>`;
@@ -228,19 +241,13 @@ export function newPortfolioDialog() {
   m.querySelector('#npForm').addEventListener('submit', e => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
-    store.addPortfolio(store.newPortfolio(f));
+    // With a writable source connected, the portfolio is a new value in its Portfolio column: rows
+    // appear with the first holding.
+    const p = store.addPortfolio(sources.attachNew(store.newPortfolio(f)));
     closeModal();
     app.navigate('holdings');
-    toast(t('pf.created'));
+    toast(p.source ? t('pf.createdInSource', { name: p.source.fileName }) : t('pf.createdLocal'), { ms: 5000 });
   });
-}
-
-export function loadDemo() {
-  const p = buildDemo(todayISO());
-  p.name = t('demo.name');
-  store.addPortfolio(p);
-  app.navigate('dashboard');
-  toast(t('demo.loaded'));
 }
 
 function portfolioMenu(e) {
@@ -250,7 +257,6 @@ function portfolioMenu(e) {
       <button class="menu-item" data-act="rename">${esc(t('pf.rename'))}</button>
       <button class="menu-item" data-act="duplicate">${esc(t('pf.duplicate'))}</button>
       <button class="menu-item" data-act="export">${esc(t('pf.exportJson'))}</button>
-      <button class="menu-item" data-act="demo">${esc(t('pf.loadDemo'))}</button>
       <button class="menu-item danger" data-act="delete">${esc(t('pf.delete'))}</button>
     </div>
     <div class="modal-foot"><button class="btn" data-close>${esc(t('common.close'))}</button></div>`);
@@ -265,15 +271,18 @@ function portfolioMenu(e) {
       const copy = JSON.parse(JSON.stringify(p));
       copy.id = 'pf_' + Math.random().toString(36).slice(2, 10);
       copy.name = p.name + ' ' + t('pf.copySuffix');
+      // A copy of a portfolio from a source is a new portfolio in a source: its own rows, its own name.
+      copy.demo = false; copy.controlLog = []; delete copy.source;
       store.addPortfolio(copy);
+      sources.adoptPortfolio(copy.id);
       toast(t('pf.duplicated'));
     } else if (act === 'export') {
       const { downloadBlob, slug } = await import('./util.js');
       downloadBlob(JSON.stringify({ app: 'nexus-portfolio-lab', portfolios: { [p.id]: p } }, null, 2), 'application/json', slug(p.name) + '.json');
-    } else if (act === 'demo') loadDemo();
-    else if (act === 'delete') {
-      if (await confirmDialog(t('pf.deleteConfirm', { name: esc(p.name) }), { ok: t('common.delete'), danger: true })) {
-        store.deletePortfolio(p.id);
+    } else if (act === 'delete') {
+      const inSource = sources.isSourced(p) && sources.canWrite(sources.connOf(p));
+      if (await confirmDialog(t(inSource ? 'pf.deleteConfirmSource' : 'pf.deleteConfirm', { name: esc(p.name), source: esc(sources.sourceName(p)) }), { ok: t('common.delete'), danger: true })) {
+        sources.removePortfolio(p.id);
         toast(t('pf.deleted'));
       }
     }
@@ -296,11 +305,9 @@ function renderRoute() {
   const p = store.active();
   main.dataset.route = route;
   try {
-    if (!p && !view.noPortfolio) {
-      cleanup = dashboard.render(main, app);
-    } else {
-      cleanup = view.render(main, app);
-    }
+    // Until a data source is connected, every portfolio page is the setup page.
+    const gated = !sources.ready() && !OPEN_ROUTES.has(route);
+    cleanup = (gated ? setupView : !p && !view.noPortfolio ? dashboard : view).render(main, app);
   } catch (err) {
     console.error(err);
     main.innerHTML = `<div class="card"><div class="card-body"><h2>${esc(t('err.view'))}</h2><pre class="err">${esc(err.stack || err.message)}</pre></div></div>`;
@@ -326,8 +333,10 @@ async function init() {
     if (['data', 'active', 'templates', 'log'].includes(reason)) filelink.markDirty();
     scheduleRender();
   });
-  source.onChange(() => { renderBanner(); if (document.querySelector('.sidebar-foot')) renderSidebar(); });
-  source.init().then(() => { renderSidebar(); renderBanner(); }).catch(err => console.error(err));
+  // The data sources decide what can be shown: until one is connected every portfolio page is the setup page.
+  let wasReady = false;
+  sources.onChange(() => { renderBanner(); if (document.querySelector('.sidebar-foot')) renderSidebar(); if (sources.ready() !== wasReady) { wasReady = sources.ready(); scheduleRender(); } });
+  sources.init().then(() => { wasReady = sources.ready(); renderRoute(); }).catch(err => { console.error(err); renderRoute(); });
   filelink.onChange(() => { renderBanner(); const sb = document.querySelector('.sidebar-foot'); if (sb) renderSidebar(); });
   // Only the sidebar and banner depend on the file status, so no second full render (Plotly
   // dislikes being re-run while its first draw is still settling).
