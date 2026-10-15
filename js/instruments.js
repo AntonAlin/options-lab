@@ -58,6 +58,7 @@ export const FIELDS = {
   ticker:      { type: 'text', en: 'Ticker / ID', aliases: ['ticker', 'symbol', 'bloomberg', 'bbgticker', 'ric', 'kortnamn', 'id', 'securityid'] },
   isin:        { type: 'text', en: 'ISIN', aliases: ['isin', 'isincode'] },
   issuer:      { type: 'text', en: 'Issuer', aliases: ['issuer', 'issuername', 'company', 'emittent', 'utgivare', 'bolag', 'counterparty', 'motpart'] },
+  issuerLei:   { type: 'text', en: 'Issuer LEI', aliases: ['lei', 'issuerlei', 'leicode', 'legalentityidentifier', 'emittentlei', 'counterpartylei', 'motpartlei', 'utgivarelei'] },
   type:        { type: 'select', en: 'Instrument type', aliases: ['type', 'instrumenttype', 'securitytype', 'assettype', 'typ', 'instrumenttyp', 'värdepapperstyp'] },
   qty:         { type: 'number', en: 'Quantity', aliases: ['qty', 'quantity', 'shares', 'units', 'position', 'holding', 'antal', 'innehav', 'andelar', 'nominal', 'nominalvalue', 'nominellt', 'facevalue', 'notional', 'contracts', 'kontrakt', 'amount', 'belopp'] },
   price:       { type: 'number', en: 'Price', aliases: ['price', 'lastprice', 'close', 'marketprice', 'kurs', 'pris', 'senastekurs', 'stängningskurs', 'cleanprice', 'premium', 'premie', 'nav', 'navperunit'] },
@@ -937,6 +938,22 @@ export const INSTRUMENTS = {
   }
 };
 
+// Every type with an issuer (or counterparty) can carry its LEI, right after it.
+for (const d of Object.values(INSTRUMENTS)) {
+  const i = d.fields.indexOf('issuer');
+  if (i >= 0 && !d.fields.includes('issuerLei')) d.fields.splice(i + 1, 0, 'issuerLei');
+}
+
+// Legal Entity Identifier (ISO 17442): 18 characters and two check digits, ISO 7064 MOD 97-10 —
+// letters as 10…35, the whole number mod 97 must be 1. Catches a typo, not an LEI that was never issued.
+export function isLei(v) {
+  const s = String(v ?? '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{18}\d{2}$/.test(s)) return false;
+  let r = 0;
+  for (const ch of s) { const d = ch >= 'A' ? String(ch.charCodeAt(0) - 55) : ch; for (const x of d) r = (r * 10 + +x) % 97; }
+  return r === 1;
+}
+
 // The modelled OTC types still accept a file that only has the counterparty's MTM (plus, at best,
 // a delta, duration or vega): such a row is valued like 'otc' and flagged, rather than rejected.
 // Throwing away a valid position because the pricing inputs are missing would be the worse error.
@@ -1194,5 +1211,6 @@ export function validatePosition(p) {
     if (spec.type === 'select' && spec.options && !spec.options.includes(String(v))) errs.push({ field: f, code: 'option' });
   }
   if (def.fields.includes('rating') && p.rating && ratingScore(p.rating) == null) errs.push({ field: 'rating', code: 'rating' });
+  if (p.issuerLei && !isLei(p.issuerLei)) errs.push({ field: 'issuerLei', code: 'lei' });
   return errs;
 }

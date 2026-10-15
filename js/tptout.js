@@ -6,12 +6,14 @@
 // js/tpt.js.
 //
 // What is filled: the identification, valuation, exposure, bond, derivative and sensitivity fields
-// the platform knows (listed in TPT_OUT_FIELDS). What is not: the SCR contributions (fields 97–105),
-// issuer LEIs and group codes, and anything else the platform does not hold. Field 11 (complete SCR
+// the platform knows (listed in TPT_OUT_FIELDS), the issuer LEI from the holding or the issuer
+// register (47/48). What is not: the SCR contributions (fields 97–105), group codes, and anything
+// else the platform does not hold. Field 11 (complete SCR
 // delivery) is therefore always "N". Weights (9, 26, 30) are fractions of NAV (0.0525 = 5.25 %).
 // CIC codes are derived from the instrument type; the types where that is a judgement call are
 // reported in `warnings` so someone checks them before the file goes out.
 import { isNum } from './util.js';
+import { isLei } from './instruments.js';
 
 // [field number, header]. Headers follow the TPT V6/V7 field names.
 export const TPT_OUT_FIELDS = [
@@ -25,7 +27,7 @@ export const TPT_OUT_FIELDS = [
   ['24', 'Market valuation in portfolio currency (B)'], ['25', 'Clean market valuation in portfolio currency (B)'], ['26', 'Valuation weight'],
   ['27', 'Market exposure amount in quotation currency (A)'], ['28', 'Market exposure amount in portfolio currency (B)'], ['30', 'Market exposure in weight'],
   ['32', 'Interest rate type'], ['33', 'Coupon rate'], ['37', 'Interest rate margin'], ['38', 'Coupon payment frequency'], ['39', 'Maturity date'],
-  ['40', 'Redemption type'], ['42', 'Callable / putable'], ['43', 'Call / put date'], ['46', 'Issuer name'], ['52', 'Issuer country'],
+  ['40', 'Redemption type'], ['42', 'Callable / putable'], ['43', 'Call / put date'], ['46', 'Issuer name'], ['47', 'Issuer identification code'], ['48', 'Type of issuer identification code'], ['52', 'Issuer country'],
   ['54', 'Economic sector'], ['59', 'Credit quality step'], ['60', 'Call / Put / Cap / Floor'], ['61', 'Strike price'], ['64', 'Exercise type'],
   ['70', 'Name of the underlying asset'], ['72', 'Last valuation price of the underlying asset'], ['90', 'Modified duration to maturity date'],
   ['92', 'Credit sensitivity'], ['93', 'Sensitivity to underlying asset price (delta)']
@@ -113,7 +115,8 @@ const BONDS = new Set(['govt_bond', 'corp_bond', 'frn', 'money_market', 'convert
 const NOMINAL = new Set([...BONDS, 'cash', 'repo', 'irs', 'ccs', 'cds', 'swaption', 'cap_floor', 'inflation_swap', 'otc']);
 const round = (x, d = 2) => (isNum(x) ? Math.round(x * 10 ** d) / 10 ** d : '');
 
-// v: analytics.valuePortfolio(p). opts: { id, idType ('1' = ISIN, else a code), reportDate, shareClass: { lastNav, units } }
+// v: analytics.valuePortfolio(p). opts: { id, idType ('1' = ISIN, else a code), reportDate, shareClass: { lastNav, units },
+//   leiOf: pos => LEI (default: the holding's own issuerLei; the page passes store.leiOf, which adds the register) }
 // Returns { rows: [header, ...], warnings: [{ code, name?, n? }], positions, excluded }.
 export function buildTPT(p, v, opts = {}) {
   const warnings = [];
@@ -125,6 +128,8 @@ export function buildTPT(p, v, opts = {}) {
   const fiRows = v.valid.filter(x => x.r.fi && isNum(x.r.fi.modDur));
   const pfDur = nav ? fiRows.reduce((s, x) => s + x.r.fi.modDur * (x.r.fi.derivative ? x.r.net : x.r.mv), 0) / nav : '';
   const sc = opts.shareClass || null;
+  const leiOf = opts.leiOf || (pos => pos.issuerLei || '');
+  let noLei = 0;
   const pfFields = {
     1: id, 2: idType, 3: p.name, 4: p.baseCcy, 5: round(nav), 6: v.ctx.valDate, 7: opts.reportDate || v.ctx.valDate,
     8: sc && isNum(+sc.lastNav) && +sc.lastNav ? +sc.lastNav : '', '8b': sc && isNum(+sc.units) && +sc.units ? +sc.units : '',
@@ -168,6 +173,10 @@ export function buildTPT(p, v, opts = {}) {
     }
     if (pos.maturity) f[39] = pos.maturity;
     f[46] = pos.issuer || (['equity', 'etf', 'fund'].includes(pos.type) ? pos.name || '' : '');
+    // 47/48: the issuer's LEI (type 1); 9 = none. A malformed LEI is not passed on.
+    const lei = String(leiOf(pos) || '').toUpperCase();
+    if (lei && isLei(lei)) { f[47] = lei; f[48] = '1'; }
+    else { f[48] = '9'; if (f[46] && !['cash', 'future', 'option'].includes(pos.type)) noLei++; }
     if (/^[A-Z]{2}$/i.test(pos.country || '')) f[52] = pos.country.toUpperCase();
     // Field 54 takes a NACE code; a free-text sector is not one, so it is only passed on when it is.
     if (/^[A-U]\d{0,2}(\.\d)*$/.test(String(pos.sector || '').trim())) f[54] = pos.sector.trim();
@@ -186,6 +195,7 @@ export function buildTPT(p, v, opts = {}) {
     out.push(TPT_OUT_FIELDS.map(([n]) => (f[n] === undefined || f[n] === null ? '' : f[n])));
   }
   if (excluded) warnings.push({ code: 'excluded', n: excluded });
+  if (noLei) warnings.push({ code: 'no_lei', n: noLei });
   for (const [type, n] of check) warnings.push({ code: 'check_cic', type, n });
   if (v.fxMissing?.length) warnings.push({ code: 'fx_missing', list: v.fxMissing.join(', ') });
   return { rows: out, warnings, positions: out.length - 1, excluded };

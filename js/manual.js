@@ -237,7 +237,7 @@ function referenceText() {
     out += bullet(`${lab && lab !== 'cma.' + k ? lab : k}: ${v}${/Bp$/.test(k) ? ' bp' : /^corr/.test(k) ? '' : /Pts$/.test(k) ? ' vol points' : ' %'}`) + '\n';
   }
   out += h2('D6. TPT fields the platform writes');
-  out += para('Header format: "<number>_<name>". Everything else in the TPT (including SCR contributions 97–105 and issuer LEIs) is left out. See C' + (METHODOLOGY.findIndex(s => s.id === 'tpt') + 1) + ' for how each value is derived and how a TPT is read.');
+  out += para('Header format: "<number>_<name>". Everything else in the TPT (including SCR contributions 97–105 and group codes) is left out. Issuer LEIs (47/48) are filled from the holding\'s Issuer LEI field or the issuer register. See C' + (METHODOLOGY.findIndex(s => s.id === 'tpt') + 1) + ' for how each value is derived and how a TPT is read.');
   out += TPT_OUT_FIELDS.map(([n, name]) => `  ${n.padStart(3)}  ${name}`).join('\n') + '\n';
   out += h2('D7. Validation messages');
   out += para('Shown per row in Bulk upload and on Holdings. A row with an error is kept and flagged; an unknown type is held back unvalued until it is mapped.');

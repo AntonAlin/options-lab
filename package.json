@@ -1,6 +1,6 @@
 {
   "name": "options-lab",
-  "version": "3.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Nexus Portfolio Lab – static site. npm only runs the tests; there is no build step.",
   "scripts": {

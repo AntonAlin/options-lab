@@ -79,6 +79,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .neg { color: var(--neg); }
 .warn-text { color: var(--warn); }
 .upper { text-transform: uppercase; }
+.mono { font-family: var(--mono); }
 .w-80 { width: 80px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 

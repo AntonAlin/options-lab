@@ -6,6 +6,7 @@ import { demoButtons, bindDemoButtons } from './setup.js';
 import { downloadBackup, backupAge } from '../backup.js';
 import * as filelink from '../filelink.js';
 import { sourceCardHtml, bindSourceCard } from './source-card.js';
+import { issuersCardHtml, bindIssuersCard } from './issuers-card.js';
 import { parseEcbRates, ECB_PAGE } from '../fxfile.js';
 import * as marketsync from '../marketsync.js';
 
@@ -53,6 +54,7 @@ export default {
         <div class="cma-grid">${CMA_FIELDS.map(([k, unit]) => `<label><span>${esc(t('cma.' + k))}</span><span class="with-unit"><input data-cma="${k}" inputmode="decimal" value="${p.cma[k]}"><em>${unit}</em></span></label>`).join('')}</div>
         <div class="btn-row"><button class="btn btn-sm" data-act="cmaReset">${esc(t('set.cmaReset'))}</button></div>`) : ''}
       ${sourceCardHtml({ steps: false })}
+      ${issuersCardHtml()}
       ${card(t('setup.demoTitle'), `<p class="muted small">${esc(t('setup.demoBody'))}</p>${demoButtons()}`, { sub: esc(t('setup.demoSub')) })}
       ${card(t('file.title'), fileCardHtml(), { sub: esc(t('file.sub')), id: 'fileCard' })}
       ${card(t('set.data'), `
@@ -131,7 +133,8 @@ export default {
       if (act === 'reset' && await confirmDialog(t('set.resetConfirm'), { danger: true, ok: t('set.reset') })) { store.resetWorkspace(); toast(t('set.resetDone')); }
     };
     const offSrc = bindSourceCard(root, { steps: false }), offDemo = bindDemoButtons(root);
-    return () => { off(); offSrc(); offDemo(); };
+    const offIss = bindIssuersCard(root);
+    return () => { off(); offSrc(); offDemo(); offIss(); };
   }
 };
 

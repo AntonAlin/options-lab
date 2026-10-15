@@ -332,7 +332,7 @@ async function init() {
   store.subscribe(reason => {
     if (reason === 'settings') applyTheme();
     if (reason === 'storage_error') { toast(t('err.storage'), { tone: 'warn', ms: 8000 }); return; }
-    if (['data', 'active', 'templates', 'log'].includes(reason)) filelink.markDirty();
+    if (['data', 'active', 'templates', 'log', 'issuers'].includes(reason)) filelink.markDirty();
     scheduleRender();
   });
   // The data sources decide what can be shown: until one is connected every portfolio page is the setup page.

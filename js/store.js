@@ -55,7 +55,7 @@ export function newPortfolio(o = {}) {
 }
 
 function freshState() {
-  return { version: 1, settings: { theme: 'auto', autoBackup: 'weekly', lastBackup: '', srcWriteMode: 'inplace', srcDefault: '' }, activeId: null, portfolios: {}, templates: [], archive: [] };
+  return { version: 1, settings: { theme: 'auto', autoBackup: 'weekly', lastBackup: '', srcWriteMode: 'inplace', srcDefault: '' }, activeId: null, portfolios: {}, templates: [], archive: [], issuers: {} };
 }
 
 let state = freshState();
@@ -102,7 +102,7 @@ function readAll(d) {
   });
 }
 // Stored as JSON text: the state is plain data, and a string can never fail to clone.
-const metaOf = s => JSON.stringify({ version: s.version, settings: s.settings, activeId: s.activeId, templates: s.templates, archive: s.archive || [] });
+const metaOf = s => JSON.stringify({ version: s.version, settings: s.settings, activeId: s.activeId, templates: s.templates, archive: s.archive || [], issuers: s.issuers || {} });
 function writeDb(d, { all, ids, removed }) {
   return new Promise((resolve, reject) => {
     const tx = d.transaction(OS, 'readwrite');
@@ -258,6 +258,23 @@ function emit(reason) { listeners.forEach(fn => { try { fn(reason); } catch (e) 
 
 export const settings = () => state.settings;
 export function setSetting(k, v) { state.settings[k] = v; persist({ meta: true }); emit('settings'); }
+
+// The issuer register: an LEI per issuer, entered once and shared by every portfolio. A holding's own
+// LEI (field issuerLei) wins; the register fills in where the source has none. Keyed by the issuer
+// name as written, case and spacing ignored.
+export const issuerKey = name => String(name ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+export const issuers = () => (state.issuers && typeof state.issuers === 'object' ? state.issuers : {});
+export function setIssuer(name, { lei = '' } = {}) {
+  const k = issuerKey(name);
+  if (!k) return;
+  const next = { ...issuers() };
+  const v = String(lei || '').replace(/\s/g, '').toUpperCase();
+  if (v) next[k] = { name: String(name).trim(), lei: v }; else delete next[k];
+  state.issuers = next;
+  persist({ meta: true }); emit('issuers');
+}
+// The LEI for a holding: its own, else the register's for its issuer.
+export const leiOf = pos => (pos?.issuerLei ? String(pos.issuerLei).toUpperCase() : issuers()[issuerKey(pos?.issuer)]?.lei || '');
 
 // Import mapping templates are shared by all portfolios in the workspace.
 export const templates = () => (Array.isArray(state.templates) ? state.templates : []);
@@ -417,6 +434,7 @@ export function importWorkspace(obj, { merge = true } = {}) {
     obj.templates.forEach(t => { if (t && t.id && t.mapping) byId.set(t.id, t); });
     state.templates = [...byId.values()];
   }
+  if (obj.issuers && typeof obj.issuers === 'object') state.issuers = { ...issuers(), ...obj.issuers };
   undoStack = [];
   persist(); emit('active');
   return incoming.length;
