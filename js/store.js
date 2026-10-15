@@ -55,7 +55,7 @@ export function newPortfolio(o = {}) {
 }
 
 function freshState() {
-  return { version: 1, settings: { theme: 'auto', autoBackup: 'weekly', lastBackup: '', srcWriteMode: 'inplace', srcDefault: '' }, activeId: null, portfolios: {}, templates: [], archive: [], issuers: {} };
+  return { version: 1, settings: { theme: 'auto', autoBackup: 'weekly', lastBackup: '', srcWriteMode: 'inplace', srcDefault: '' }, activeId: null, portfolios: {}, templates: [], archive: [], issuers: {}, isinLei: { date: '', map: {} } };
 }
 
 let state = freshState();
@@ -102,7 +102,7 @@ function readAll(d) {
   });
 }
 // Stored as JSON text: the state is plain data, and a string can never fail to clone.
-const metaOf = s => JSON.stringify({ version: s.version, settings: s.settings, activeId: s.activeId, templates: s.templates, archive: s.archive || [], issuers: s.issuers || {} });
+const metaOf = s => JSON.stringify({ version: s.version, settings: s.settings, activeId: s.activeId, templates: s.templates, archive: s.archive || [], issuers: s.issuers || {}, isinLei: s.isinLei || { date: '', map: {} } });
 function writeDb(d, { all, ids, removed }) {
   return new Promise((resolve, reject) => {
     const tx = d.transaction(OS, 'readwrite');
@@ -273,8 +273,27 @@ export function setIssuer(name, { lei = '' } = {}) {
   state.issuers = next;
   persist({ meta: true }); emit('issuers');
 }
-// The LEI for a holding: its own, else the register's for its issuer.
-export const leiOf = pos => (pos?.issuerLei ? String(pos.issuerLei).toUpperCase() : issuers()[issuerKey(pos?.issuer)]?.lei || '');
+// ISIN → LEI found in GLEIF's published mapping (js/leisync.js): { date, map: { isin: lei | '' } },
+// '' meaning looked up and not found (asked again when a newer mapping is published).
+export const isinLei = () => (state.isinLei && state.isinLei.map ? state.isinLei : { date: '', map: {} });
+export function setIsinLeis(date, found = {}, missing = []) {
+  const cur = isinLei();
+  const map = { ...cur.map };
+  for (const i of missing) map[i] = '';
+  Object.assign(map, found);
+  state.isinLei = { date: date || cur.date, map };
+  persist({ meta: true }); emit('issuers');
+}
+// The LEI for a holding: its own, else the register's for its issuer (entered by someone, so it
+// wins), else GLEIF's for its ISIN.
+export const leiOf = pos => {
+  if (pos?.issuerLei) return String(pos.issuerLei).toUpperCase();
+  const reg = issuers()[issuerKey(pos?.issuer)]?.lei;
+  if (reg) return reg;
+  return (pos?.isin && isinLei().map[String(pos.isin).toUpperCase()]) || '';
+};
+// Where a holding's LEI comes from: 'holding' | 'register' | 'gleif' | ''.
+export const leiSource = pos => (pos?.issuerLei ? 'holding' : issuers()[issuerKey(pos?.issuer)]?.lei ? 'register' : pos?.isin && isinLei().map[String(pos.isin).toUpperCase()] ? 'gleif' : '');
 
 // Import mapping templates are shared by all portfolios in the workspace.
 export const templates = () => (Array.isArray(state.templates) ? state.templates : []);

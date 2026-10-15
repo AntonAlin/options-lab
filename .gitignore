@@ -3,3 +3,4 @@ dist/
 _site/
 data/market.json
 .lighthouseci/
+data/lei/
