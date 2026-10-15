@@ -1648,3 +1648,28 @@ test('the dated templates connect as a data source', async () => {
   assert.equal(res.groups[0].key, 'My Fund');
   assert.equal(res.groups[0].dates[0].rows.length, Object.keys(INSTRUMENTS).length + 1);
 });
+
+test('the TPT the platform writes for its own fund reads back to the same NAV', async () => {
+  const { buildTPT, cqs, cicOf } = await import('../js/tptout.js');
+  const { analyseSheets, snapshotPositions } = await import('../js/sourcefile.js');
+  const p = buildDemo('2026-09-28');
+  const v = valuePortfolio(p);
+  const out = buildTPT(p, v, { id: 'SE0000000123', reportDate: '2026-10-05' });
+  assert.equal(out.positions, p.positions.length);
+  assert.ok(!out.warnings.some(w => w.code === 'no_id'));
+  assert.deepEqual([cqs('AAA'), cqs('AA-'), cqs('A+'), cqs('BBB-'), cqs('BB'), cqs('B-'), cqs('CCC'), cqs('NR')], [0, 1, 2, 3, 4, 5, 6, '']);
+  assert.equal(cicOf({ type: 'equity', isin: 'SE0000115446' }).cic, 'SE31');
+  assert.equal(cicOf({ type: 'fx_forward' }).cic, 'XTE2');
+  assert.equal(cicOf({ type: 'option', optType: 'put', underlyingClass: 'equity', country: 'SE' }).cic, 'SEC1');
+  assert.equal(cicOf({ type: 'sec_lending' }), null);
+  const head = out.rows[0];
+  const col = n => head.findIndex(h => h.startsWith(n + '_'));
+  const sumMv = out.rows.slice(1).reduce((s, r) => s + r[col(24)], 0);
+  assert.ok(Math.abs(sumMv - v.nav) < 1, 'field 24 adds up to the NAV');
+  assert.ok(Math.abs(out.rows.slice(1).reduce((s, r) => s + r[col(26)], 0) - 1) < 1e-5, 'weights add up to 1');
+  const res = analyseSheets([{ name: 'TPT', rows: out.rows }]);
+  assert.ok(!res.error, res.error);
+  const back = valuePortfolio({ ...p, positions: snapshotPositions(res.groups[0].dates[0].rows, res.mapping, res.opts) });
+  assert.equal(back.valid.length, p.positions.length);
+  assert.ok(Math.abs(back.nav - v.nav) / v.nav < 1e-6, `NAV ${back.nav} vs ${v.nav}`);
+});

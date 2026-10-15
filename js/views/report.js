@@ -1,7 +1,11 @@
 import * as store from '../store.js';
 import { t } from '../i18n.js';
-import { esc, card, pageHead, toast } from '../ui.js';
+import { esc, card, pageHead, toast, selectHtml, fmtNum } from '../ui.js';
 import { SECTIONS, generateReport, reportFilename } from '../report.js';
+import { buildTPT, tptFilename } from '../tptout.js';
+import { toCSV } from '../importer.js';
+import { downloadBlob, todayISO } from '../util.js';
+import { downloadWorkbook } from '../xlsxout.js';
 
 // Report settings are kept per portfolio in memory for the session (commentary can be long and
 // is usually month-specific, so it is not persisted).
@@ -32,8 +36,10 @@ export default {
           </div>
           <p class="muted small">${esc(t('rep.privacy'))}</p>`)}
       </div>
+      ${tptCard(p, a)}
     `;
 
+    bindTpt(root, p, a, app);
     const form = root.querySelector('#repForm');
     form.addEventListener('input', () => { const f = new FormData(form); d.title = f.get('title'); d.manager = f.get('manager'); d.commentary = f.get('commentary'); });
     root.querySelectorAll('[data-sec]').forEach(cb => cb.addEventListener('change', () => {
@@ -59,3 +65,49 @@ export default {
     };
   }
 };
+
+// ---- TPT for the fund's investors ---------------------------------------------------------------------
+// The identifying code and share class are kept on the portfolio (p.tpt); the report date is today.
+const tptCfg = p => ({ id: '', classId: '', ...(p.tpt || {}) });
+function tptShareClass(p, cfg) {
+  const classes = p.fund?.classes || [];
+  return classes.find(c => c.id === cfg.classId) || (classes.length === 1 ? classes[0] : null);
+}
+function tptCard(p, a) {
+  const cfg = tptCfg(p);
+  const classes = p.fund?.classes || [];
+  const out = buildTPT(p, a.v, { id: cfg.id, shareClass: tptShareClass(p, cfg), reportDate: todayISO() });
+  const warn = out.warnings.map(w => `<li>${esc(t('tpt.w.' + w.code, { name: w.name || '', n: w.n || 0, type: w.type || '', list: w.list || '' }))}</li>`).join('');
+  return card(t('tpt.title'), `
+    <p>${esc(t('tpt.body'))}</p>
+    <form id="tptForm" class="form-grid">
+      <label>${esc(t('tpt.id'))}<input name="id" value="${esc(cfg.id)}" placeholder="SE0000000000" autocomplete="off"></label>
+      ${classes.length > 1 ? `<label>${esc(t('tpt.class'))}${selectHtml('name="classId"', [['', t('tpt.classNone')], ...classes.map(c => [c.id, c.name])], cfg.classId)}</label>` : ''}
+    </form>
+    <p class="small">${esc(t('tpt.summary', { n: out.positions, d: a.v.ctx.valDate, nav: fmtNum(a.v.nav, 0), ccy: p.baseCcy }))}</p>
+    ${warn ? `<div class="alert alert-warn"><ul class="guide-list">${warn}</ul></div>` : ''}
+    <div class="btn-row">
+      <button class="btn btn-primary" data-tpt="xlsx">${esc(t('tpt.xlsx'))}</button>
+      <button class="btn" data-tpt="csv">${esc(t('tpt.csv'))}</button>
+    </div>
+    <p class="muted small">${esc(t('tpt.note'))}</p>`, { sub: esc(t('tpt.sub')), id: 'tptCard' });
+}
+function bindTpt(root, p, a, app) {
+  const form = root.querySelector('#tptForm');
+  form?.addEventListener('change', () => {
+    const f = Object.fromEntries(new FormData(form));
+    store.update(pp => { pp.tpt = { ...tptCfg(pp), id: String(f.id || '').trim().toUpperCase(), ...(f.classId !== undefined ? { classId: f.classId } : {}) }; }, t('tpt.title'));
+    app.rerender();
+  });
+  form?.addEventListener('submit', e => e.preventDefault());
+  root.querySelector('#tptCard')?.addEventListener('click', async e => {
+    const kind = e.target.closest('[data-tpt]')?.dataset.tpt;
+    if (!kind) return;
+    const cfg = tptCfg(p);
+    const out = buildTPT(p, a.v, { id: cfg.id, shareClass: tptShareClass(p, cfg), reportDate: todayISO() });
+    if (kind === 'csv') { downloadBlob('\ufeff' + toCSV(out.rows, ';'), 'text/csv;charset=utf-8', tptFilename(p, a.v, 'csv')); return; }
+    const dateCols = new Set(out.rows[0].map((h, c) => (/^(6|7|39|43)_/.test(h) ? c : -1)).filter(c => c >= 0));
+    try { await downloadWorkbook(tptFilename(p, a.v, 'xlsx'), [{ name: 'TPT', rows: out.rows, dateCols }]); }
+    catch (err) { console.error(err); toast(t('err.lib'), { tone: 'warn' }); }
+  });
+}
