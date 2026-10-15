@@ -1673,3 +1673,15 @@ test('the TPT the platform writes for its own fund reads back to the same NAV', 
   assert.equal(back.valid.length, p.positions.length);
   assert.ok(Math.abs(back.nav - v.nav) / v.nav < 1e-6, `NAV ${back.nav} vs ${v.nav}`);
 });
+
+test('the downloadable manual holds every guide topic, every calculation and the reference tables', async () => {
+  const { buildManual } = await import('../js/manual.js');
+  const { GUIDE } = await import('../js/guide.js');
+  const { METHODOLOGY } = await import('../js/methodology.js');
+  const txt = buildManual({ date: '2026-10-15', version: 'test' });
+  for (const s of GUIDE) assert.ok(txt.includes(s.title.en), 'guide: ' + s.title.en);
+  for (const s of METHODOLOGY) { assert.ok(txt.includes(s.title.en), 'methodology: ' + s.title.en); for (const it of s.items) assert.ok(txt.includes(it.en), 'item: ' + it.en); }
+  for (const id of Object.keys(INSTRUMENTS)) assert.ok(txt.includes(`[${id}]`), 'instrument: ' + id);
+  for (const k of ['What it must not be used for', 'Every page in the menu', 'Default investment limits', 'Stress scenarios', 'TPT fields the platform writes', 'Glossary']) assert.ok(txt.includes(k), k);
+  assert.doesNotMatch(txt, /undefined|NaN|\[object Object\]|\b(limit|cma|val|tpt|src\.err)\.[a-z]+[A-Za-z]*\b(?![^\n]*\.js)/);
+});

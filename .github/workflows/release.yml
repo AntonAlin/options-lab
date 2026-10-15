@@ -42,7 +42,7 @@ jobs:
         # --generate-notes appends the merged PRs, grouped by label as set in .github/release.yml
         # (calculation changes, regulatory, security, ...).
         run: |
-          FILES=(dist/*.zip dist/*.cdx.json dist/VALIDATION.md dist/SHA256SUMS.txt)
+          FILES=(dist/*.zip dist/*.cdx.json dist/VALIDATION.md dist/MANUAL.txt dist/SHA256SUMS.txt)
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${FILES[@]}" --clobber
           else

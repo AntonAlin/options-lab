@@ -1,5 +1,6 @@
 import { t, L } from '../i18n.js';
 import { esc, card, pageHead } from '../ui.js';
+import { manualButton, bindManualButton } from './manual-button.js';
 import { GUIDE } from '../guide.js';
 
 // How to work the platform, one card per topic. Content lives in js/guide.js.
@@ -19,10 +20,11 @@ export default {
   noPortfolio: true,
   render(root) {
     root.innerHTML = `
-      ${pageHead(t('nav.guide'), esc(t('guide.sub')))}
+      ${pageHead(t('nav.guide'), esc(t('guide.sub')), manualButton())}
       <nav class="meth-toc" aria-label="${esc(t('guide.toc'))}">${GUIDE.map(s => `<a href="#/guide?s=${s.id}" data-jump="${s.id}">${esc(L(s.title))}</a>`).join('')}</nav>
       ${GUIDE.map(s => card(L(s.title), `<div class="guide">${s.blocks.map(block).join('')}</div>`, { id: 'guide-' + s.id, cls: s.id === 'privacy' ? 'guide-privacy' : '' })).join('')}
     `;
+    bindManualButton(root);
     const jump = id => document.getElementById('guide-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     root.querySelectorAll('[data-jump]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); jump(a.dataset.jump); }));
     // Links elsewhere in the app point at a section with #/guide?s=privacy.

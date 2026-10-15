@@ -1,5 +1,6 @@
 import { t, L } from '../i18n.js';
 import { esc, card, pageHead } from '../ui.js';
+import { manualButton, bindManualButton } from './manual-button.js';
 import { METHODOLOGY } from '../methodology.js';
 import { REPO_URL } from '../guide.js';
 
@@ -13,7 +14,7 @@ export default {
   noPortfolio: true,
   render(root) {
     root.innerHTML = `
-      ${pageHead(t('nav.methodology'), esc(t('meth.sub')))}
+      ${pageHead(t('nav.methodology'), esc(t('meth.sub')), manualButton())}
       <nav class="meth-toc" aria-label="${esc(t('meth.toc'))}">${METHODOLOGY.map(s => `<a href="#/methodology?s=${s.id}" data-jump="${s.id}">${esc(L(s.title))}</a>`).join('')}</nav>
       ${METHODOLOGY.map(s => card(L(s.title), `
         ${s.intro ? `<p class="muted">${esc(L(s.intro))}</p>` : ''}
@@ -29,6 +30,7 @@ export default {
         <p class="footnote">${esc(t('meth.module'))} ${moduleLinks(s.module)}</p>`, { id: 'meth-' + s.id })).join('')}
       <p class="footnote">${esc(t('meth.foot'))} <a href="${REPO_URL}" target="_blank" rel="noopener noreferrer">${esc(t('app.source'))} ↗</a></p>
     `;
+    bindManualButton(root);
     root.querySelectorAll('[data-jump]').forEach(a => a.addEventListener('click', e => {
       e.preventDefault();
       document.getElementById('meth-' + a.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });

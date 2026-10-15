@@ -287,7 +287,7 @@ export const GUIDE = [
         { en: 'An API says it cannot be reached — check the address, the network (VPN) and that the API allows requests from this site (CORS). A 401/403 means the headers are wrong.' },
         { en: 'Changes are “waiting to be written” — the file is open in Excel (close it) or the API refused; they are retried automatically.' },
         { en: '“No date column found” — the first column must hold a date on every holding row. Check that Excel has not turned dates into text in an unusual format.' },
-        { en: '“Column headers were not recognised” — map the file once in Bulk upload and save an import template, then connect again.' },
+        { en: '“Column headers were not recognised” or “No date column found” — the mapper opens when you connect the file: pick the date column, the portfolio column and what the other columns hold, then “Save mapping and connect”. The mapping is remembered as an import template.' },
         { en: 'The source is not updating — a file must be saved (not only edited) and the tab visible. Click “Read now” on the card to force it.' },
         { en: 'My edits on Holdings disappeared — the source is read only (the card says so), so a change there replaces them. Connect it with write access, or edit the source.' },
         { en: 'A position is valued at zero — its currency has no FX rate, or a required field is missing (see the error on the row).' },

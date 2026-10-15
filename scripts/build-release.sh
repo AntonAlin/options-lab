@@ -60,9 +60,11 @@ if grep -rnE "https://(cdn\.|fonts\.|unpkg|cdnjs)" "$OUT/offline" --include=*.ht
 node scripts/sbom.mjs "$VERSION" > "$OUT/${NAME}.cdx.json"
 # Fails the release when a golden figure moved without the fixture being updated on purpose.
 node scripts/golden.mjs --report "$OUT/VALIDATION.md"
+# The complete manual (user guide, page reference, every calculation) as plain text.
+node scripts/manual.mjs "$OUT/MANUAL.txt" "$VERSION"
 
 # ---- checksums and notes ---------------------------------------------------------------------------
-(cd "$OUT" && sha256sum "${NAME}.zip" "${NAME}-offline.zip" "${NAME}.cdx.json" VALIDATION.md > SHA256SUMS.txt)
+(cd "$OUT" && sha256sum "${NAME}.zip" "${NAME}-offline.zip" "${NAME}.cdx.json" VALIDATION.md MANUAL.txt > SHA256SUMS.txt)
 cat > "$OUT/RELEASE_NOTES.md" <<EOF
 Nexus Portfolio Lab ${VERSION}
 

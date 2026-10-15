@@ -613,6 +613,7 @@ const en = {
   'rep.commentaryPh': 'Optional. Market view, positioning changes, risk comments… Blank lines start a new paragraph.',
   'rep.sections': 'Sections', 'rep.download': 'Download PDF', 'rep.generating': 'Generating…', 'rep.done': 'PDF downloaded', 'rep.pickOne': 'Pick at least one section',
   'rep.privacy': 'The PDF is built on this device. Nothing is uploaded.',
+  'guide.manual': 'Download the complete manual (.txt)',
   'tpt.title': 'TPT for investors', 'tpt.sub': 'FinDatEx Tripartite Template (Solvency II look-through)',
   'tpt.body': 'Insurance and pension investors need a TPT from every fund they hold, usually quarterly, for their Solvency II reporting. This one is built from the holdings and valuation on this page: one row per position with CIC code, identifiers, market value and exposure in quotation and portfolio currency, weights, bond terms, credit quality step, derivative terms, modified duration, credit sensitivity and delta.',
   'tpt.id': 'Portfolio identifying code (share class ISIN)', 'tpt.class': 'Share class (share price and units)', 'tpt.classNone': '— none —',
