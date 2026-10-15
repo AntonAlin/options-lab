@@ -251,7 +251,7 @@ export function coerce(field, raw, dec, opts = {}) {
       return minor || c.toUpperCase().slice(0, 3);
     }
     case 'select': return field === 'type' ? raw : normaliseSelect(field, raw);
-    default: return raw instanceof Date ? toISODate(raw) : String(raw).trim();
+    default: return raw instanceof Date ? toISODate(raw) : field === 'issuerLei' ? String(raw).replace(/\s/g, '').toUpperCase() : String(raw).trim();
   }
 }
 

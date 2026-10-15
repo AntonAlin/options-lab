@@ -13,6 +13,7 @@
 // does not know stays an unknown type and is held back, unvalued, like any other unknown type.
 import { parseNumber, parseDate, detectDecimal } from './importer.js';
 import { isNum } from './util.js';
+import { isLei } from './instruments.js';
 
 // Field numbers used. The names are the TPT V6/V7 field names.
 const F = {
@@ -20,7 +21,7 @@ const F = {
   cic: '12', id: '14', idType: '15', name: '17', qty: '18', nominal: '19', size: '20', ccy: '21',
   mvQc: '22', cleanQc: '23', mvPc: '24', expQc: '27',
   rateType: '32', coupon: '33', margin: '37', freq: '38', maturity: '39', callable: '42', callDate: '43',
-  issuer: '46', group: '49', country: '52', nace: '54', cqs: '59', cpcf: '60', strike: '61', exercise: '64',
+  issuer: '46', issuerId: '47', issuerIdType: '48', group: '49', country: '52', nace: '54', cqs: '59', cpcf: '60', strike: '61', exercise: '64',
   underName: '70', underPrice: '72', duration: '90', delta: '93', embedded: '95'
 };
 
@@ -96,7 +97,7 @@ export function naceSector(raw) {
 
 const FREQ = { 1: '1', 2: '2', 4: '4', 12: '12' };
 // The platform's columns, in the order the converted rows carry them.
-export const TPT_COLUMNS = ['Date', 'Portfolio', 'type', 'name', 'isin', 'ticker', 'issuer', 'qty', 'price', 'dirtyPrice', 'ccy', 'coupon', 'freq', 'spread', 'maturity', 'callDate',
+export const TPT_COLUMNS = ['Date', 'Portfolio', 'type', 'name', 'isin', 'ticker', 'issuer', 'issuerLei', 'qty', 'price', 'dirtyPrice', 'ccy', 'coupon', 'freq', 'spread', 'maturity', 'callDate',
   'rating', 'country', 'sector', 'subClass', 'equityShare', 'altType', 'structure', 'underlyingClass', 'optType', 'strike', 'underlyingPrice', 'multiplier', 'exercise',
   'mtm', 'reportedNotional', 'reportedDelta', 'duration', 'notes'];
 
@@ -132,6 +133,9 @@ export function tptToRows(rows) {
     if (idType === '1' || /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(id)) o.isin = id; else if (id) o.ticker = id;
     o.name = txt(r, F.name) || id;
     o.issuer = txt(r, F.issuer) || txt(r, F.group);
+    // 47 with type 48 = 1 is the issuer's LEI; a code that passes the LEI check is taken as one too.
+    const iid = txt(r, F.issuerId).toUpperCase();
+    if (isLei(iid)) o.issuerLei = iid;
     const ccy = txt(r, F.ccy) || txt(r, F.pfCcy);
     o.ccy = ccy;
     o.country = txt(r, F.country).slice(0, 2).toUpperCase();

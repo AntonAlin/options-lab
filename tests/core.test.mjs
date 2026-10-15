@@ -1685,3 +1685,30 @@ test('the downloadable manual holds every guide topic, every calculation and the
   for (const k of ['What it must not be used for', 'Every page in the menu', 'Default investment limits', 'Stress scenarios', 'TPT fields the platform writes', 'Glossary']) assert.ok(txt.includes(k), k);
   assert.doesNotMatch(txt, /undefined|NaN|\[object Object\]|\b(limit|cma|val|tpt|src\.err)\.[a-z]+[A-Za-z]*\b(?![^\n]*\.js)/);
 });
+
+test('LEIs: check digits, the issuer register and TPT fields 47/48 both ways', async () => {
+  const { isLei } = await import('../js/instruments.js');
+  const { buildTPT } = await import('../js/tptout.js');
+  const { tptToRows } = await import('../js/tpt.js');
+  const { parseIssuerCsv } = await import('../js/issuers.js');
+  assert.ok(isLei('HWUPKR0MPOU8FGXBT394') && isLei('7LTWFZYICNSX8D621K86') && isLei('5493001kjtiigc8y1r12'));
+  assert.ok(!isLei('5493001KJTIIGC8Y1R13') && !isLei('HWUPKR0MPOU8FGXBT39') && !isLei(''));
+  assert.deepEqual(validatePosition({ type: 'equity', name: 'A', qty: 1, price: 1, ccy: 'SEK', issuerLei: 'XXXX' }), [{ field: 'issuerLei', code: 'lei' }]);
+  const [row] = rowsToPositions([['Apple', 'hwupkr0mpou8fgxbt394', 1, 1, 'USD']], ['name', 'issuerLei', 'qty', 'price', 'ccy'], { defaultType: 'equity' });
+  assert.equal(row.pos.issuerLei, 'HWUPKR0MPOU8FGXBT394');
+  assert.ok(INSTRUMENTS.cds.fields.includes('issuerLei') && INSTRUMENTS.cash.fields.includes('issuerLei'));
+  const p = buildDemo('2026-09-28');
+  const v = valuePortfolio(p);
+  const register = { investor: '549300VKC4P4N6RSSJ27' };
+  const out = buildTPT(p, v, { id: 'SE0000000123', leiOf: pos => pos.issuerLei || register[String(pos.issuer || '').toLowerCase()] || '' });
+  const head = out.rows[0], col = n => head.findIndex(h => h.startsWith(n + '_'));
+  const inv = out.rows.find(r => r[col(46)] === 'Investor');
+  assert.equal(isLei('549300VKC4P4N6RSSJ27'), true);
+  assert.deepEqual([inv[col(47)], inv[col(48)]], ['549300VKC4P4N6RSSJ27', '1']);
+  assert.ok(out.warnings.some(w => w.code === 'no_lei'));
+  const back = tptToRows(out.rows);
+  const bi = back.rows[0].indexOf('issuerLei');
+  assert.ok(back.rows.some(r => r[bi] === '549300VKC4P4N6RSSJ27'), 'the TPT reader takes field 47 back');
+  assert.deepEqual(parseIssuerCsv('Emittent;LEI\nApple Inc;hwupkr0mpou8fgxbt394\n'), [{ name: 'Apple Inc', lei: 'HWUPKR0MPOU8FGXBT394' }]);
+  assert.deepEqual(parseIssuerCsv('Apple Inc,HWUPKR0MPOU8FGXBT394\nDeutsche Bank,7LTWFZYICNSX8D621K86\n').map(x => x.lei), ['HWUPKR0MPOU8FGXBT394', '7LTWFZYICNSX8D621K86']);
+});

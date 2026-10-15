@@ -76,8 +76,9 @@ function tptShareClass(p, cfg) {
 function tptCard(p, a) {
   const cfg = tptCfg(p);
   const classes = p.fund?.classes || [];
-  const out = buildTPT(p, a.v, { id: cfg.id, shareClass: tptShareClass(p, cfg), reportDate: todayISO() });
+  const out = buildTPT(p, a.v, { id: cfg.id, shareClass: tptShareClass(p, cfg), reportDate: todayISO(), leiOf: store.leiOf });
   const warn = out.warnings.map(w => `<li>${esc(t('tpt.w.' + w.code, { name: w.name || '', n: w.n || 0, type: w.type || '', list: w.list || '' }))}</li>`).join('');
+  const leiLink = out.warnings.some(w => w.code === 'no_lei') ? `<p class="small"><a href="#/settings?s=issuers">${esc(t('tpt.leiLink'))}</a></p>` : '';
   return card(t('tpt.title'), `
     <p>${esc(t('tpt.body'))}</p>
     <form id="tptForm" class="form-grid">
@@ -85,7 +86,7 @@ function tptCard(p, a) {
       ${classes.length > 1 ? `<label>${esc(t('tpt.class'))}${selectHtml('name="classId"', [['', t('tpt.classNone')], ...classes.map(c => [c.id, c.name])], cfg.classId)}</label>` : ''}
     </form>
     <p class="small">${esc(t('tpt.summary', { n: out.positions, d: a.v.ctx.valDate, nav: fmtNum(a.v.nav, 0), ccy: p.baseCcy }))}</p>
-    ${warn ? `<div class="alert alert-warn"><ul class="guide-list">${warn}</ul></div>` : ''}
+    ${warn ? `<div class="alert alert-warn"><ul class="guide-list">${warn}</ul></div>` : ''}${leiLink}
     <div class="btn-row">
       <button class="btn btn-primary" data-tpt="xlsx">${esc(t('tpt.xlsx'))}</button>
       <button class="btn" data-tpt="csv">${esc(t('tpt.csv'))}</button>
@@ -104,7 +105,7 @@ function bindTpt(root, p, a, app) {
     const kind = e.target.closest('[data-tpt]')?.dataset.tpt;
     if (!kind) return;
     const cfg = tptCfg(p);
-    const out = buildTPT(p, a.v, { id: cfg.id, shareClass: tptShareClass(p, cfg), reportDate: todayISO() });
+    const out = buildTPT(p, a.v, { id: cfg.id, shareClass: tptShareClass(p, cfg), reportDate: todayISO(), leiOf: store.leiOf });
     if (kind === 'csv') { downloadBlob('\ufeff' + toCSV(out.rows, ';'), 'text/csv;charset=utf-8', tptFilename(p, a.v, 'csv')); return; }
     const dateCols = new Set(out.rows[0].map((h, c) => (/^(6|7|39|43)_/.test(h) ? c : -1)).filter(c => c >= 0));
     try { await downloadWorkbook(tptFilename(p, a.v, 'xlsx'), [{ name: 'TPT', rows: out.rows, dateCols }]); }
