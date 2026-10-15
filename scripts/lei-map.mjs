@@ -22,8 +22,9 @@ const MAX_BYTES = 900 * 1024 * 1024;    // GitHub Pages sites are limited to abo
 const UA = { 'User-Agent': 'nexus-portfolio-lab ISIN-LEI mapping (GitHub Actions)' };
 // The newest file's download link, wherever GLEIF's JSON puts it.
 async function latestLink() {
-  const res = await fetch(LATEST, { headers: { ...UA, Accept: 'application/json' } });
-  if (!res.ok) throw new Error(`${LATEST}: HTTP ${res.status}`);
+  // GLEIF's API is JSON:API: it answers 406 to a plain application/json Accept header.
+  const res = await fetch(LATEST, { headers: { ...UA, Accept: 'application/vnd.api+json, application/json;q=0.9, */*;q=0.1' } });
+  if (!res.ok) throw new Error(`${LATEST}: HTTP ${res.status} ${(await res.text().catch(() => '')).slice(0, 300)}`);
   const json = await res.json();
   let link = null, name = '';
   const walk = o => {
@@ -55,7 +56,7 @@ async function main() {
     source = name || link;
     tmp = join(tmpdir(), 'isin-lei.zip');
     const res = await fetch(link, { headers: UA });
-    if (!res.ok || !res.body) throw new Error(`${link}: HTTP ${res.status}`);
+    if (!res.ok || !res.body) throw new Error(`${link}: HTTP ${res.status} ${(await res.text().catch(() => '')).slice(0, 300)}`);
     await new Promise((resolve, reject) => Readable.fromWeb(res.body).pipe(createWriteStream(tmp)).on('finish', resolve).on('error', reject));
     file = tmp;
   }
