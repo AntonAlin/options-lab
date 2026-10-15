@@ -33,6 +33,7 @@ Using the public site at `nexus.alin.one` is different. The code is then served 
 | SheetJS (Excel, on demand) | `cdn.sheetjs.com`, pinned 0.20.3, SRI | No | Yes, bundled |
 | Inter font | `fonts.googleapis.com`, `fonts.gstatic.com` | No | Yes, dropped (system font used) |
 | Market data | `data/market.json` from the site's own address: public ECB and Riksbank rates | No | Included as a snapshot at release time. Rates can also be imported by hand |
+| ISIN-LEI mapping (GLEIF) | `data/lei/manifest.json` and a few of the 4,096 shards in `data/lei/` from the site's own address, chosen by a hash of each held ISIN | Indirectly and coarsely: which shards were requested, each covering thousands of ISINs, to the site's own host only. Off in Settings → Issuers and LEIs | No (the mapping is over 100 MB); an internal copy can be built with `node scripts/lei-map.mjs` |
 | Import model | `js/models/import-model.json` from the site's own address | No | Included |
 | API data source (only if the user connects one) | The address the user enters: GET to read, PUT/POST to write back if allowed | **Yes**, to that address only | No: it is the firm's own endpoint, typically internal |
 

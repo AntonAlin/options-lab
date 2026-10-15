@@ -86,6 +86,20 @@ jobs:
           node-version: 24
       - run: node scripts/market-data.mjs --check --strict
 
+  lei-map:
+    name: GLEIF ISIN-LEI mapping (download and validate)
+    runs-on: ubuntu-latest
+    # GLEIF being down should not turn a code change red; the job still shows as failed.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: node scripts/lei-map.mjs "$RUNNER_TEMP/lei" && cat "$RUNNER_TEMP/lei/manifest.json"
+
   release-build:
     name: Release packaging (dry run)
     needs: test

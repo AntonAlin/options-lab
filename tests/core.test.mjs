@@ -1712,3 +1712,39 @@ test('LEIs: check digits, the issuer register and TPT fields 47/48 both ways', a
   assert.deepEqual(parseIssuerCsv('Emittent;LEI\nApple Inc;hwupkr0mpou8fgxbt394\n'), [{ name: 'Apple Inc', lei: 'HWUPKR0MPOU8FGXBT394' }]);
   assert.deepEqual(parseIssuerCsv('Apple Inc,HWUPKR0MPOU8FGXBT394\nDeutsche Bank,7LTWFZYICNSX8D621K86\n').map(x => x.lei), ['HWUPKR0MPOU8FGXBT394', '7LTWFZYICNSX8D621K86']);
 });
+
+test('GLEIF ISIN-LEI mapping: shards, lookup and precedence', async () => {
+  const { shardOf, shardText, parseShard, csvPairReader, createLookup, isIsin, LEI_DIR } = await import('../js/leimap.js');
+  // The shard of an ISIN is fixed: the published files and every browser must agree.
+  assert.equal(shardOf('US0378331005'), '6eb');
+  assert.equal(shardOf('us0378331005'), '6eb');
+  assert.ok(isIsin('US0378331005') && isIsin('SE0000115446') && !isIsin('US0378331006') && !isIsin('XX'));
+  const pairs = [['US0378331005', 'HWUPKR0MPOU8FGXBT394'], ['DE0005140008', '7LTWFZYICNSX8D621K86'], ['DE000DB0B0B1', '7LTWFZYICNSX8D621K86']];
+  const back = parseShard(shardText(pairs));
+  assert.equal(back.size, 3);
+  assert.equal(back.get('DE000DB0B0B1'), '7LTWFZYICNSX8D621K86');
+  assert.equal(shardText(pairs).split('\n')[0], '#L 7LTWFZYICNSX8D621K86 HWUPKR0MPOU8FGXBT394', 'each LEI written once per shard');
+  const { read, stats } = csvPairReader();
+  const got = ['"ISIN","LEI"', '"US0378331005","HWUPKR0MPOU8FGXBT394"', 'US0378331005,NOTALEI', 'BAD,HWUPKR0MPOU8FGXBT394', ''].map(read).filter(Boolean);
+  assert.deepEqual(got, [['US0378331005', 'HWUPKR0MPOU8FGXBT394']]);
+  assert.deepEqual([stats.kept, stats.badLei, stats.badIsin], [1, 1, 1]);
+  assert.throws(() => csvPairReader().read('foo,bar'));
+  const files = { [LEI_DIR + 'manifest.json']: JSON.stringify({ date: '2026-10-15', bits: 12, shards: 4096 }) };
+  for (const p of pairs) { const f = LEI_DIR + shardOf(p[0]) + '.txt'; files[f] = shardText(pairs.filter(q => shardOf(q[0]) === shardOf(p[0]))); }
+  const asked = [];
+  const L = createLookup(async u => { asked.push(u); return files[u] ?? null; });
+  const res = await L.lookup(['US0378331005', 'SE0000115446', 'not-an-isin']);
+  assert.deepEqual(res, { date: '2026-10-15', found: { US0378331005: 'HWUPKR0MPOU8FGXBT394' }, missing: ['SE0000115446'] });
+  assert.ok(!asked.some(u => u.includes('not-an-isin')) && asked.length === 3, 'manifest plus one shard per ISIN, nothing else');
+  assert.equal(await createLookup(async () => null).lookup(['US0378331005']), null, 'no published mapping: no lookup');
+  // Precedence in the store: the holding's own LEI, then the register, then GLEIF.
+  const store = await import('../js/store.js');
+  store.setIsinLeis('2026-10-15', { US0378331005: 'HWUPKR0MPOU8FGXBT394' }, ['SE0000115446']);
+  assert.equal(store.leiOf({ isin: 'US0378331005', issuer: 'Apple' }), 'HWUPKR0MPOU8FGXBT394');
+  assert.equal(store.leiSource({ isin: 'US0378331005', issuer: 'Apple' }), 'gleif');
+  store.setIssuer('Apple', { lei: '5493001KJTIIGC8Y1R12' });
+  assert.equal(store.leiOf({ isin: 'US0378331005', issuer: 'Apple' }), '5493001KJTIIGC8Y1R12');
+  assert.equal(store.leiOf({ isin: 'US0378331005', issuer: 'Apple', issuerLei: '7LTWFZYICNSX8D621K86' }), '7LTWFZYICNSX8D621K86');
+  assert.equal(store.leiOf({ isin: 'SE0000115446', issuer: 'Volvo' }), '');
+  store.setIssuer('Apple', { lei: '' });
+});

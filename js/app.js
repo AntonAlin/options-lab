@@ -36,6 +36,7 @@ import changesView from './views/changes.js';
 import whatifView from './views/whatif.js';
 import attributionView from './views/attribution.js';
 import * as marketsync from './marketsync.js';
+import * as leisync from './leisync.js';
 import pnlView from './views/pnl.js';
 import globalExposureView from './views/global-exposure.js';
 import lmtView from './views/liquidity-tools.js';
@@ -345,6 +346,7 @@ async function init() {
   filelink.init().then(() => { renderSidebar(); renderBanner(); maybeAutoBackup(); }).catch(err => console.error(err));
   // ECB rates and curve published with the site; a local copy without the file just skips this.
   marketsync.init();
+  leisync.init();
   window.addEventListener('hashchange', () => {
     renderRoute(); document.getElementById('main').focus({ preventScroll: true }); window.scrollTo(0, 0); });
   window.addEventListener('resize', debounce(() => document.querySelectorAll('.js-plotly-plot').forEach(el => window.Plotly?.Plots.resize(el)), 150));

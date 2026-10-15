@@ -57,6 +57,22 @@ jobs:
             mkdir -p data
             curl -fsSL "${{ steps.pages.outputs.base_url }}/data/market.json" -o data/market.json || echo "::warning::No previously published market data either"
           fi
+      - name: Fetch GLEIF's ISIN-LEI mapping
+        # Published in data/lei/ so the browser can find issuer LEIs from the holdings' ISINs without
+        # sending them anywhere (js/leimap.js). A failed or implausible download keeps the copy already
+        # published; without either the site simply has no automatic LEI lookup.
+        run: |
+          if ! node scripts/lei-map.mjs data/lei; then
+            echo "::warning::GLEIF ISIN-LEI download failed or did not validate; keeping the published copy"
+            BASE="${{ steps.pages.outputs.base_url }}/data/lei"
+            if curl -fsSL "$BASE/manifest.json" -o /tmp/lei-manifest.json; then
+              mkdir -p data/lei.old
+              seq 0 4095 | xargs -I{} printf '%03x\n' {} | xargs -P 16 -I{} curl -fsSL --retry 3 "$BASE/{}.txt" -o "data/lei.old/{}.txt"
+              if [ "$(ls data/lei.old | wc -l)" = "4096" ]; then mv /tmp/lei-manifest.json data/lei.old/manifest.json && rm -rf data/lei && mv data/lei.old data/lei; else echo "::warning::Could not copy the published mapping either"; rm -rf data/lei.old; fi
+            else
+              echo "::warning::No previously published ISIN-LEI mapping either"
+            fi
+          fi
       - name: Keep the market data for the archive and the alert
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
