@@ -99,10 +99,24 @@ export async function connectFlow() {
     return true;
   } catch (err) {
     if (err && err.name === 'AbortError') return false; // picker closed
+    if (await openMapper(err)) return false; // read fine, layout to be mapped: not an error
     console.error(err);
     toast(errorText(err.code || err.message, err.status), { tone: 'warn', ms: 9000 });
     return false;
   }
+}
+
+// A source that was read but whose layout was not recognised goes to the mapper (the bulk-upload
+// page in mapping mode): map it once, save the template, and it connects. Loaded on demand, since
+// the import page itself uses this card.
+async function openMapper(err) {
+  if (!err?.mapping) return false;
+  const { startMapping } = await import('./import.js');
+  startMapping(err.mapping);
+  toast(t('map.needed', { name: err.mapping.name }), { ms: 7000 });
+  if (location.hash === '#/import') window.dispatchEvent(new HashChangeEvent('hashchange'));
+  else location.hash = '#/import';
+  return true;
 }
 
 // The API form: address, format, headers (an API key or token), polling, and how to write back.
@@ -140,6 +154,7 @@ export function apiDialog(id = null) {
       else { const r = await sources.connectApi(cfg); toast(t(r.portfolios ? 'src.connected' : 'src.connectedEmpty', { name: sources.get(r.id)?.name || '', p: r.portfolios, d: r.dates }) + (r.access === 'read' ? ' ' + t('src.connectedReadOnly') : ''), { ms: 6000 }); }
       closeModal();
     } catch (err) {
+      if (await openMapper(err)) { closeModal(); return; }
       console.error(err);
       btn.disabled = false;
       toast(errorText(err.code || err.message, err.status), { tone: 'warn', ms: 9000 });

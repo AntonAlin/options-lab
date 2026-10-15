@@ -469,10 +469,16 @@ export function positionRows(p) {
   const keys = ['type', ...new Set((p.positions || []).flatMap(x => INSTRUMENTS[x.type]?.fields || []))];
   return [keys, ...(p.positions || []).map(x => keys.map(k => x[k] ?? ''))];
 }
-export function templateCSV(type = null) {
+// date: with one, the template opens with the Date and Portfolio columns a data source needs, so the
+// filled-in file can be connected as it is.
+export function templateRows(type = null, { date = '', portfolio = 'My Fund' } = {}) {
   const cols = templateColumns(type);
   const ex = TEMPLATE_EXAMPLES.filter(e => !type || e.type === type);
-  return toCSV([cols, ...ex.map(e => cols.map(c => e[c] ?? ''))]);
+  const lead = date ? ['Date', 'Portfolio'] : [];
+  return [[...lead, ...cols], ...ex.map(e => [...(date ? [date, portfolio] : []), ...cols.map(c => e[c] ?? '')])];
+}
+export function templateCSV(type = null, opts = {}) {
+  return toCSV(templateRows(type, opts));
 }
 
 export { parseISODate };
@@ -560,7 +566,9 @@ export function parseXMLRows(text) {
 // A template remembers how one file layout maps onto the platform: column → field (keyed by the
 // normalised header text, so column order may change), per-field transforms, constants for
 // fields the file lacks, custom type codes, the header row and number/date conventions.
-export function buildTemplate({ name, header, mapping, headerRow = 0, sheet = '', decimal = '.', dateFormat = 'auto', transforms = {}, constants = {}, typeMap = {}, skipPattern = '', defaultType = 'auto', mode = 'append', id = null }) {
+// dateCol / pfCol: the columns holding the snapshot date and the portfolio (-1 for none). They are
+// kept by header text, so a data source in this layout is read without guessing (sourcefile.templateLayout).
+export function buildTemplate({ name, header, mapping, headerRow = 0, sheet = '', decimal = '.', dateFormat = 'auto', transforms = {}, constants = {}, typeMap = {}, skipPattern = '', defaultType = 'auto', mode = 'append', id = null, dateCol = -1, pfCol = -1 }) {
   const map = {};
   header.forEach((h, c) => { if (mapping[c]) map[normKey(h) || 'col' + c] = mapping[c]; });
   const clean = o => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v !== '' && v !== null && v !== undefined));
@@ -569,7 +577,8 @@ export function buildTemplate({ name, header, mapping, headerRow = 0, sheet = ''
     created: new Date().toISOString(), headers: header.map(h => normKey(h)).filter(Boolean),
     headerRow, sheet, decimal, dateFormat, mapping: map,
     transforms: Object.fromEntries(Object.entries(transforms || {}).filter(([f, t]) => Object.values(map).includes(f) && t && (t.scale !== undefined && t.scale !== 1 || t.dateFormat))),
-    constants: clean(constants), typeMap: clean(typeMap), skipPattern: skipPattern || '', defaultType, mode
+    constants: clean(constants), typeMap: clean(typeMap), skipPattern: skipPattern || '', defaultType, mode,
+    dateHeader: dateCol >= 0 ? normKey(header[dateCol]) : '', pfHeader: pfCol >= 0 ? normKey(header[pfCol]) : ''
   };
 }
 export function applyTemplateMapping(tpl, header) {
@@ -599,6 +608,7 @@ export function validateTemplate(obj) {
   return {
     ...obj, id: obj.id || 'tpl_' + Math.random().toString(36).slice(2, 10), name: String(obj.name || 'Template').slice(0, 80),
     transforms: obj.transforms || {}, constants: obj.constants || {}, typeMap: obj.typeMap || {},
-    headerRow: Number.isInteger(obj.headerRow) ? obj.headerRow : 0, decimal: obj.decimal === ',' ? ',' : '.', dateFormat: DATE_FORMATS.includes(obj.dateFormat) ? obj.dateFormat : 'auto'
+    headerRow: Number.isInteger(obj.headerRow) ? obj.headerRow : 0, decimal: obj.decimal === ',' ? ',' : '.', dateFormat: DATE_FORMATS.includes(obj.dateFormat) ? obj.dateFormat : 'auto',
+    dateHeader: typeof obj.dateHeader === 'string' ? normKey(obj.dateHeader) : '', pfHeader: typeof obj.pfHeader === 'string' ? normKey(obj.pfHeader) : ''
   };
 }

@@ -174,6 +174,23 @@ try {
   await page.waitForTimeout(500);
   if (removed.n !== 2 || removed.archive !== 3 || removed.ready || !(await page.$('[data-src="connect-file"]'))) failures.push('remove sources: ' + JSON.stringify(removed));
 
+  // A layout the reader does not recognise opens the mapper; mapping it once connects it.
+  await page.evaluate(() => { window.__file.text = 'Book;Sec;Units;Px;Pricing day;Curr\nAlpha;Volvo B;1000;262,5;30.09.2026;SEK\n'; window.__file.lastModified = Date.now(); });
+  await page.click('[data-src="connect-file"]');
+  await page.waitForTimeout(1500);
+  if (!(await page.$('#dateColSel'))) failures.push('mapper: did not open for an unrecognised layout');
+  else {
+    await page.selectOption('#dateColSel', '4'); await page.waitForTimeout(300);
+    await page.selectOption('#pfColSel', '0'); await page.waitForTimeout(300);
+    for (const [c, f] of [[1, 'name'], [2, 'qty'], [3, 'price'], [5, 'ccy']]) { await page.selectOption(`[data-map="${c}"]`, f); await page.waitForTimeout(200); }
+    await page.selectOption('#typeSel2', 'equity'); await page.waitForTimeout(200);
+    await page.click('[data-act="tplsave"]'); await page.waitForTimeout(300);
+    await page.click('button[form="tplForm"]'); await page.waitForTimeout(2000);
+    const mapped = await page.evaluate(async () => (await import('./js/store.js')).listPortfolios().map(p => p.name + ':' + p.positions.length));
+    if (!mapped.includes('Alpha:1')) failures.push('mapper: ' + JSON.stringify(mapped));
+    console.log(`Mapper: ${JSON.stringify(mapped)}`);
+  }
+
   // Storage: a workspace saved in localStorage by an older version moves to IndexedDB, and what is
   // saved there survives a reload, one portfolio at a time.
   // A fresh browser context (empty storage); the first page is a blank one on the site's origin, so

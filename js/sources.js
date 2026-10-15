@@ -153,10 +153,13 @@ export async function updateApi(id, cfg) {
   startPolling(c);
 }
 
+// Errors a mapping fixes: the file is read, its layout is not recognised. The error carries the
+// file's contents and a retry, so the page can let the user map it once and connect again.
+const MAPPABLE = new Set(['no_date', 'no_header', 'no_fields']);
 async function finishConnect(rec) {
   const { src, stamp } = await connectorOf(rec).read(rec);
   const result = analyse(src, rec);
-  if (result.error) throw Object.assign(new Error(result.error), { code: result.error });
+  if (result.error) throw Object.assign(new Error(result.error), { code: result.error, mapping: result.mappable ? { ...result.mappable, retry: () => finishConnect(rec) } : null });
   if (conns.has(rec.id)) await disconnect(rec.id);
   const c = newConn(rec);
   rec.stamp = stamp;
@@ -171,7 +174,9 @@ async function finishConnect(rec) {
 const datesOf = result => new Set(result.groups.flatMap(g => g.dates.map(d => d.date))).size;
 function analyse(src, rec) {
   const res = analyseSheets(src.sheets, { decimal: src.decimal, templates: store.templates() });
-  if (res.error) return res;
+  if (res.error) return Object.assign(res, { mappable: MAPPABLE.has(res.error) ? { name: rec.name, sheets: src.sheets, decimal: src.decimal, kind: src.format } : null });
+  // A TPT report is the fund manager's file: read it, never write into it.
+  if (res.tpt) rec.access = 'read';
   res.extras = parseExtras(src.sheets, { skip: res.sheet, decimal: src.decimal });
   res.format = src.format;
   res.name = rec.name;

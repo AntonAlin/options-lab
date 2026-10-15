@@ -1584,3 +1584,67 @@ test('data source connectors: formats, writability, addresses', async () => {
   const out = await C.serialise(p, { sheet: 'CSV', rows: p.sheets[0].rows, layout: { headerRow: 0, dateCol: 0 }, mapping: [] });
   assert.equal(out.body, '﻿Date;Name;Quantity;Price;Currency\r\n2026-09-30;Volvo;1;2,5;SEK\r\n', 'a CSV comes back byte for byte');
 });
+
+// ---- FinDatEx TPT -------------------------------------------------------------------------------
+test('a TPT report is read by field number: types from the CIC, prices from market values', async () => {
+  const { tptToRows, cicType, detectTPT, naceSector } = await import('../js/tpt.js');
+  const { analyseSheets, snapshotPositions } = await import('../js/sourcefile.js');
+  const codes = ['1', '3', '4', '6', '12', '14', '15', '17', '18', '19', '20', '21', '22', '23', '32', '33', '37', '38', '39', '46', '52', '54', '59', '61', '72', '93', '95'];
+  const H = codes.map(c => `${c}_TPT field ${c}`);
+  const row = o => codes.map(c => o[c] ?? '');
+  const base = { 1: 'SE0000000123', 3: 'Nordic Fund', 4: 'SEK', 6: '2026-09-30' };
+  const rows = [['Fund report Q3'], H,
+    row({ ...base, 12: 'SE31', 14: 'SE0000115446', 15: '1', 17: 'Volvo B', 18: '1000', 21: 'SEK', 22: '262000', 52: 'SE', 54: 'C29.1' }),
+    row({ ...base, 12: 'SE11', 14: 'SE0004869071', 15: '1', 17: 'SGB 1047', 19: '10000000', 21: 'SEK', 22: '9700000', 23: '9650000', 33: '1.5', 38: '1', 39: '2030-11-12', 46: 'Kingdom of Sweden', 59: '0' }),
+    row({ ...base, 12: 'SE21', 14: 'SE0000000444', 15: '1', 17: 'Castellum FRN', 19: '5000000', 21: 'SEK', 22: '5030000', 23: '5020000', 32: 'Floating', 33: '4.35', 37: '1.9', 38: '4', 39: '2028-03-15', 46: 'Castellum', 59: '3' }),
+    row({ ...base, 12: 'XL71', 14: 'CASHSEK', 15: '99', 17: 'Cash SEK', 21: 'SEK', 22: '4500000' }),
+    row({ ...base, 12: 'SEC1', 14: 'PUT2400', 15: '99', 17: 'OMXS30 put 2400', 18: '50', 20: '100', 21: 'SEK', 22: '125000', 39: '2026-12-18', 61: '2400', 72: '2650', 93: '-0.25' }),
+    row({ ...base, 12: 'XTD1', 14: 'IRS1', 15: '99', 17: 'SEK 5y payer', 19: '50000000', 21: 'SEK', 22: '-120000', 39: '2031-06-20' }),
+    row({ ...base, 12: 'XTZ9', 14: 'ODD', 15: '99', 17: 'Odd', 18: '1', 21: 'SEK', 22: '1' }),
+    row({ ...base, 12: 'SE31', 14: 'SE0000000999', 15: '1', 17: 'Look-through', 18: '5', 21: 'SEK', 22: '500', 95: 'LU0000000001' }),
+    ['Total']];
+  assert.equal(detectTPT(rows).headerRow, 1);
+  assert.equal(detectTPT([['Date', 'Name', 'Quantity']]), null);
+  assert.deepEqual(cicType('XTB6'), { type: 'otc', underlyingClass: 'rates' });
+  assert.equal(cicType('SE11', { floating: true }).type, 'frn');
+  assert.equal(naceSector('K64.1.9'), 'Financials');
+  const conv = tptToRows(rows);
+  assert.equal(conv.lookThrough, 1);
+  const res = analyseSheets([{ name: 'TPT', rows }]);
+  assert.ok(!res.error, res.error);
+  assert.equal(res.tpt.rows, 7);
+  assert.deepEqual(res.groups.map(g => g.key), ['Nordic Fund']);
+  const pos = snapshotPositions(res.groups[0].dates[0].rows, res.mapping, res.opts);
+  const by = n => pos.find(p => p.name === n);
+  assert.deepEqual([by('Volvo B').type, by('Volvo B').qty, by('Volvo B').price, by('Volvo B').isin], ['equity', 1000, 262, 'SE0000115446']);
+  assert.deepEqual([by('SGB 1047').type, by('SGB 1047').price, by('SGB 1047').dirtyPrice, by('SGB 1047').rating, by('SGB 1047').freq], ['govt_bond', 96.5, 97, 'AAA', '1']);
+  assert.deepEqual([by('Castellum FRN').type, by('Castellum FRN').spread, by('Castellum FRN').rating], ['frn', 190, 'BBB']);
+  assert.deepEqual([by('Cash SEK').type, by('Cash SEK').qty], ['cash', 4500000]);
+  assert.deepEqual([by('OMXS30 put 2400').optType, by('OMXS30 put 2400').price, by('OMXS30 put 2400').reportedDelta], ['put', 25, -0.25]);
+  assert.deepEqual([by('SEK 5y payer').type, by('SEK 5y payer').mtm], ['otc', -120000]);
+  assert.equal(by('Odd').type, 'unknown', 'an unknown CIC is held back, never guessed');
+  for (const p of pos.filter(x => x.type !== 'unknown')) assert.deepEqual(validatePosition(p), [], p.name);
+});
+
+test('an import template that names the date and portfolio columns reads a layout the detector cannot', async () => {
+  const { buildTemplate } = await import('../js/importer.js');
+  const { analyseSheets } = await import('../js/sourcefile.js');
+  const rows = [['Book', 'Sec', 'Units', 'Px', 'Pricing day', 'Curr', 'Kind'], ['Alpha', 'Volvo B', '1000', '262,5', '30.09.2026', 'SEK', 'EQ'], ['Beta', 'Cash', '100000', '', '30.09.2026', 'SEK', 'CSH']];
+  assert.equal(analyseSheets([{ name: 'CSV', rows }]).error, 'no_date');
+  const tpl = buildTemplate({ name: 'PMS', header: rows[0], mapping: ['', 'name', 'qty', 'price', '', 'ccy', 'type'], decimal: ',', typeMap: { EQ: 'equity', CSH: 'cash' }, dateCol: 4, pfCol: 0 });
+  assert.deepEqual([tpl.dateHeader, tpl.pfHeader], ['pricingday', 'book']);
+  // Columns reordered: still found by header.
+  const shuffled = rows.map(r => [r[4], r[6], r[0], r[1], r[2], r[3], r[5]]);
+  const res = analyseSheets([{ name: 'CSV', rows: shuffled }], { decimal: ',', templates: [tpl] });
+  assert.ok(!res.error, res.error);
+  assert.equal(res.template, 'PMS');
+  assert.deepEqual(res.groups.map(g => g.key + ':' + g.dates[0].date), ['Alpha:2026-09-30', 'Beta:2026-09-30']);
+});
+
+test('the dated templates connect as a data source', async () => {
+  const { analyseSheets } = await import('../js/sourcefile.js');
+  const res = analyseSheets(parseText(templateCSV(null, { date: '2026-09-30' })).sheets);
+  assert.ok(!res.error, res.error);
+  assert.equal(res.groups[0].key, 'My Fund');
+  assert.equal(res.groups[0].dates[0].rows.length, Object.keys(INSTRUMENTS).length + 1);
+});

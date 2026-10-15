@@ -4,22 +4,26 @@ import { esc, card, pageHead, table, toast, selectHtml, segmented, fmtNum, fmtPc
 import { loadModels, suggestColumns, suggestType } from '../suggest.js';
 import { checkHoldings } from '../datachecks.js';
 import { dataChecksCard } from './datachecks-card.js';
-import { INSTRUMENTS, FIELDS, OPTION_LABELS, allFieldKeys, fieldLabel, typeLabel } from '../instruments.js';
+import { INSTRUMENTS, FIELDS, OPTION_LABELS, allFieldKeys, fieldLabel, typeLabel, normKey } from '../instruments.js';
 import {
-  readFile, parseText, findHeaderRow, autoMapping, rowsToPositions, mergePositions, templateCSV, templateColumns, TEMPLATE_EXAMPLES, XLSX_URL,
+  readFile, parseText, findHeaderRow, autoMapping, rowsToPositions, mergePositions, templateCSV, templateRows, templateColumns,
   typeValues, mandatoryFields, buildTemplate, applyTemplateMapping, detectTemplate, validateTemplate, DATE_FORMATS, mergeHistory
 } from '../importer.js';
 import { downloadBlob, loadScript, slug, todayISO } from '../util.js';
+import { downloadWorkbook } from '../xlsxout.js';
 import { datedLayout, splitSnapshots, snapshotHistory } from '../sourcefile.js';
-import { attachNew, recordChange } from '../sources.js';
+import { attachNew, recordChange, ready as sourceReady, get as getSource } from '../sources.js';
+import { convertTPTSheets } from '../tpt.js';
 import { MAX_SAVED } from '../snapshots.js';
-import { sourceCardHtml, bindSourceCard } from './source-card.js';
+import { sourceCardHtml, bindSourceCard, errorText } from './source-card.js';
 
 // Import state survives re-renders but not a page reload.
 const FRESH = () => ({
   name: '', parsed: null, sheet: 0, headerRow: 0, mapping: [], decimal: '.', dateFormat: 'auto', defaultType: 'auto',
   transforms: {}, constants: {}, typeMap: {}, skipPattern: '', templateId: '', autoApplied: '',
-  onlyErrors: false, includeInvalid: false, date: '', asOf: '', ignored: []
+  onlyErrors: false, includeInvalid: false, date: '', asOf: '', ignored: [],
+  // Date and portfolio columns: -2 = found automatically, -1 = none (portfolio only), else the column.
+  dateCol: -2, pfCol: -2, tpt: null, retry: null
 });
 const st = { ...FRESH(), mode: 'append' };
 // Trained suggestion model (js/suggest.js), fetched the first time a file is open here.
@@ -40,6 +44,8 @@ function currentRows() {
 function datedInfo() {
   const rows = st.parsed?.sheets[st.sheet]?.rows || [];
   const lay = datedLayout(rows, st.headerRow);
+  if (st.dateCol >= 0) lay.dateCol = st.dateCol;
+  if (st.pfCol !== -2) lay.pfCol = st.pfCol === lay.dateCol ? -1 : st.pfCol;
   if (lay.dateCol < 0) return null;
   const { groups, skipped } = splitSnapshots(rows, lay);
   const dates = [...new Set(groups.flatMap(g => g.dates.map(d => d.date)))].sort();
@@ -58,11 +64,18 @@ function applyTemplate(tpl) {
   st.dateFormat = tpl.dateFormat || 'auto';
   st.defaultType = tpl.defaultType || 'auto';
   if (tpl.mode) st.mode = tpl.mode;
+  const nk = header.map(h => normKey(h));
+  st.dateCol = tpl.dateHeader && nk.includes(tpl.dateHeader) ? nk.indexOf(tpl.dateHeader) : -2;
+  st.pfCol = tpl.pfHeader && nk.includes(tpl.pfHeader) ? nk.indexOf(tpl.pfHeader) : -2;
   st.templateId = tpl.id;
 }
 
-function setParsed(name, parsed) {
+function setParsed(name, parsedIn) {
   reset();
+  // A FinDatEx TPT report is read as one: converted to the platform's columns, nothing to map.
+  const conv = convertTPTSheets(parsedIn.sheets);
+  const parsed = conv.tpt ? { ...parsedIn, sheets: conv.sheets, decimal: '.' } : parsedIn;
+  st.tpt = conv.tpt;
   st.name = name; st.parsed = parsed; st.decimal = parsed.decimal;
   // A saved template that matches the headers wins; otherwise guess from the column names.
   const hit = detectTemplate(store.templates(), parsed.sheets);
@@ -72,10 +85,19 @@ function setParsed(name, parsed) {
     st.autoApplied = hit.template.name;
     return;
   }
-  st.sheet = Math.max(0, parsed.sheets.findIndex(s => s.rows.length > 1));
+  st.sheet = Math.max(0, conv.tpt ? parsed.sheets.findIndex(s => s.tpt) : parsed.sheets.findIndex(s => s.rows.length > 1));
   st.headerRow = findHeaderRow(parsed.sheets[st.sheet].rows);
   st.mapping = autoMapping(currentRows().header);
 }
+
+// A data source whose layout was not recognised (sources.js: no_date / no_header / no_fields): its
+// contents open here to be mapped once; saving the template connects it again.
+export function startMapping({ name, sheets, decimal = '.', kind = 'csv', retry = null }) {
+  setParsed(name, { sheets, decimal, kind: kind && kind !== 'auto' ? kind : 'csv' });
+  st.retry = retry;
+}
+// The page is reachable before any source is connected only while a file is being mapped.
+export const mappingPending = () => !!(st.parsed && st.retry);
 
 export function errText(e, type) {
   const [code, arg] = e.code.split(':');
@@ -200,7 +222,7 @@ function templatesList() {
     </div>`;
 }
 
-function saveTemplateDialog(header) {
+function saveTemplateDialog(header, app = null) {
   const cur = store.templates().find(x => x.id === st.templateId);
   const m = openModal(`<div class="modal-head"><h2>${esc(t('imp.saveTemplate'))}</h2></div>
     <form class="modal-body form-stack" id="tplForm">
@@ -215,19 +237,23 @@ function saveTemplateDialog(header) {
     const tpl = buildTemplate({
       id: cur && f.get('overwrite') ? cur.id : null, name: f.get('name'), header, mapping: st.mapping, headerRow: st.headerRow,
       sheet: st.parsed.sheets[st.sheet]?.name || '', decimal: st.decimal, dateFormat: st.dateFormat, transforms: st.transforms,
-      constants: st.constants, typeMap: st.typeMap, skipPattern: st.skipPattern, defaultType: st.defaultType, mode: st.mode
+      constants: st.constants, typeMap: st.typeMap, skipPattern: st.skipPattern, defaultType: st.defaultType, mode: st.mode,
+      ...(() => { const D = datedInfo(); return D ? { dateCol: D.dateCol, pfCol: D.pfCol } : {}; })()
     });
     st.templateId = tpl.id;
     st.autoApplied = '';
     closeModal();
     store.saveTemplate(tpl);
     toast(t('imp.tplSaved', { name: tpl.name }));
+    if (st.retry && app) connectMapped(app);
   });
 }
 
 export default {
   render(root, app) {
-    const p = store.active();
+    // Mapping a data source before any is connected: no portfolio yet, only the layout is taught.
+    const mapMode = !sourceReady() || (mappingPending() && !store.active());
+    const p = (!mapMode && store.active()) || { name: '—', positions: [], baseCcy: 'SEK' };
     const hasFile = !!st.parsed;
     const D = hasFile ? datedInfo() : null;
     if (D) {
@@ -252,6 +278,12 @@ export default {
     const fieldOpts = [['', t('imp.ignore')], ...allFieldKeys().map(k => [k, fieldName(k)])];
     const tplOpts = [['', t('imp.noTemplate')], ...store.templates().map(x => [x.id, x.name])];
     const dateOpts = DATE_FORMATS.map(f => [f, t('imp.date.' + f)]);
+    const colName = c => String(header[c] ?? '') || t('imp.col', { n: c + 1 });
+    const autoDate = hasFile ? datedLayout(st.parsed.sheets[st.sheet]?.rows || [], st.headerRow) : null;
+    const dateColOpts = [[-2, autoDate && autoDate.dateCol >= 0 ? t('imp.colAuto', { col: colName(autoDate.dateCol) }) : t('imp.colNone')], ...header.map((_, c) => [c, colName(c)])];
+    const pfColOpts = [[-2, autoDate && autoDate.pfCol >= 0 ? t('imp.colAuto', { col: colName(autoDate.pfCol) }) : t('imp.colNone')], [-1, t('imp.pfNone')], ...header.map((_, c) => [c, colName(c)])];
+    const tptNote = st.tpt ? `<div class="alert alert-info"><span>${esc(t('imp.tpt', { n: st.tpt.rows, p: st.tpt.portfolios.length, d: st.tpt.dates.join(', ') || '—' }))}${st.tpt.lookThrough ? ' ' + esc(t('imp.tptLookThrough', { n: st.tpt.lookThrough })) : ''}${st.tpt.skipped ? ' ' + esc(t('imp.tptSkipped', { n: st.tpt.skipped })) : ''}</span></div>` : '';
+    if (mapMode) { renderMapMode(root, app, { header, body, results, valid, invalid, mappedCount, D, p, colSug, sugOf, fieldOpts, tplOpts, dateOpts, dateColOpts, pfColOpts, tptNote }); return bindMapHandlers(root, app, header); }
 
     root.innerHTML = `
       ${pageHead(t('nav.import'), esc(t('imp.sub')))}
@@ -286,34 +318,8 @@ export default {
       </div>
       ${hasFile ? `
       ${st.autoApplied ? `<div class="alert alert-info"><span>${esc(t('imp.autoApplied', { name: st.autoApplied }))}</span></div>` : ''}
-      ${card(t('imp.step2'), `
-        <div class="tpl-bar">
-          <label class="inline"><strong>${esc(t('imp.template'))}</strong> ${selectHtml('id="tplSel"', tplOpts, st.templateId)}</label>
-          <button class="btn btn-sm btn-primary" data-act="tplsave">${esc(st.templateId ? t('imp.saveTemplateChanges') : t('imp.saveTemplate'))}</button>
-          <span class="muted small">${esc(t('imp.templateHelp'))}</span>
-        </div>
-        <div class="toolbar wrap">
-          ${st.parsed.sheets.length > 1 ? `<label class="inline">${esc(t('imp.sheet'))} ${selectHtml('id="sheetSel"', st.parsed.sheets.map((s, i) => [i, s.name]), st.sheet)}</label>` : ''}
-          <label class="inline">${esc(t('imp.headerRow'))} ${selectHtml('id="hdrSel"', (st.parsed.sheets[st.sheet].rows.slice(0, 20)).map((_, i) => [i, String(i + 1)]), st.headerRow)}</label>
-          <label class="inline">${esc(t('imp.decimal'))} ${selectHtml('id="decSel"', [['.', '1,234.56'], [',', '1 234,56']], st.decimal)}</label>
-          <label class="inline">${esc(t('imp.dateFormat'))} ${selectHtml('id="dateSel"', dateOpts, st.dateFormat)}</label>
-          <label class="inline">${esc(t('imp.skipIf'))} <input id="skipIn" value="${esc(st.skipPattern)}" placeholder="${esc(t('imp.skipPh'))}" class="w-160"></label>
-        </div>
-        <p class="muted small">${esc(t('imp.mapHelp', { n: mappedCount, total: header.length }))}</p>
-        ${colSug.length ? `<div class="alert alert-info suggest-bar"><span>${esc(t('imp.suggestHelp', { n: colSug.length }))}</span><button class="btn btn-sm" data-act="sugall">${esc(t('imp.useAll', { n: colSug.length }))}</button></div>` : ''}
-        <div class="map-grid">${header.map((h, c) => {
-          const f = st.mapping[c];
-          const spec = f && FIELDS[f];
-          const tr = (f && st.transforms[f]) || {};
-          const extra = spec?.type === 'number' ? selectHtml(`data-scale="${f}" class="scale-sel" title="${esc(t('imp.scale'))}" aria-label="${esc(t('imp.scale'))}"`, SCALES.map(([v, l]) => [v, l]), tr.scale ?? 1)
-            : spec?.type === 'date' ? selectHtml(`data-datefmt="${f}" class="scale-sel" title="${esc(t('imp.dateFormat'))}" aria-label="${esc(t('imp.dateFormat'))}"`, [['', t('imp.date.inherit')], ...dateOpts], tr.dateFormat || '') : '';
-          const sug = !f && sugOf(c);
-          return `<div class="map-row ${f ? 'mapped' : sug ? 'suggested' : ''}">
-            <div><div class="map-head">${esc(String(h ?? '') || t('imp.col', { n: c + 1 }))}</div><div class="map-sample">${esc(body.slice(0, 3).map(r => r[c] instanceof Date ? r[c].toISOString().slice(0, 10) : String(r[c] ?? '')).filter(Boolean).join(' · ').slice(0, 60))}</div></div>
-            <div class="map-ctl">${selectHtml(`data-map="${c}" aria-label="${esc(String(h))}"`, fieldOpts, f || '')}${extra}${sug ? `<button class="chip chip-suggest" data-sugcol="${c}" data-field="${esc(sug.field)}" title="${esc(t('imp.useSuggestion'))}">${esc(t('imp.suggested', { f: fieldName(sug.field), p: fmtPct(sug.p, 0) }))}</button>` : ''}</div>
-          </div>`;
-        }).join('')}</div>
-      `)}
+      ${tptNote}
+      ${mappingCard({ header, body, mappedCount, colSug, sugOf, fieldOpts, tplOpts, dateOpts, dateColOpts, pfColOpts })}
       ${D ? datedCard(D, p) : ''}
       <div class="grid-2">
         ${mandatoryCard(header, results, D, p)}
@@ -365,46 +371,13 @@ export default {
     drop.ondragleave = () => drop.classList.remove('over');
     drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) handle(f); };
 
+    bindMappingControls(root, app);
     const on = (sel, ev, fn) => root.querySelector(sel)?.addEventListener(ev, fn);
     const touched = () => { st.autoApplied = ''; app.rerender(); };
-    on('#sheetSel', 'change', e => { st.sheet = +e.target.value; const rows = st.parsed.sheets[st.sheet].rows; st.headerRow = findHeaderRow(rows); st.mapping = autoMapping(currentRows().header); touched(); });
-    on('#hdrSel', 'change', e => { st.headerRow = +e.target.value; const tpl = store.templates().find(x => x.id === st.templateId); st.mapping = tpl ? applyTemplateMapping(tpl, currentRows().header) : autoMapping(currentRows().header); touched(); });
-    on('#decSel', 'change', e => { st.decimal = e.target.value; touched(); });
-    on('#dateSel', 'change', e => { st.dateFormat = e.target.value; touched(); });
-    on('#skipIn', 'change', e => { st.skipPattern = e.target.value; touched(); });
-    on('#typeSel2', 'change', e => { st.defaultType = e.target.value; touched(); });
     on('#impDate', 'change', e => { st.date = e.target.value; app.rerender(); });
     on('#asOf', 'change', e => { st.asOf = e.target.value || todayISO(); app.rerender(); });
     on('#onlyErr', 'change', e => { st.onlyErrors = e.target.checked; app.rerender(); });
     on('#inclInv', 'change', e => { st.includeInvalid = e.target.checked; app.rerender(); });
-    on('#tplSel', 'change', e => {
-      const tpl = store.templates().find(x => x.id === e.target.value);
-      if (tpl) applyTemplate(tpl);
-      else { st.templateId = ''; st.mapping = autoMapping(currentRows().header); st.transforms = {}; st.constants = {}; st.typeMap = {}; st.skipPattern = ''; }
-      touched();
-    });
-    root.querySelectorAll('[data-map]').forEach(s => s.addEventListener('change', e => {
-      const c = +e.target.dataset.map, f = e.target.value;
-      // A field can only come from one column.
-      if (f) st.mapping = st.mapping.map((x, i) => (x === f && i !== c ? '' : x));
-      st.mapping[c] = f;
-      // A column set to "ignore" by hand is not suggested again.
-      st.ignored = f ? st.ignored.filter(i => i !== c) : [...new Set([...st.ignored, c])];
-      touched();
-    }));
-    root.querySelectorAll('[data-scale]').forEach(s => s.addEventListener('change', e => { const f = e.target.dataset.scale; st.transforms[f] = { ...(st.transforms[f] || {}), scale: +e.target.value }; touched(); }));
-    root.querySelectorAll('[data-datefmt]').forEach(s => s.addEventListener('change', e => { const f = e.target.dataset.datefmt; st.transforms[f] = { ...(st.transforms[f] || {}), dateFormat: e.target.value || undefined }; touched(); }));
-    root.querySelectorAll('[data-const]').forEach(s => s.addEventListener('change', e => {
-      const f = e.target.dataset.const;
-      const v = FIELDS[f]?.type === 'ccy' ? e.target.value.trim().toUpperCase() : e.target.value.trim();
-      if (v === '') delete st.constants[f]; else st.constants[f] = v;
-      touched();
-    }));
-    root.querySelectorAll('[data-typemap]').forEach(s => s.addEventListener('change', e => {
-      const k = e.target.dataset.typemap;
-      if (e.target.value) st.typeMap[k] = e.target.value; else delete st.typeMap[k];
-      touched();
-    }));
     on('#tplFile', 'change', async e => {
       const f = e.target.files[0];
       if (!f) return;
@@ -419,11 +392,7 @@ export default {
     });
 
     root.onclick = async e => {
-      const sc = e.target.closest('[data-sugcol]');
-      if (sc) { const c = +sc.dataset.sugcol, f = sc.dataset.field; st.mapping = st.mapping.map((x, i) => (x === f && i !== c ? '' : x)); st.mapping[c] = f; touched(); return; }
-      const stp = e.target.closest('[data-sugtype]');
-      if (stp) { st.typeMap[stp.dataset.sugtype] = stp.dataset.type; touched(); return; }
-      if (e.target.closest('[data-act="sugall"]')) { for (const x of lastSuggestions) if (!st.mapping.includes(x.field)) st.mapping[x.col] = x.field; touched(); return; }
+      if (handleMappingClick(e, app)) return;
       const seg = e.target.closest('[data-seg="mode"]');
       if (seg) { st.mode = seg.dataset.value; app.rerender(); return; }
       const apply = e.target.closest('[data-tplapply]')?.dataset.tplapply;
@@ -448,9 +417,9 @@ export default {
         try { setParsed(t('imp.pasted'), parseText(txt)); app.rerender(); } catch (err) { toast(t('imp.readError'), { tone: 'warn' }); }
       }
       if (act === 'tplupload') root.querySelector('#tplFile').click();
-      if (act === 'tplsave') saveTemplateDialog(header);
-      if (act === 'tplcsv') downloadBlob('﻿' + templateCSV(), 'text/csv;charset=utf-8', 'holdings-template.csv');
-      if (act === 'tpltype') { const ty = root.querySelector('#tplType').value; downloadBlob('﻿' + templateCSV(ty), 'text/csv;charset=utf-8', `template-${ty}.csv`); }
+      if (act === 'tplsave') saveTemplateDialog(header, app);
+      if (act === 'tplcsv') downloadBlob('﻿' + templateCSV(null, { date: todayISO() }), 'text/csv;charset=utf-8', 'holdings-template.csv');
+      if (act === 'tpltype') { const ty = root.querySelector('#tplType').value; downloadBlob('﻿' + templateCSV(ty, { date: todayISO() }), 'text/csv;charset=utf-8', `template-${ty}.csv`); }
       if (act === 'tplxlsx') xlsxTemplate();
       if (act === 'import' && D) { await importDated(D, p, app); return; }
       if (act === 'import') {
@@ -476,6 +445,140 @@ export default {
     return bindSourceCard(root);
   }
 };
+
+// Step 2: how the file's columns map onto the platform, shared by the bulk upload and the mapper.
+function mappingCard({ header, body, mappedCount, colSug, sugOf, fieldOpts, tplOpts, dateOpts, dateColOpts, pfColOpts }, { mapMode = false } = {}) {
+  return card(t(mapMode ? 'map.step' : 'imp.step2'), `
+        ${mapMode ? '' : `<div class="tpl-bar">
+          <label class="inline"><strong>${esc(t('imp.template'))}</strong> ${selectHtml('id="tplSel"', tplOpts, st.templateId)}</label>
+          <button class="btn btn-sm btn-primary" data-act="tplsave">${esc(st.templateId ? t('imp.saveTemplateChanges') : t('imp.saveTemplate'))}</button>
+          <span class="muted small">${esc(t('imp.templateHelp'))}</span>
+        </div>`}
+        <div class="toolbar wrap">
+          ${st.parsed.sheets.length > 1 ? `<label class="inline">${esc(t('imp.sheet'))} ${selectHtml('id="sheetSel"', st.parsed.sheets.map((s, i) => [i, s.name]), st.sheet)}</label>` : ''}
+          <label class="inline">${esc(t('imp.headerRow'))} ${selectHtml('id="hdrSel"', (st.parsed.sheets[st.sheet].rows.slice(0, 20)).map((_, i) => [i, String(i + 1)]), st.headerRow)}</label>
+          <label class="inline"><strong>${esc(t('imp.dateCol'))}</strong> ${selectHtml('id="dateColSel"', dateColOpts, st.dateCol)}</label>
+          <label class="inline">${esc(t('imp.pfCol'))} ${selectHtml('id="pfColSel"', pfColOpts, st.pfCol)}</label>
+          <label class="inline">${esc(t('imp.decimal'))} ${selectHtml('id="decSel"', [['.', '1,234.56'], [',', '1 234,56']], st.decimal)}</label>
+          <label class="inline">${esc(t('imp.dateFormat'))} ${selectHtml('id="dateSel"', dateOpts, st.dateFormat)}</label>
+          <label class="inline">${esc(t('imp.skipIf'))} <input id="skipIn" value="${esc(st.skipPattern)}" placeholder="${esc(t('imp.skipPh'))}" class="w-160"></label>
+        </div>
+        <p class="muted small">${esc(t('imp.mapHelp', { n: mappedCount, total: header.length }))}</p>
+        ${colSug.length ? `<div class="alert alert-info suggest-bar"><span>${esc(t('imp.suggestHelp', { n: colSug.length }))}</span><button class="btn btn-sm" data-act="sugall">${esc(t('imp.useAll', { n: colSug.length }))}</button></div>` : ''}
+        <div class="map-grid">${header.map((h, c) => {
+          const f = st.mapping[c];
+          const spec = f && FIELDS[f];
+          const tr = (f && st.transforms[f]) || {};
+          const extra = spec?.type === 'number' ? selectHtml(`data-scale="${f}" class="scale-sel" title="${esc(t('imp.scale'))}" aria-label="${esc(t('imp.scale'))}"`, SCALES.map(([v, l]) => [v, l]), tr.scale ?? 1)
+            : spec?.type === 'date' ? selectHtml(`data-datefmt="${f}" class="scale-sel" title="${esc(t('imp.dateFormat'))}" aria-label="${esc(t('imp.dateFormat'))}"`, [['', t('imp.date.inherit')], ...dateOpts], tr.dateFormat || '') : '';
+          const sug = !f && sugOf(c);
+          return `<div class="map-row ${f ? 'mapped' : sug ? 'suggested' : ''}">
+            <div><div class="map-head">${esc(String(h ?? '') || t('imp.col', { n: c + 1 }))}</div><div class="map-sample">${esc(body.slice(0, 3).map(r => r[c] instanceof Date ? r[c].toISOString().slice(0, 10) : String(r[c] ?? '')).filter(Boolean).join(' · ').slice(0, 60))}</div></div>
+            <div class="map-ctl">${selectHtml(`data-map="${c}" aria-label="${esc(String(h))}"`, fieldOpts, f || '')}${extra}${sug ? `<button class="chip chip-suggest" data-sugcol="${c}" data-field="${esc(sug.field)}" title="${esc(t('imp.useSuggestion'))}">${esc(t('imp.suggested', { f: fieldName(sug.field), p: fmtPct(sug.p, 0) }))}</button>` : ''}</div>
+          </div>`;
+        }).join('')}</div>
+      `);
+}
+
+function bindMappingControls(root, app) {
+  const on = (sel, ev, fn) => root.querySelector(sel)?.addEventListener(ev, fn);
+  const touched = () => { st.autoApplied = ''; app.rerender(); };
+  on('#sheetSel', 'change', e => { st.sheet = +e.target.value; st.dateCol = st.pfCol = -2; const rows = st.parsed.sheets[st.sheet].rows; st.headerRow = findHeaderRow(rows); st.mapping = autoMapping(currentRows().header); touched(); });
+  on('#hdrSel', 'change', e => { st.headerRow = +e.target.value; st.dateCol = st.pfCol = -2; const tpl = store.templates().find(x => x.id === st.templateId); st.mapping = tpl ? applyTemplateMapping(tpl, currentRows().header) : autoMapping(currentRows().header); touched(); });
+  on('#decSel', 'change', e => { st.decimal = e.target.value; touched(); });
+  on('#dateSel', 'change', e => { st.dateFormat = e.target.value; touched(); });
+  on('#skipIn', 'change', e => { st.skipPattern = e.target.value; touched(); });
+  on('#typeSel2', 'change', e => { st.defaultType = e.target.value; touched(); });
+  on('#tplSel', 'change', e => {
+    const tpl = store.templates().find(x => x.id === e.target.value);
+    if (tpl) applyTemplate(tpl);
+    else { st.templateId = ''; st.mapping = autoMapping(currentRows().header); st.transforms = {}; st.constants = {}; st.typeMap = {}; st.skipPattern = ''; }
+    touched();
+  });
+  root.querySelectorAll('[data-map]').forEach(s => s.addEventListener('change', e => {
+    const c = +e.target.dataset.map, f = e.target.value;
+    // A field can only come from one column.
+    if (f) st.mapping = st.mapping.map((x, i) => (x === f && i !== c ? '' : x));
+    st.mapping[c] = f;
+    // A column set to "ignore" by hand is not suggested again.
+    st.ignored = f ? st.ignored.filter(i => i !== c) : [...new Set([...st.ignored, c])];
+    touched();
+  }));
+  root.querySelectorAll('[data-scale]').forEach(s => s.addEventListener('change', e => { const f = e.target.dataset.scale; st.transforms[f] = { ...(st.transforms[f] || {}), scale: +e.target.value }; touched(); }));
+  root.querySelectorAll('[data-datefmt]').forEach(s => s.addEventListener('change', e => { const f = e.target.dataset.datefmt; st.transforms[f] = { ...(st.transforms[f] || {}), dateFormat: e.target.value || undefined }; touched(); }));
+  root.querySelectorAll('[data-const]').forEach(s => s.addEventListener('change', e => {
+    const f = e.target.dataset.const;
+    const v = FIELDS[f]?.type === 'ccy' ? e.target.value.trim().toUpperCase() : e.target.value.trim();
+    if (v === '') delete st.constants[f]; else st.constants[f] = v;
+    touched();
+  }));
+  root.querySelectorAll('[data-typemap]').forEach(s => s.addEventListener('change', e => {
+    const k = e.target.dataset.typemap;
+    if (e.target.value) st.typeMap[k] = e.target.value; else delete st.typeMap[k];
+    touched();
+  }));
+  on('#dateColSel', 'change', e => { st.dateCol = +e.target.value; touched(); });
+  on('#pfColSel', 'change', e => { st.pfCol = +e.target.value; touched(); });
+}
+// Clicks on suggestion chips; true when the click was one.
+function handleMappingClick(e, app) {
+  const touched = () => { st.autoApplied = ''; app.rerender(); };
+  const sc = e.target.closest('[data-sugcol]');
+  if (sc) { const c = +sc.dataset.sugcol, f = sc.dataset.field; st.mapping = st.mapping.map((x, i) => (x === f && i !== c ? '' : x)); st.mapping[c] = f; touched(); return true; }
+  const stp = e.target.closest('[data-sugtype]');
+  if (stp) { st.typeMap[stp.dataset.sugtype] = stp.dataset.type; touched(); return true; }
+  if (e.target.closest('[data-act="sugall"]')) { for (const x of lastSuggestions) if (!st.mapping.includes(x.field)) st.mapping[x.col] = x.field; touched(); return true; }
+  return false;
+}
+
+// The mapper: a data source the reader could not make sense of, mapped once. Saving the template
+// connects the source again, and from then on it is read with this mapping.
+function renderMapMode(root, app, x) {
+  const { header, body, results, valid, invalid, D, p } = x;
+  const noDate = !D;
+  root.innerHTML = `
+    ${pageHead(t('map.title'), esc(t('map.sub', { name: st.name })))}
+    <div class="alert alert-info"><span>${esc(t('map.intro'))}</span><span class="btn-row"><button class="btn btn-sm" data-act="mapcancel">${esc(t('common.cancel'))}</button></span></div>
+    ${x.tptNote}
+    ${mappingCard(x, { mapMode: true })}
+    <div class="grid-2">
+      ${mandatoryCard(header, results, D, p)}
+      ${typeMapCard(body) || card(t('imp.typeMap'), `<p class="muted small">${esc(t('imp.typeMapNone'))}</p>`)}
+    </div>
+    ${card(t('map.finish'), `
+      <div class="import-summary">
+        <div class="stat"><span class="big pos">${fmtNum(valid.length)}</span><span>${esc(t('imp.valid'))}</span></div>
+        <div class="stat"><span class="big ${invalid ? 'neg' : ''}">${fmtNum(invalid)}</span><span>${esc(t('imp.invalid'))}</span></div>
+        ${D ? `<div class="stat"><span class="big">${fmtNum(D.dates.length)}</span><span>${esc(t('map.dates'))}</span></div><div class="stat"><span class="big">${fmtNum(D.groups.length)}</span><span>${esc(t('map.portfolios'))}</span></div>` : ''}
+      </div>
+      ${noDate ? `<div class="alert alert-breach"><span>${esc(t('map.noDate'))}</span></div>` : ''}
+      <p class="muted small">${esc(t('map.finishHelp'))}</p>
+      <div class="btn-row end"><button class="btn btn-primary btn-lg" data-act="tplsave" ${noDate || !valid.length ? 'disabled' : ''}>${esc(t('map.save'))}</button></div>
+    `)}`;
+}
+function bindMapHandlers(root, app, header) {
+  bindMappingControls(root, app);
+  root.onclick = async e => {
+    if (handleMappingClick(e, app)) return;
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'mapcancel') { reset(); app.navigate('setup'); }
+    if (act === 'tplsave') saveTemplateDialog(header, app);
+  };
+  return () => { root.onclick = null; };
+}
+async function connectMapped(app) {
+  const retry = st.retry;
+  try {
+    const r = await retry();
+    reset();
+    toast(t(r.portfolios ? 'src.connected' : 'src.connectedEmpty', { name: getSource(r.id)?.name || '', p: r.portfolios, d: r.dates }) + (r.access === 'read' ? ' ' + t('src.connectedReadOnly') : ''), { ms: 6000 });
+    app.navigate('holdings');
+  } catch (err) {
+    console.error(err);
+    if (err?.mapping) { const keep = st.templateId; startMapping(err.mapping); st.templateId = keep; app.rerender(); }
+    toast(errorText(err.code || err.message, err.status), { tone: 'warn', ms: 9000 });
+  }
+}
 
 // Import a dated file: per portfolio in the file, the holdings of the chosen date (or its latest
 // before it) go into that portfolio by the chosen mode; every date is kept as a snapshot and the
@@ -523,18 +626,15 @@ async function importDated(D, p, app) {
   app.navigate(D.dates.length > 1 ? 'changes' : 'holdings');
 }
 
+// The Excel template: Date and Portfolio first (what a data source needs), every field after, one
+// example row per instrument type; an instruction sheet per field and one per instrument type.
 async function xlsxTemplate() {
-  try {
-    await loadScript(XLSX_URL);
-  } catch (e) { toast(t('err.lib'), { tone: 'warn' }); return; }
-  const XLSX = window.XLSX;
+  const rows = templateRows(null, { date: todayISO() });
   const cols = templateColumns();
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([cols, ...TEMPLATE_EXAMPLES.map(e => cols.map(c => e[c] ?? ''))]);
-  ws['!cols'] = cols.map(c => ({ wch: Math.max(10, c.length + 2) }));
-  XLSX.utils.book_append_sheet(wb, ws, 'Holdings');
-  // Instruction sheet: one row per field, which types use it, which require it.
-  const info = [[t('imp.x.field'), t('imp.x.label'), t('imp.x.format'), t('imp.x.required'), t('imp.x.optional')]];
+  const dateCols = new Set(rows[0].map((h, c) => (h === 'Date' || FIELDS[h]?.type === 'date' ? c : -1)).filter(c => c >= 0));
+  const info = [[t('imp.x.field'), t('imp.x.label'), t('imp.x.format'), t('imp.x.required'), t('imp.x.optional')],
+    ['Date', t('imp.asOf'), t('imp.x.fmt.date'), t('imp.x.all'), ''],
+    ['Portfolio', t('imp.portfolioCol'), t('imp.x.fmt.text'), '', t('imp.x.all')]];
   for (const k of cols) {
     if (k === 'type') { info.push(['type', FIELDS.type.en, Object.keys(INSTRUMENTS).join(', '), t('imp.x.all'), '']); continue; }
     const f = FIELDS[k];
@@ -542,12 +642,12 @@ async function xlsxTemplate() {
     const opt = Object.entries(INSTRUMENTS).filter(([, d]) => d.fields.includes(k) && !d.required.includes(k)).map(([id]) => id);
     info.push([k, f.en, f.options ? f.options.join(' | ') : t('imp.x.fmt.' + f.type), req.join(', '), opt.join(', ')]);
   }
-  const ws2 = XLSX.utils.aoa_to_sheet(info);
-  ws2['!cols'] = [{ wch: 16 }, { wch: 26 }, { wch: 40 }, { wch: 50 }, { wch: 50 }];
-  XLSX.utils.book_append_sheet(wb, ws2, 'Instructions');
   const types = [[t('col.type'), 'id', t('imp.x.required'), t('imp.x.hint')], ...Object.entries(INSTRUMENTS).map(([id, d]) => [L(d), id, d.required.join(', '), L(d.hint)])];
-  const ws3 = XLSX.utils.aoa_to_sheet(types);
-  ws3['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 50 }, { wch: 100 }];
-  XLSX.utils.book_append_sheet(wb, ws3, 'Instrument types');
-  XLSX.writeFile(wb, 'holdings-template.xlsx');
+  try {
+    await downloadWorkbook('holdings-template.xlsx', [
+      { name: 'Holdings', rows, dateCols },
+      { name: 'Instructions', rows: info, filter: false },
+      { name: 'Instrument types', rows: types, filter: false }
+    ]);
+  } catch (e) { console.error(e); toast(t('err.lib'), { tone: 'warn' }); }
 }

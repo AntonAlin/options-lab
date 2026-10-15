@@ -1,10 +1,12 @@
 import * as store from '../store.js';
 import { t, L } from '../i18n.js';
 import { esc, card, pageHead, fmtMoney, fmtPct, fmtNum, table, openModal, closeModal, confirmDialog, toast, selectHtml, empty } from '../ui.js';
-import { INSTRUMENTS, GROUPS, FIELDS, OPTION_LABELS, fieldLabel, typeLabel, validatePosition } from '../instruments.js';
+import { INSTRUMENTS, GROUPS, FIELDS, OPTION_LABELS, fieldLabel, typeLabel, resolveType, validatePosition } from '../instruments.js';
 import { makeCtx } from '../analytics.js';
-import { uid, isNum, sum, downloadBlob, slug, loadScript, todayISO } from '../util.js';
-import { toCSV, positionRows, XLSX_URL, XLSX_SRI } from '../importer.js';
+import { uid, isNum, sum, downloadBlob, slug, todayISO } from '../util.js';
+import { toCSV, positionRows } from '../importer.js';
+import { downloadWorkbook } from '../xlsxout.js';
+import { headerOf } from '../sourcefile.js';
 import { checkHoldings } from '../datachecks.js';
 import { snapshots } from '../snapshots.js';
 import { dataChecksCard } from './datachecks-card.js';
@@ -132,22 +134,31 @@ export default {
 };
 
 // The importable position columns plus three computed ones.
+// The holdings as a data source holds them — Date, Portfolio, Instrument type and each field under
+// its own name — so the file opens readably in Excel and can be connected or imported straight back.
+// The calculated value, weight and exposure follow; their headers map to no field, so a re-import
+// ignores them.
 function exportRows(p, v) {
-  const [head, ...body] = positionRows(p);
+  const keys = positionRows(p)[0].slice(1);
   const byId = new Map(v.rows.map(x => [x.pos.id, x]));
-  return [[...head, 'marketValue_' + p.baseCcy, 'weightPct', 'exposurePct'],
-    ...body.map((row, i) => { const x = byId.get(p.positions[i].id); return [...row, x?.r ? Math.round(x.r.mv * 100) / 100 : '', x?.r ? +(x.weight * 100).toFixed(4) : '', x?.r ? +(x.expWeight * 100).toFixed(4) : '']; })];
+  const date = p.source?.shown || p.valDate || todayISO();
+  const pf = p.source?.key || p.name;
+  const head = ['Date', 'Portfolio', headerOf('type'), ...keys.map(headerOf), `Value ${p.baseCcy} (calc.)`, 'Weight of NAV %', 'Exposure of NAV %'];
+  const body = p.positions.map(pos => {
+    const x = byId.get(pos.id);
+    // The type as a word the reader turns back into the same type (the id where the label is ambiguous).
+    const type = pos.type === 'unknown' ? pos.rawType || '' : resolveType(typeLabel(pos.type)) === pos.type ? typeLabel(pos.type) : pos.type;
+    return [date, pf, type, ...keys.map(k => pos[k] ?? ''), x?.r ? Math.round(x.r.mv * 100) / 100 : '', x?.r ? +(x.weight * 100).toFixed(4) : '', x?.r ? +(x.expWeight * 100).toFixed(4) : ''];
+  });
+  const dateCols = new Set([0, ...keys.map((k, i) => (FIELDS[k]?.type === 'date' ? i + 3 : -1)).filter(c => c >= 0)]);
+  return { rows: [head, ...body], dateCols };
 }
 async function exportHoldings(p, v, kind) {
-  const rows = exportRows(p, v);
-  if (kind === 'csv') { downloadBlob('﻿' + toCSV(rows, ','), 'text/csv;charset=utf-8', slug(p.name) + '-holdings.csv'); return; }
-  try {
-    await loadScript(XLSX_URL, { integrity: XLSX_SRI });
-    const XLSX = window.XLSX;
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Holdings');
-    XLSX.writeFile(wb, slug(p.name) + '-holdings.xlsx');
-  } catch (e) { toast(t('err.lib'), { tone: 'warn' }); }
+  const { rows, dateCols } = exportRows(p, v);
+  const name = `${slug(p.name)}-holdings-${rows[1]?.[0] || todayISO()}`;
+  if (kind === 'csv') { downloadBlob('﻿' + toCSV(rows, ','), 'text/csv;charset=utf-8', name + '.csv'); return; }
+  try { await downloadWorkbook(name + '.xlsx', [{ name: 'Holdings', rows, dateCols }]); }
+  catch (e) { console.error(e); toast(t('err.lib'), { tone: 'warn' }); }
 }
 
 // ---- type picker & form ------------------------------------------------------------------------------

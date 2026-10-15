@@ -118,7 +118,8 @@ export const GUIDE = [
         { en: '“Disconnect” stops following a source; its portfolios stay with the data they have, and connecting it again picks them up. “Remove” takes it out with its portfolios; their control logs are kept in the archive on the Control log page.' }
       ] },
       { h: { en: 'When the columns are not recognised' } },
-      { p: { en: 'Load the same file once in Bulk upload, map the columns and save an import template. The source uses a matching template automatically (the card says which one), for reading and for writing. Rows with validation errors are kept and flagged on the Holdings page, so nothing disappears silently.' } },
+      { p: { en: 'When the app cannot recognise a source\'s columns, connecting it opens the mapper: pick the date column, the portfolio column (if any) and what each other column holds, then “Save mapping and connect”. The mapping is saved as an import template and the source uses it automatically from then on (the card says which one), for reading and for writing, also when the columns are reordered. Rows with validation errors are kept and flagged on the Holdings page, so nothing disappears silently.' } },
+      { p: { en: 'A FinDatEx Tripartite Template (TPT, versions 5–7) is recognised without mapping, as a source or in Bulk upload: columns are read by TPT field number, instrument types from the CIC code, quantity from field 18 or the nominal (19), price from the clean market value (23, else 22), and maturity, coupon, issuer, country, NACE sector, credit quality step, strike, underlying price, contract size, delta and modified duration where reported. TPT has no option volatility, swap legs or FX forward legs, so swaps, forwards and credit derivatives are carried at the reported market value as counterparty MTM. Look-through rows of underlying funds (field 95) are left out. A TPT source is read only.' } },
       { link: 'import', label: { en: 'Go to Bulk upload' } }
     ]
   },

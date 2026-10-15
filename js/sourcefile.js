@@ -9,6 +9,7 @@ import { autoMapping, rowsToPositions, detectTemplate, applyTemplateMapping, par
 import { normKey, INSTRUMENTS, FIELDS, typeLabel, resolveType } from './instruments.js';
 import { posKey as key } from './insights.js';
 import { uid, isNum } from './util.js';
+import { convertTPTSheets } from './tpt.js';
 
 // ---- reading -------------------------------------------------------------------------------------------
 
@@ -107,6 +108,23 @@ export function sourceMapping(layout, templates = []) {
   return { mapping, opts, template: tpl ? tpl.name : '' };
 }
 
+// A saved template that names its date column (and portfolio column) finds the header row and both
+// columns itself, so a layout the detector cannot read — the date in column 7 under "Pricing day",
+// headers on row 4 — is mapped once and read the same way every time after.
+export function templateLayout(rows, templates = []) {
+  const withDate = (templates || []).filter(x => x && x.dateHeader);
+  if (!withDate.length) return null;
+  const hit = detectTemplate(withDate, [{ rows }]);
+  if (!hit) return null;
+  const header = rows[hit.headerRow].map(headerText);
+  const nk = header.map(h => normKey(h));
+  const dateCol = nk.indexOf(hit.template.dateHeader);
+  if (dateCol < 0) return null;
+  let pfCol = hit.template.pfHeader ? nk.indexOf(hit.template.pfHeader) : -1;
+  if (!hit.template.pfHeader) pfCol = header.findIndex((h, c) => c !== dateCol && isPortfolioHeader(h));
+  return { headerRow: hit.headerRow, header, dateCol, pfCol };
+}
+
 // Every row is kept, invalid ones included: a live feed must not drop a holding silently. The
 // holdings page flags rows with errors.
 export function snapshotPositions(rows, mapping, opts) {
@@ -164,7 +182,7 @@ export function snapshotHistory(group, mapping, opts) {
 // Parse a whole sheet into { layout, mapping, opts, template, groups, skipped } or { error }.
 // allowEmpty: a template with headers only is a valid (empty) source, to be filled from the app.
 export function analyseRows(rows, { decimal = '.', templates = [], allowEmpty = false } = {}) {
-  const layout = detectLayout(rows);
+  const layout = templateLayout(rows, templates) || detectLayout(rows);
   if (layout.error) return layout;
   const { mapping, opts, template } = sourceMapping(layout, templates);
   if (mapping.filter(Boolean).length < 2) return { error: 'no_fields' };
@@ -174,10 +192,14 @@ export function analyseRows(rows, { decimal = '.', templates = [], allowEmpty = 
 }
 
 // The holdings sheet of a parsed source: the first sheet with a date column and fields.
-export function analyseSheets(sheets, opts = {}) {
+// A FinDatEx TPT report is converted to the platform's layout first (js/tpt.js); tpt says so, and
+// such a source is read only — the report is the fund manager's, not something to edit in place.
+export function analyseSheets(sheetsIn, opts = {}) {
+  const { sheets, tpt } = convertTPTSheets(sheetsIn);
   const usable = sheets.filter(s => s.rows.length >= 1);
-  for (const sh of usable) { const x = analyseRows(sh.rows, opts); if (!x.error) return { ...x, sheet: sh.name }; }
-  for (const sh of usable) { const x = analyseRows(sh.rows, { ...opts, allowEmpty: true }); if (!x.error) return { ...x, sheet: sh.name }; }
+  const done = x => (tpt && !x.error ? { ...x, tpt } : x);
+  for (const sh of usable) { const x = analyseRows(sh.rows, opts); if (!x.error) return done({ ...x, sheet: sh.name }); }
+  for (const sh of usable) { const x = analyseRows(sh.rows, { ...opts, allowEmpty: true }); if (!x.error) return done({ ...x, sheet: sh.name }); }
   return usable.length ? analyseRows(usable[0].rows, opts) : { error: 'no_rows' };
 }
 

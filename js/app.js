@@ -15,7 +15,7 @@ import { backupAge, maybeAutoBackup, BACKUP_WARN_DAYS } from './backup.js';
 
 import dashboard from './views/dashboard.js';
 import holdings from './views/holdings.js';
-import importView from './views/import.js';
+import importView, { mappingPending } from './views/import.js';
 import history from './views/history.js';
 import exposure from './views/exposure.js';
 import risk from './views/risk.js';
@@ -306,8 +306,10 @@ function renderRoute() {
   main.dataset.route = route;
   try {
     // Until a data source is connected, every portfolio page is the setup page.
-    const gated = !sources.ready() && !OPEN_ROUTES.has(route);
-    cleanup = (gated ? setupView : !p && !view.noPortfolio ? dashboard : view).render(main, app);
+    // The mapper (a source whose layout needs mapping once) is the one portfolio page open before a source is connected.
+    const mapping = route === 'import' && mappingPending();
+    const gated = !sources.ready() && !OPEN_ROUTES.has(route) && !mapping;
+    cleanup = (gated ? setupView : !p && !view.noPortfolio && !mapping ? dashboard : view).render(main, app);
   } catch (err) {
     console.error(err);
     main.innerHTML = `<div class="card"><div class="card-body"><h2>${esc(t('err.view'))}</h2><pre class="err">${esc(err.stack || err.message)}</pre></div></div>`;
