@@ -19,7 +19,7 @@ This page answers the questions an IT, risk or compliance function asks before a
 
 For a firm that hosts a tagged offline release on its own infrastructure, the tool is best treated as an **ICT asset the firm runs itself**, within its own ICT risk management framework (DORA art. 6–11: identify the asset, protect it, back it up and plan for its failure). The developer provides no ongoing ICT service to the firm: no hosting, no data processing, no support. Whether your firm also records it in the register of information on ICT third-party arrangements (art. 28) is for your compliance function to decide. Many firms record free software they depend on there anyway.
 
-Using the public site at `antonalin.github.io/options-lab` is different. The code is then served by GitHub Pages and changes with every change to the repository. For regulated use, host a tagged release instead.
+Using the public site at `nexus.alin.one` is different. The code is then served by GitHub Pages and changes with every change to the repository. For regulated use, host a tagged release instead.
 
 **Criticality.** The tool calculates model estimates with documented simplifications. It should not be the sole system of record for a critical or important function. Typical use is as a check and analysis layer next to the depositary's, administrator's or risk system's figures: pre-trade checks, a second opinion on limits, stress tests and reporting drafts. Reconcile its output against your own systems before relying on it.
 
