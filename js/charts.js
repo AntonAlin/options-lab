@@ -58,7 +58,47 @@ function baseLayout(th, extra = {}) {
     ...extra
   };
 }
-const pctTick = { tickformat: '.0%' };
+// ---- percentage axes -------------------------------------------------------------------------------
+// Plotly picks its own tick spacing, so a fixed '.0%' format on a series that moves within ±1 %
+// prints "−1%, −1%, 0%, 0%". The ticks are chosen here instead: a nice step (1, 2, 2.5 or 5 × 10ⁿ)
+// for about `target` ticks, and as many decimals as that step needs, so every label is distinct.
+export function niceStep(span, target = 5) {
+  const raw = span / Math.max(1, target);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+}
+// Decimals a percentage label needs for this step: 0.5 % → 1, 0.25 % → 2, 10 % → 0.
+export function pctDecimals(step) {
+  const pct = step * 100;
+  const mant = pct / Math.pow(10, Math.floor(Math.log10(pct) + 1e-9));
+  return Math.max(0, -Math.floor(Math.log10(pct) + 1e-9)) + (Math.abs(mant - 2.5) < 1e-6 ? 1 : 0);
+}
+// A true minus sign, as Plotly's own ticks have, and never "−0.0%".
+const pctLabel = (v, d) => { let s = (v * 100).toFixed(d); if (/^-0(\.0+)?$/.test(s)) s = s.slice(1); return s.replace(/^-/, '\u2212') + '%'; };
+// { tickvals, ticktext, step } covering the values (and zero, when asked). A flat series gets a
+// small band around its level rather than a zero-height axis.
+export function pctTicks(values, { zero = false, target = 5 } = {}) {
+  const v = values.filter(isNum);
+  if (zero) v.push(0);
+  if (!v.length) return null;
+  let lo = Math.min(...v), hi = Math.max(...v);
+  if (hi - lo < 1e-12) { const pad = Math.max(Math.abs(lo) * 0.1, 0.001); lo -= pad; hi += pad; }
+  const step = niceStep(hi - lo, target);
+  const first = Math.floor(lo / step + 1e-9), last = Math.ceil(hi / step - 1e-9);
+  const tickvals = [];
+  for (let k = first; k <= last; k++) tickvals.push(+(k * step).toPrecision(12));
+  // Safety net: should rounding ever make two labels equal, add decimals, and drop any left over.
+  let d = pctDecimals(step), ticktext = tickvals.map(x => pctLabel(x, d));
+  while (new Set(ticktext).size < ticktext.length && d < 6) ticktext = tickvals.map(x => pctLabel(x, ++d));
+  const seen = new Set(), keep = ticktext.map(s => (seen.has(s) ? false : (seen.add(s), true)));
+  return { tickvals: tickvals.filter((_, i) => keep[i]), ticktext: ticktext.filter((_, i) => keep[i]), step };
+}
+// Axis properties for a percentage axis over these values.
+function pctAxis(values, opts) {
+  const tk = pctTicks(values, opts);
+  return tk ? { tickmode: 'array', tickvals: tk.tickvals, ticktext: tk.ticktext } : { tickformat: '.1%' };
+}
 
 // ---- bars -------------------------------------------------------------------------------------------
 // items: [{ label, value, color?, text? }], fmt: 'pct' | 'num'
@@ -76,7 +116,7 @@ export function barHSpec(items, { th = currentTheme(), fmt = 'pct', color = null
     }],
     layout: baseLayout(th, {
       height: height || Math.max(170, 30 * items.length + 50), bargap: 0.38,
-      xaxis: axis(P, { ...(fmt === 'pct' ? pctTick : {}), zeroline: true }),
+      xaxis: axis(P, { ...(fmt === 'pct' ? pctAxis(items.map(i => i.value), { zero: true }) : {}), zeroline: true }),
       yaxis: axis(P, { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: P.ink2, size: 12 } })
     })
   };
@@ -95,7 +135,7 @@ export function barHGroupedSpec(labels, series, { th = currentTheme(), fmt = 'pc
     layout: baseLayout(th, {
       barmode: 'group', bargap: 0.28, bargroupgap: 0.1, showlegend: true,
       height: height || Math.max(210, 42 * labels.length + 80),
-      xaxis: axis(P, fmt === 'pct' ? pctTick : {}),
+      xaxis: axis(P, fmt === 'pct' ? pctAxis(series.flatMap(s => s.values), { zero: true }) : {}),
       yaxis: axis(P, { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: P.ink2, size: 12 } })
     })
   };
@@ -114,7 +154,7 @@ export function barVSpec(labels, values, { th = currentTheme(), fmt = 'num', div
     }],
     layout: baseLayout(th, {
       height, bargap: 0.35,
-      yaxis: axis(P, fmt === 'pct' ? pctTick : {}),
+      yaxis: axis(P, fmt === 'pct' ? pctAxis(values, { zero: true }) : {}),
       xaxis: axis(P, { gridcolor: 'rgba(0,0,0,0)', type: 'category', tickfont: { color: P.ink2, size: 12 } })
     })
   };
@@ -184,7 +224,7 @@ export function overlaySpec(rows, { th = currentTheme(), names = {}, height = nu
       height: height || Math.max(220, 44 * rows.length + 80),
       legend: { orientation: 'h', y: 1.02, x: 0, yanchor: 'bottom', font: { color: P.ink2, size: 11 } },
       margin: { l: 8, r: 50, t: 30, b: 28 },
-      xaxis: axis(P, { ...pctTick, zeroline: true }),
+      xaxis: axis(P, { ...pctAxis(rows.flatMap(x => [x.physical, x.physical + Math.max(0, x.overlay), x.physical + Math.min(0, x.overlay), x.econ, x.min, x.max, x.target]), { zero: true }), zeroline: true }),
       yaxis: axis(P, { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: P.ink2, size: 12 } })
     })
   };
@@ -288,7 +328,7 @@ export function lineSpec(x, series, { th = currentTheme(), fmt = 'pct', height =
       legend: { orientation: 'h', y: rangeButtons ? 1.02 : 1.08, x: 1, xanchor: 'right', yanchor: 'bottom', font: { color: P.ink2, size: 11 } },
       margin: { l: 8, r: 16, t: rangeButtons ? 38 : series.length > 1 ? 28 : 10, b: 28 },
       xaxis: xa,
-      yaxis: axis(P, { ...(fmt !== 'num' ? { tickformat: '.0%' } : {}), zeroline: zero })
+      yaxis: axis(P, { ...(fmt !== 'num' ? pctAxis(series.flatMap(s => s.y), { zero: zero || !!area }) : {}), zeroline: zero })
     })
   };
 }
@@ -323,7 +363,7 @@ export function backtestSpec(rows, nav, { th = currentTheme(), height = 300, lab
       { type: 'scatter', mode: 'lines', name: labels.var, x, y: rows.map(r => -f(r.var)), line: { color: P.ink2, width: 1.5, dash: 'dot' }, hovertemplate: '%{x}<br>−VaR %{y:.2%}<extra></extra>' },
       { type: 'scatter', mode: 'markers', name: labels.exc, x: rows.filter(r => r.exception).map(r => r.date), y: rows.filter(r => r.exception).map(r => f(r.pnl)), marker: { color: P.neg, size: 9, symbol: 'x' }, hoverinfo: 'skip' }
     ],
-    layout: baseLayout(th, { height, bargap: 0.1, showlegend: true, yaxis: axis(P, { tickformat: '.1%' }), xaxis: axis(P, { gridcolor: 'rgba(0,0,0,0)' }) })
+    layout: baseLayout(th, { height, bargap: 0.1, showlegend: true, yaxis: axis(P, pctAxis(rows.flatMap(r => [f(r.pnl), -f(r.var)]), { zero: true })), xaxis: axis(P, { gridcolor: 'rgba(0,0,0,0)' }) })
   };
 }
 
@@ -344,7 +384,7 @@ export function histogramSpec(values, { th = currentTheme(), height = 260, marke
     }],
     layout: baseLayout(th, {
       height, bargap: 0.05, barcornerradius: 2,
-      xaxis: axis(P, { tickformat: '.1%', zeroline: false }),
+      xaxis: axis(P, { ...pctAxis([lo, hi, ...markers.map(m => m.x)]), zeroline: false }),
       yaxis: axis(P),
       shapes: markers.map(m => ({ type: 'line', x0: m.x, x1: m.x, yref: 'paper', y0: 0, y1: 1, line: { color: P.neg, width: 1.5, dash: 'dot' } })),
       annotations: markers.map(m => ({ x: m.x, yref: 'paper', y: 1, text: m.label, showarrow: false, xanchor: 'right', font: { color: P.neg, size: 11 } }))
