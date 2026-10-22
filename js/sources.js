@@ -15,10 +15,12 @@
 // The file handles, API addresses and any API headers (tokens) are kept in this browser's
 // IndexedDB, nowhere else.
 import * as store from './store.js';
+import { t } from './i18n.js';
 import { mergeHistory } from './importer.js';
 import { FIELDS } from './instruments.js';
 import { analyseSheets, parseExtras, snapshotPositions, snapshotHistory, carryIds, isHeld, diffPositions, applyOps, dropPortfolioRows } from './sourcefile.js';
-import { connectorOf, file as fileConn, fileSupported, writable, formatOf, validUrl, serialise } from './connectors.js';
+import { connectorOf, file as fileConn, fileSupported, writable, formatOf, validUrl, serialise, readFileObject } from './connectors.js';
+import { holdingsRows, historyRows, demoDate, PRICE_SHEET } from './demofile.js';
 import { uid, todayISO } from './util.js';
 
 export { fileSupported };
@@ -46,7 +48,8 @@ async function idbGet(name, key) {
 // store them, e.g. in a private window, must not break the connections themselves.
 let saving = Promise.resolve();
 function save() {
-  const list = [...conns.values()].map(c => c.rec);
+  // A memory source (the demo, a file opened read only) belongs to this tab and is never remembered.
+  const list = [...conns.values()].map(c => c.rec).filter(r => r.kind !== 'memory');
   saving = saving.then(async () => {
     try {
       const db = await idb();
@@ -74,7 +77,7 @@ function emit(c = null) { listeners.forEach(fn => { try { fn(c); } catch (e) { c
 function set(c, patch) { Object.assign(c.st, patch); emit(c); }
 
 // What the pages show: [{ id, kind, name, url, access, format, writeMethod, ..., status }]
-const publicRec = rec => { const { handle, pending, headers, ...r } = rec; return { ...r, headers: (headers || []).map(([k]) => [k, '••••']), queued: (pending || []).length }; };
+const publicRec = rec => { const { handle, pending, headers, src, ...r } = rec; return { ...r, headers: (headers || []).map(([k]) => [k, '••••']), queued: (pending || []).length }; };
 export const list = () => [...conns.values()].map(c => ({ ...publicRec(c.rec), status: c.st }));
 export const get = id => { const c = conns.get(id); return c ? { ...publicRec(c.rec), status: c.st } : null; };
 export const initialised = () => phase === 'ready';
@@ -91,6 +94,9 @@ export const isSourced = p => !!connOf(p);
 export const sourceName = p => connOf(p)?.rec.name || p?.source?.fileName || '';
 export const handleOf = id => conns.get(id)?.rec.handle || null;
 export const fileHandles = () => [...conns.values()].filter(c => c.rec.kind === 'file').map(c => c.rec.handle);
+export const isMemory = id => conns.get(id)?.rec.kind === 'memory';
+// The demo, when it is open: its source record (public form) or null.
+export const demo = () => { const c = [...conns.values()].find(x => x.rec.demo); return c ? { ...publicRec(c.rec), status: c.st } : null; };
 
 // The holdings on every date in the source for one portfolio: [{ date, positions }], oldest first.
 const snapCache = new WeakMap();
@@ -120,6 +126,40 @@ export async function connectFile({ sameAs = [] } = {}) {
   const old = store.listPortfolios().find(p => p.source?.detached && p.source.kind !== 'api' && p.source.fileName === picked.name && p.source.lastFile && !conns.has(p.source.lastFile));
   const rec = { id: old?.source.lastFile || uid('src'), kind: 'file', handle: picked.handle, name: picked.name, access: picked.access, stamp: null, pending: [] };
   return finishConnect(rec);
+}
+
+// ---- in memory: the demo and read-only files ---------------------------------------------------------
+// The demo, one click: the same two funds on six month-ends and three years of daily prices as the
+// downloadable workbook, read from memory through the same reader and mapper as a real file. Edits
+// stay in this tab (the source is read only, so nothing is written back); the control log records
+// them as usual, in memory. A reload, or "Leave demo", and it is gone.
+export const DEMO_ID = 'src_demo';
+export async function openDemo({ today = todayISO() } = {}) {
+  if (conns.has(DEMO_ID) && conns.get(DEMO_ID).st.state === 'linked') {
+    const p = sourced(DEMO_ID)[0];
+    if (p && !sourced(DEMO_ID).some(x => x.id === store.active()?.id)) store.setActive(p.id);
+    return { id: DEMO_ID, created: 0, portfolios: sourced(DEMO_ID).length };
+  }
+  const date = demoDate(today);
+  const src = { format: 'memory', decimal: '.', sheets: [{ name: 'Holdings', rows: holdingsRows(date) }, { name: PRICE_SHEET, rows: historyRows(date) }] };
+  return finishConnect({ id: DEMO_ID, kind: 'memory', demo: true, name: t('demo.name'), access: 'read', stamp: 1, pending: [], src });
+}
+// A file picked with a plain <input type="file">: analysed here, never written back or re-read.
+// For browsers without the File System Access API (Safari, Firefox, mobile).
+export async function openFileReadOnly(f) {
+  const src = await readFileObject(f);
+  return finishConnect({ id: uid('src'), kind: 'memory', name: f.name, access: 'read', stamp: 1, pending: [], src });
+}
+// Close a memory source: its portfolios go with it (there is nothing to keep them in sync with,
+// and nothing of them was saved).
+export async function closeMemory(id) {
+  const c = conns.get(id);
+  if (!c || c.rec.kind !== 'memory') return 0;
+  const pfs = sourced(id);
+  for (const p of pfs) store.deletePortfolio(p.id);
+  conns.delete(id);
+  emit(null);
+  return pfs.length;
 }
 
 // An HTTP API. cfg: { name, url, format, headers: [[k, v]], pollSec, writeMethod: none|PUT|POST, writeUrl, withCredentials }
@@ -187,6 +227,7 @@ function analyse(src, rec) {
 export async function disconnect(id) {
   const c = conns.get(id);
   if (!c) return;
+  if (c.rec.kind === 'memory') { await closeMemory(id); return; }
   stopPolling(c);
   for (const p of sourced(id)) store.mutatePortfolio(p.id, pp => { pp.source = { ...pp.source, detached: true, file: '', lastFile: id, kind: c.rec.kind, url: c.rec.url || '' }; });
   conns.delete(id);
@@ -198,6 +239,7 @@ export async function disconnect(id) {
 export async function removeSource(id) {
   const c = conns.get(id);
   if (!c) return 0;
+  if (c.rec.kind === 'memory') return closeMemory(id);
   const pfs = sourced(id);
   for (const p of pfs) store.archivePortfolio(p.id, { reason: 'source_removed', source: c.rec.name });
   c.rec.pending = [];
@@ -236,7 +278,7 @@ export function adoptPortfolio(pfId, srcId = null) {
   const q = attachNew({ name: p.name }, srcId);
   if (!q.source) return false;
   const c = conns.get(q.source.file);
-  store.mutatePortfolio(pfId, pp => { pp.source = q.source; });
+  store.mutatePortfolio(pfId, pp => { pp.source = q.source; delete pp.ephemeral; delete pp.demo; }); // a copy of the demo becomes real here
   if (p.positions.length) enqueue(c, { pfId, key: q.source.key, sourceDate: '', targetDate: todayISO(), ops: p.positions.map(pos => ({ kind: 'add', pos })), label: 'adopt' });
   return true;
 }
@@ -259,6 +301,8 @@ function apply(c, result, { activateFirst = false } = {}) {
     if (!p) {
       p = store.newPortfolio({ name: g.key || base });
       p.source = { file: c.rec.id, fileName: c.rec.name, key: g.key, date: '' };
+      // A memory source's portfolios live in this tab only; the demo's also say they are the demo.
+      if (c.rec.kind === 'memory') { p.ephemeral = true; p.demo = !!c.rec.demo; }
       store.upsertPortfolio(p, { activate: activateFirst && !created });
       created++;
     }
@@ -463,6 +507,7 @@ export async function discardPending(id) {
 // ---- polling ----------------------------------------------------------------------------------------------
 function startPolling(c) {
   stopPolling(c);
+  if (c.rec.kind === 'memory') return; // nothing outside the tab can change it
   const ms = c.rec.kind === 'api' ? Math.max(API_POLL_MIN, c.rec.pollSec || API_POLL_DEFAULT) * 1000 : FILE_POLL_MS;
   c.timer = setInterval(() => { if (document.visibilityState === 'visible') refresh(c.rec.id); }, ms);
 }

@@ -47,7 +47,6 @@ export default {
     const liq7 = liq.buckets.find(b => b.h === 7);
 
     const alerts = [];
-    if (p.demo) alerts.push(['info', t('dash.alert.demo')]);
     if (!v.valid.length) alerts.push(['info', t('dash.alert.empty')]);
     if (v.errorsCount) alerts.push(['warn', t('dash.alert.errors', { n: v.errorsCount }), 'holdings']);
     if (v.fxMissing.length) alerts.push(['warn', t('dash.alert.fx', { list: v.fxMissing.join(', ') }), 'settings']);

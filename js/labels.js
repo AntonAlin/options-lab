@@ -77,5 +77,6 @@ export function perfStatRows(perf, { bench = true } = {}) {
 // "4 months" / "2.9 years": how much history the figures rest on.
 export function spanText(perf) {
   const d = perf.spanDays || 0;
-  return d < 365 ? t('perf.spanMonths', { n: Math.max(1, Math.round(d / 30.44)) }) : t('perf.spanYears', { n: fmtNum(d / 365.25, 1) });
+  const m = Math.max(1, Math.round(d / 30.44));
+  return d < 365 ? (m === 1 ? t('perf.spanMonth') : t('perf.spanMonths', { n: m })) : t('perf.spanYears', { n: fmtNum(d / 365.25, 1) });
 }

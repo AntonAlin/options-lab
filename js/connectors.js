@@ -5,6 +5,9 @@
 //   file  a file on the user's disk or network share, through the File System Access API (Chrome
 //         and Edge on desktop). CSV / TSV / TXT, JSON, XML, Excel (.xlsx .xlsm .xls) and
 //         OpenDocument (.ods). Read and written, except XML, which is read only.
+//   memory  rows held in this tab only, never stored: the one-click demo, and a file opened read
+//         only through a plain file input where the browser has no File System Access API
+//         (Safari, Firefox, every mobile browser). Read once; nothing is written back or polled.
 //   api   an HTTP endpoint the organisation runs (a PMS, a custodian gateway, an internal service).
 //         Read with GET; written, if configured, by sending the whole updated document back with
 //         PUT or POST (If-Match when the endpoint gives an ETag, so a concurrent change is refused
@@ -149,4 +152,20 @@ export const api = {
     if (!res.ok) throw err('http', { status: res.status });
   }
 };
-export const connectorOf = rec => (rec.kind === 'api' ? api : file);
+// ---- memory ----------------------------------------------------------------------------------------------
+// rec.src is a parsed source ({ format, sheets, decimal, ... }) built in the page. It never changes,
+// so a read with a stamp is always "unchanged"; there is nothing to write to.
+export const memory = {
+  async read(rec, { since = null } = {}) {
+    if (since !== null && since === rec.stamp) return { stamp: rec.stamp, src: null };
+    return { stamp: rec.stamp, src: rec.src };
+  },
+  async write() { throw err('read_only_format'); }
+};
+// A File from <input type="file"> (or a drop), parsed the way a connected file is.
+export async function readFileObject(f) {
+  if (!FILE_EXT.test(f.name)) throw err('kind');
+  const fmt = formatOf(f.name, f.type);
+  return parseBytes({ name: f.name, text: fmt === 'xlsx' ? null : await f.text(), buffer: fmt === 'xlsx' ? await f.arrayBuffer() : null, contentType: f.type });
+}
+export const connectorOf = rec => (rec.kind === 'api' ? api : rec.kind === 'memory' ? memory : file);

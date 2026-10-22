@@ -6,7 +6,10 @@ import { t } from '../i18n.js';
 import { esc, card, toast, confirmDialog, fmtDate, privacyCallout, openModal, closeModal, selectHtml } from '../ui.js';
 import * as sources from '../sources.js';
 import * as filelink from '../filelink.js';
-import { API_FORMATS, WRITE_METHODS } from '../connectors.js';
+import { API_FORMATS, WRITE_METHODS, FILE_ACCEPT } from '../connectors.js';
+
+// The plain file input's filter: every extension the connected-file picker takes.
+const READONLY_ACCEPT = [...new Set(Object.values(FILE_ACCEPT).flat())].join(',');
 
 const ERRS = ['no_date', 'no_header', 'no_fields', 'no_rows', 'same_file', 'permission', 'not_found', 'unsupported', 'kind', 'network', 'auth', 'http', 'conflict', 'bad_url', 'read_only_format', 'no_records'];
 export const errorText = (code, status = 0) => t('src.err.' + (ERRS.includes(code) ? code : 'other'), { err: code, status });
@@ -21,12 +24,13 @@ function statusLine(s) {
 }
 function writeLine(s) {
   const st = s.status;
+  if (s.kind === 'memory') return `<div class="cell-sub">${esc(t('mem.note'))}</div>`;
   if (s.access === 'read') return `<div class="cell-sub">${esc(t(st.localEdits ? 'src.readOnlyEdits' : 'src.readOnlyNote'))}</div>`;
   if (st.write === 'blocked') return `<div class="cell-sub warn-text">${esc(t('src.writeBlocked', { n: st.queued, err: st.writeError }))}</div>`;
   if (st.write === 'pending' || st.write === 'writing') return `<div class="cell-sub">${esc(t('src.writing'))}</div>`;
   return st.lastWrite ? `<div class="cell-sub">${esc(t('src.writtenAt', { t: time(st.lastWrite) }))}</div>` : '';
 }
-const kindPill = s => `<span class="type-pill">${esc(s.kind === 'api' ? 'API' : (/\.([a-z0-9]+)$/i.exec(s.name)?.[1] || 'file').toUpperCase())}</span> <span class="type-pill">${esc(t(s.access === 'read' ? 'src.readOnly' : 'src.readWrite'))}</span>`;
+const kindPill = s => `<span class="type-pill">${esc(s.kind === 'api' ? 'API' : s.demo ? 'DEMO' : (/\.([a-z0-9]+)$/i.exec(s.name)?.[1] || 'file').toUpperCase())}</span> <span class="type-pill">${esc(t(s.access === 'read' ? 'src.readOnly' : 'src.readWrite'))}</span>${s.kind === 'memory' ? ` <span class="type-pill">${esc(t('mem.pill'))}</span>` : ''}`;
 
 function sourceHtml(s) {
   const st = s.status;
@@ -41,13 +45,13 @@ function sourceHtml(s) {
         ${st.history ? `<div class="cell-sub">${esc(t('src.historySheet'))}</div>` : ''}
         ${st.skipped ? `<div class="cell-sub">${esc(t('src.skipped', { n: st.skipped }))}</div>` : ''}
       </div>
-      <div class="btn-row">
+      ${s.kind === 'memory' ? `<div class="btn-row"><button class="btn btn-sm" data-src="close-memory" data-id="${esc(s.id)}">${esc(t(s.demo ? 'demo.leave' : 'mem.close'))}</button></div>` : `<div class="btn-row">
         ${st.state === 'needs-permission' ? `<button class="btn btn-sm btn-primary" data-src="reconnect" data-id="${esc(s.id)}">${esc(t('src.reconnect'))}</button>` : `<button class="btn btn-sm" data-src="refresh" data-id="${esc(s.id)}">${esc(t('src.refresh'))}</button>`}
         ${st.write === 'blocked' ? `<button class="btn btn-sm" data-src="flush" data-id="${esc(s.id)}">${esc(t('src.retry'))}</button><button class="btn btn-sm" data-src="discard" data-id="${esc(s.id)}">${esc(t('src.discard'))}</button>` : ''}
         ${s.kind === 'api' ? `<button class="btn btn-sm" data-src="edit" data-id="${esc(s.id)}">${esc(t('src.edit'))}</button>` : ''}
         <button class="btn btn-sm" data-src="disconnect" data-id="${esc(s.id)}">${esc(t('src.disconnect'))}</button>
         <button class="btn btn-sm btn-danger" data-src="remove" data-id="${esc(s.id)}">${esc(t('src.remove'))}</button>
-      </div>
+      </div>`}
     </div>
     ${pfs.length ? `<ul class="tpl-list">${pfs.map(p => `<li>
         <div><strong>${esc(p.name)}</strong><div class="small muted">${esc((p.source.dates || []).length ? t('src.pfLine', { n: p.positions.length, d: fmtDate(p.source.shown || p.valDate), k: (p.source.dates || []).length }) : t('src.pfNew'))}${p.source.date ? ' · ' + esc(t('src.pinned')) : ''}${p.source.missing ? ' · ' + esc(t('src.missing')) : ''}</div></div>
@@ -79,10 +83,12 @@ function bodyHtml({ steps = true } = {}) {
       <li><strong>${esc(t('src.step2'))}</strong><span>${esc(t('src.step2b'))}</span></li>
       <li><strong>${esc(t('src.step3'))}</strong><span>${esc(t('src.step3b'))}</span></li>
     </ol>` : ''}
-    ${sources.fileSupported() ? '' : `<div class="alert alert-warn"><span>${esc(t('src.unsupported'))}</span></div>`}
+    ${sources.fileSupported() ? '' : `<p class="muted small">${esc(t('src.readOnlyBrowser'))}</p>`}
     <div class="btn-row">
-      ${sources.fileSupported() ? `<button class="btn ${all.length ? '' : 'btn-primary btn-lg'}" data-src="connect-file">${esc(all.length ? t('src.addFile') : t('src.connect'))}</button>` : ''}
-      <button class="btn ${all.length || sources.fileSupported() ? '' : 'btn-primary btn-lg'}" data-src="connect-api">${esc(all.length ? t('src.addApi') : t('src.connectApi'))}</button>
+      ${sources.fileSupported() ? `<button class="btn ${all.length ? '' : 'btn-primary btn-lg'}" data-src="connect-file">${esc(all.length ? t('src.addFile') : t('src.connect'))}</button>`
+        : `<button class="btn ${all.length ? '' : 'btn-primary btn-lg'}" data-src="open-readonly">${esc(t('src.openReadOnly'))}</button>
+           <input type="file" id="srcFileRO" accept="${esc(READONLY_ACCEPT)}" hidden aria-hidden="true" tabindex="-1">`}
+      <button class="btn" data-src="connect-api">${esc(all.length ? t('src.addApi') : t('src.connectApi'))}</button>
     </div>
     <p class="muted small">${esc(t('src.formats'))}</p>`;
 }
@@ -100,6 +106,22 @@ export async function connectFlow() {
   } catch (err) {
     if (err && err.name === 'AbortError') return false; // picker closed
     if (await openMapper(err)) return false; // read fine, layout to be mapped: not an error
+    console.error(err);
+    toast(errorText(err.code || err.message, err.status), { tone: 'warn', ms: 9000 });
+    return false;
+  }
+}
+
+// Browsers without the File System Access API: a file chosen with a plain input, analysed in
+// memory, read only (sources.openFileReadOnly).
+export async function openReadOnlyFlow(f) {
+  if (!f) return false;
+  try {
+    const r = await sources.openFileReadOnly(f);
+    toast(t('src.openedReadOnly', { name: f.name, p: r.portfolios, d: r.dates }), { ms: 6000 });
+    return true;
+  } catch (err) {
+    if (await openMapper(err)) return false;
     console.error(err);
     toast(errorText(err.code || err.message, err.status), { tone: 'warn', ms: 9000 });
     return false;
@@ -179,7 +201,10 @@ export function bindSourceCard(root, opts = {}) {
   const redraw = () => { const body = root.querySelector('#srcCard .card-body'); if (body) body.innerHTML = bodyHtml(opts); };
   const off = sources.onChange(redraw);
   const offStore = store.subscribe(r => { if (r === 'active' || r === 'settings') redraw(); });
-  const onChange = e => { if (e.target.id === 'srcDefault') store.setSetting('srcDefault', e.target.value); };
+  const onChange = e => {
+    if (e.target.id === 'srcDefault') store.setSetting('srcDefault', e.target.value);
+    if (e.target.id === 'srcFileRO') { const f = e.target.files?.[0]; e.target.value = ''; openReadOnlyFlow(f); }
+  };
   const onClick = async e => {
     const open = e.target.closest('[data-src-open]')?.dataset.srcOpen;
     if (open) { store.setActive(open); return; }
@@ -193,6 +218,8 @@ export function bindSourceCard(root, opts = {}) {
     e.stopPropagation();
     try {
       if (act === 'connect-file') await connectFlow();
+      if (act === 'open-readonly') root.querySelector('#srcFileRO')?.click();
+      if (act === 'close-memory') { const s = sources.get(id); await sources.closeMemory(id); toast(s?.demo ? t('demo.left') : t('mem.closed', { name: s?.name || '' })); }
       if (act === 'connect-api') apiDialog();
       if (act === 'edit') apiDialog(id);
       if (act === 'refresh') { await sources.refresh(id, { force: true }); const st = sources.get(id)?.status; toast(st?.error ? errorText(st.error, st.status) : t('src.refreshed'), { tone: st?.error ? 'warn' : '' }); }

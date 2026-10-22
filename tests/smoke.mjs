@@ -1,5 +1,5 @@
 // Browser smoke test: serve the site, connect the demo holdings file (through a stand-in for the
-// browser's file picker, kept in memory), open every page and fail on any script error or a
+// browser's file picker, kept in memory) and the one-click demo, open every page and fail on any script error or a
 // NaN/undefined on screen. Also checks that changes made in the app are written into the file as
 // rows, that an API source is read and written, that deleted portfolios keep their control log in
 // the archive, and that the published ECB data file is picked up. Run: node tests/smoke.mjs  (needs Playwright; CI installs it, see .github/workflows/ci.yml)
@@ -74,9 +74,9 @@ try {
   }, demoCSV('2026-09-30'));
   await page.goto(base + 'index.html#/holdings');
   await page.waitForTimeout(800);
-  // No source connected: every portfolio page is the setup page, and there is no built-in demo.
-  const gate = await page.evaluate(() => ({ setup: !!document.querySelector('[data-src="connect-file"]'), demo: !!document.querySelector('[data-act="demo"]') }));
-  if (!gate.setup || gate.demo) failures.push('setup gate: ' + JSON.stringify(gate));
+  // No source connected: every portfolio page is the setup page, with the one-click demo on top.
+  const gate = await page.evaluate(() => ({ setup: !!document.querySelector('[data-src="connect-file"]'), demo: !!document.querySelector('[data-demo-open]') }));
+  if (!gate.setup || !gate.demo) failures.push('setup gate: ' + JSON.stringify(gate));
   await page.click('[data-src="connect-file"]');
   await page.waitForTimeout(2500);
   const funds = await page.evaluate(async () => (await import('./js/store.js')).listPortfolios().map(p => p.name + ':' + p.positions.length));
@@ -230,6 +230,28 @@ try {
   if (!storageOk) failures.push('storage: ' + JSON.stringify({ migrated, reloaded, afterDelete }));
   await ctx.close();
   console.log(`Storage: ${JSON.stringify({ migrated, reloaded, afterDelete })}`);
+
+  // The one-click demo in a fresh profile, from the link to share: two funds in memory, nothing
+  // stored, gone after "Leave demo" and after a reload.
+  const dctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  const dp = await dctx.newPage();
+  dp.on('pageerror', e => failures.push('demo page error: ' + e.message));
+  await dp.goto(base + 'index.html#/dashboard?demo=1');
+  await dp.waitForSelector('.kpi-grid', { timeout: 10000 }).catch(() => failures.push('demo: dashboard did not render'));
+  const dm = await dp.evaluate(async () => {
+    const store = await import('./js/store.js');
+    store.update(p => { p.positions[0].qty += 1; }, 'edit'); await store.flushed();
+    const db = await new Promise(r => { const q = indexedDB.open('nexus-workspace', 1); q.onsuccess = () => r(q.result); });
+    const keys = await new Promise(r => { const q = db.transaction('kv').objectStore('kv').getAllKeys(); q.onsuccess = () => r(q.result); });
+    return { hash: location.hash, banner: !!document.querySelector('.demo-banner'), pfs: store.listPortfolios().map(p => p.name + ':' + p.positions.length), stored: keys.filter(k => k !== 'meta') };
+  });
+  if (dm.pfs.join() !== 'Demo: Nordic Balanced Fund:55,Demo: Nordic Equity Fund:13' || !dm.banner || dm.stored.length || dm.hash !== '#/dashboard') failures.push('demo: ' + JSON.stringify(dm));
+  await dp.click('[data-file="mem-close"]'); await dp.waitForTimeout(400);
+  await dp.reload(); await dp.waitForTimeout(600);
+  const left = await dp.evaluate(async () => ({ pfs: (await import('./js/store.js')).listPortfolios().length, setup: !!document.querySelector('[data-demo-open]') }));
+  if (left.pfs || !left.setup) failures.push('demo left behind: ' + JSON.stringify(left));
+  console.log(`Demo: ${JSON.stringify({ ...dm, left })}`);
+  await dctx.close();
 } finally {
   await browser.close();
   server.close();

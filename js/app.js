@@ -40,7 +40,7 @@ import pnlView from './views/pnl.js';
 import globalExposureView from './views/global-exposure.js';
 import lmtView from './views/liquidity-tools.js';
 import controlLogView from './views/control-log.js';
-import setupView from './views/setup.js';
+import setupView, { openDemo } from './views/setup.js';
 import { unhandled } from './auditlog.js';
 import { pnlAnalysis } from './pnl.js';
 
@@ -143,7 +143,7 @@ function sourcesStatusHtml() {
     const st = s.status;
     const bad = st.state !== 'linked' || !!st.error || st.write === 'blocked';
     const busy = st.write === 'pending' || st.write === 'writing';
-    const text = st.state === 'init' ? t('src.checking') : st.state === 'needs-permission' ? t('src.needsPermission') : st.state !== 'linked' || st.error ? sourceError(st.error, st.status)
+    const text = s.kind === 'memory' && st.state === 'linked' ? t('mem.status') : st.state === 'init' ? t('src.checking') : st.state === 'needs-permission' ? t('src.needsPermission') : st.state !== 'linked' || st.error ? sourceError(st.error, st.status)
       : st.write === 'blocked' ? t('src.writeBlockedShort', { n: st.queued }) : busy ? t('src.writing') : st.lastWrite ? t('src.writtenAt', { t: time(st.lastWrite) }) : t('src.readAt', { t: st.lastRead ? time(st.lastRead) : '—' });
     const d = s.kind === 'api' ? 'M4 12h4m8 0h4M8 8l-4 4 4 4M16 8l4 4-4 4M13 5l-2 14' : 'M4 4h10l6 6v10H4zM14 4v6h6M8 14l3 3 5-6';
     return `<a class="data-status ${bad ? 'warn' : busy ? 'pending' : 'ok'}" href="#/import" title="${esc(s.kind === 'api' ? s.url : s.name)}">${icon(d)}<span><strong>${esc(s.name)}</strong><br>${esc(text)}</span></a>`;
@@ -161,9 +161,14 @@ function renderBanner() {
   const blocked = all.find(s => s.status.state === 'linked' && s.status.write === 'blocked');
   const perm = all.find(s => s.status.state === 'needs-permission');
   const failed = all.find(s => s.status.state === 'error' || (s.status.state === 'linked' && s.status.error));
+  // The demo, or a file opened read only: always say that nothing is kept, with the way out.
+  const mem = all.find(s => s.kind === 'memory' && s.status.state === 'linked');
   if (blocked) html = `<div class="alert alert-warn"><span>${esc(t('src.bannerWriteBlocked', { name: blocked.name, n: blocked.status.queued, err: blocked.status.writeError }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="src-flush" data-id="${esc(blocked.id)}">${esc(t('src.retry'))}</button><button class="btn btn-sm" data-file="src-discard" data-id="${esc(blocked.id)}">${esc(t('src.discard'))}</button></span></div>`;
   else if (perm) html = `<div class="alert alert-warn"><span>${esc(t('src.bannerPermission', { name: perm.name }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="src-reconnect" data-id="${esc(perm.id)}">${esc(t('src.reconnect'))}</button><button class="btn btn-sm" data-file="src-disconnect" data-id="${esc(perm.id)}">${esc(t('src.disconnect'))}</button></span></div>`;
   else if (failed) html = `<div class="alert alert-breach"><span>${esc(t('src.bannerError', { name: failed.name, err: sourceError(failed.status.error, failed.status.status) }))}</span><span class="btn-row"><a class="btn btn-sm" href="#/import">${esc(t('src.open'))}</a><button class="btn btn-sm" data-file="src-disconnect" data-id="${esc(failed.id)}">${esc(t('src.disconnect'))}</button></span></div>`;
+  else if (mem) html = mem.demo
+    ? `<div class="alert alert-info demo-banner"><span>${esc(t('demo.banner'))}</span><span class="btn-row"><a class="btn btn-sm btn-primary" href="#/setup">${esc(t('demo.connect'))}</a><button class="btn btn-sm" data-file="mem-close" data-id="${esc(mem.id)}">${esc(t('demo.leave'))}</button></span></div>`
+    : `<div class="alert alert-info"><span>${esc(t('mem.banner', { name: mem.name }))}</span><span class="btn-row"><button class="btn btn-sm" data-file="mem-close" data-id="${esc(mem.id)}">${esc(t('mem.close'))}</button></span></div>`;
   if (html) { /* shown */ }
   else if (fs.state === 'needs-permission') html = `<div class="alert alert-warn"><span>${esc(t('file.bannerPermission', { name: fs.name }))}</span><span class="btn-row"><button class="btn btn-sm btn-primary" data-file="reconnect">${esc(t('file.reconnect'))}</button><button class="btn btn-sm" data-file="unlink">${esc(t('file.unlink'))}</button></span></div>`;
   else if (fs.state === 'error') html = `<div class="alert alert-breach"><span>${esc(t('file.bannerError', { name: fs.name, err: fs.error }))}</span><span class="btn-row"><button class="btn btn-sm" data-file="retry">${esc(t('file.retry'))}</button><button class="btn btn-sm" data-file="unlink">${esc(t('file.unlink'))}</button></span></div>`;
@@ -175,6 +180,7 @@ function renderBanner() {
     const act = b?.dataset.file, id = b?.dataset.id;
     if (!act) return;
     try {
+      if (act === 'mem-close') { const s = sources.get(id); await sources.closeMemory(id); toast(s?.demo ? t('demo.left') : t('mem.closed', { name: s?.name || '' })); if (s?.demo) location.hash = '#/setup'; }
       if (act === 'src-reconnect') await sources.reconnect(id);
       if (act === 'src-flush' && !(await sources.flush(id))) toast(t('src.writeBlockedShort', { n: sources.queued(id) }), { tone: 'warn' });
       if (act === 'src-discard' && await confirmDialog(t('src.discardConfirm', { n: sources.queued(id) }), { danger: true, ok: t('src.discard') })) await sources.discardPending(id);
@@ -326,6 +332,18 @@ function scheduleRender() {
   queueMicrotask(() => { renderQueued = false; renderRoute(); });
 }
 
+// #/dashboard?demo=1 (the link to share): open the one-click demo straight away, then drop the
+// parameter so a later reload or "Leave demo" does not bring it back.
+async function openDemoFromLink() {
+  const [path, query = ''] = location.hash.split('?');
+  const params = new URLSearchParams(query);
+  if (params.get('demo') !== '1') return;
+  params.delete('demo');
+  const rest = params.toString();
+  window.history.replaceState(null, '', location.pathname + location.search + (path || '#/dashboard') + (rest ? '?' + rest : ''));
+  await openDemo({ go: null });
+}
+
 async function init() {
   await store.init();
   applyTheme();
@@ -338,7 +356,7 @@ async function init() {
   // The data sources decide what can be shown: until one is connected every portfolio page is the setup page.
   let wasReady = false;
   sources.onChange(() => { renderBanner(); if (document.querySelector('.sidebar-foot')) renderSidebar(); if (sources.ready() !== wasReady) { wasReady = sources.ready(); scheduleRender(); } });
-  sources.init().then(() => { wasReady = sources.ready(); renderRoute(); }).catch(err => { console.error(err); renderRoute(); });
+  sources.init().then(openDemoFromLink).then(() => { wasReady = sources.ready(); renderRoute(); }).catch(err => { console.error(err); renderRoute(); });
   filelink.onChange(() => { renderBanner(); const sb = document.querySelector('.sidebar-foot'); if (sb) renderSidebar(); });
   // Only the sidebar and banner depend on the file status, so no second full render (Plotly
   // dislikes being re-run while its first draw is still settling).

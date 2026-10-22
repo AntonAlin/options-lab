@@ -65,7 +65,7 @@ export function kindOfName(name) {
 }
 export function buildContent(kind, { p = store.active(), stamp = new Date().toISOString() } = {}) {
   if (kind === 'json') return { blob: new Blob([store.exportWorkspace({ exportedAt: stamp })], { type: 'application/json' }) };
-  if (!p) return null;
+  if (!p || store.isEphemeral(p)) return null; // the demo, or a file opened read only, is never mirrored
   const rows = positionRows(p);
   if (kind === 'csv') return { blob: new Blob(['﻿' + toCSV(rows, ',')], { type: 'text/csv;charset=utf-8' }) };
   return { rows, p };

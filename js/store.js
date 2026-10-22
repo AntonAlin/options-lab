@@ -69,6 +69,7 @@ function adopt(s) {
     for (const p of Object.values(state.portfolios)) upgradePortfolio(p);
   }
   if (!state.activeId || !state.portfolios[state.activeId]) state.activeId = Object.keys(state.portfolios)[0] || null;
+  if (state.activeId && !isEphemeral(state.portfolios[state.activeId])) lastSavedActive = state.activeId;
   return state;
 }
 
@@ -101,8 +102,20 @@ function readAll(d) {
     tx.onerror = () => reject(tx.error);
   });
 }
+// Portfolios that live in this tab only (p.ephemeral): the one-click demo, and a file opened read
+// only in a browser that cannot keep a handle to it. Never written to IndexedDB, localStorage, an
+// export or the linked workspace file; a reload starts without them.
+export const isEphemeral = p => !!p?.ephemeral;
+const kept = s => Object.fromEntries(Object.entries(s.portfolios).filter(([, p]) => !isEphemeral(p)));
+// The active portfolio as saved: an ephemeral one is never the saved choice, the last real one is.
+let lastSavedActive = null;
+function savedActive(s) {
+  if (s.portfolios[s.activeId] && !isEphemeral(s.portfolios[s.activeId])) return (lastSavedActive = s.activeId);
+  return lastSavedActive && s.portfolios[lastSavedActive] ? lastSavedActive : Object.keys(kept(s))[0] || null;
+}
+const savedState = s => ({ ...s, portfolios: kept(s), activeId: savedActive(s) });
 // Stored as JSON text: the state is plain data, and a string can never fail to clone.
-const metaOf = s => JSON.stringify({ version: s.version, settings: s.settings, activeId: s.activeId, templates: s.templates, archive: s.archive || [], issuers: s.issuers || {} });
+const metaOf = s => JSON.stringify({ version: s.version, settings: s.settings, activeId: savedActive(s), templates: s.templates, archive: s.archive || [], issuers: s.issuers || {} });
 function writeDb(d, { all, ids, removed }) {
   return new Promise((resolve, reject) => {
     const tx = d.transaction(OS, 'readwrite');
@@ -110,7 +123,7 @@ function writeDb(d, { all, ids, removed }) {
     if (all) os.clear();
     os.put(metaOf(state), META);
     const list = all ? Object.keys(state.portfolios) : ids;
-    for (const id of list) if (state.portfolios[id]) os.put(JSON.stringify(state.portfolios[id]), PF + id);
+    for (const id of list) if (state.portfolios[id] && !isEphemeral(state.portfolios[id])) os.put(JSON.stringify(state.portfolios[id]), PF + id);
     for (const id of removed) os.delete(PF + id);
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
@@ -167,7 +180,7 @@ export async function init() {
     // Another tab saved: read its version (only while this tab has nothing unsaved).
     channel.onmessage = async () => {
       if (pending.meta || !db) return;
-      try { const s = stateFromRecords(await readAll(db)); if (s) { adopt(s); undoStack = []; emit('active'); } } catch (e) { console.warn(e); }
+      try { const s = stateFromRecords(await readAll(db)); if (s) { keepEphemeral(() => adopt(s)); undoStack = []; emit('active'); } } catch (e) { console.warn(e); }
     };
   }
   if (typeof window !== 'undefined') window.addEventListener('pagehide', () => flush());
@@ -234,7 +247,7 @@ function flush() {
   writing = writing.then(async () => {
     try {
       if (db) await writeDb(db, job);
-      else if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(state));
+      else if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(savedState(state)));
       storageOk = true;
       channel?.postMessage('saved');
     } catch (e) {
@@ -252,7 +265,7 @@ export const storageAvailable = () => storageOk;
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 if (typeof window !== 'undefined') {
   // Only the localStorage fallback: IndexedDB tabs hear each other over the BroadcastChannel.
-  window.addEventListener('storage', e => { if (e.key === KEY && !db) { load(); emit('active'); } });
+  window.addEventListener('storage', e => { if (e.key === KEY && !db) { keepEphemeral(load); emit('active'); } });
 }
 function emit(reason) { listeners.forEach(fn => { try { fn(reason); } catch (e) { console.error(e); } }); }
 
@@ -289,7 +302,15 @@ export function deleteTemplate(id) {
 
 export function active() { return state.portfolios[state.activeId] || null; }
 export function listPortfolios() { return Object.values(state.portfolios).sort((a, b) => a.name.localeCompare(b.name)); }
-export function setActive(id) { if (state.portfolios[id]) { state.activeId = id; undoStack = []; persist({ id }); emit('active'); } }
+export function setActive(id) { if (state.portfolios[id]) { if (!isEphemeral(state.portfolios[id])) lastSavedActive = id; state.activeId = id; undoStack = []; persist({ id }); emit('active'); } }
+// Another tab's save is read over this tab's state; the ephemeral portfolios (and the choice of
+// one of them) are this tab's own and stay.
+function keepEphemeral(read) {
+  const mine = Object.values(state.portfolios).filter(isEphemeral), act = state.activeId;
+  read();
+  for (const p of mine) state.portfolios[p.id] = p;
+  if (mine.some(p => p.id === act)) state.activeId = act;
+}
 
 export function addPortfolio(p) {
   upgradePortfolio(p);
@@ -415,7 +436,7 @@ export function fxFn(p = active()) {
   };
 }
 
-export function exportWorkspace(extra = {}) { return JSON.stringify({ app: 'nexus-portfolio-lab', exportedAt: new Date().toISOString(), ...extra, ...state }, null, 2); }
+export function exportWorkspace(extra = {}) { return JSON.stringify({ app: 'nexus-portfolio-lab', exportedAt: new Date().toISOString(), ...extra, ...savedState(state) }, null, 2); }
 export function importWorkspace(obj, { merge = true } = {}) {
   if (!obj || typeof obj !== 'object') throw new Error('invalid');
   // Accept a whole workspace or a single exported portfolio.
@@ -441,6 +462,7 @@ export function importWorkspace(obj, { merge = true } = {}) {
 }
 export function resetWorkspace() {
   const s = state.settings, arch = archive();
+  lastSavedActive = null;
   state = freshState();
   state.settings = s;
   state.archive = arch;
