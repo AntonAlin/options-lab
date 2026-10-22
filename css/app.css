@@ -98,7 +98,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brand-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, #6366f1, #8b5cf6 55%, #22d3ee); box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35); display: grid; place-items: center; flex: none; }
 .brand-mark svg { width: 20px; height: 20px; color: #fff; }
 .nav-group { margin-top: 14px; }
-.nav-group-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--sidebar-muted); padding: 0 10px 6px; }
+.nav-group-label { display: flex; align-items: center; gap: 6px; width: 100%; background: none; border: 0; cursor: pointer; font: inherit; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--sidebar-muted); padding: 4px 10px 6px; border-radius: 6px; text-align: left; }
+.nav-group-label:hover { color: var(--sidebar-ink); }
+.nav-group-label:focus-visible, .nav-item:focus-visible { outline: 2px solid #818cf8; outline-offset: 1px; }
+.nav-chev { width: 12px; height: 12px; margin-left: auto; transition: transform 0.15s ease; }
+.nav-group.open .nav-chev { transform: rotate(90deg); }
+.nav-dot { width: 6px; height: 6px; border-radius: 50%; background: #d03b3b; }
+.built-by { margin-bottom: 4px; }
 .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; color: var(--sidebar-ink); font-size: 13.5px; text-decoration: none !important; }
 .nav-item svg { width: 17px; height: 17px; flex: none; opacity: 0.85; }
 .nav-item:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
@@ -116,7 +122,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .valdate { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .valdate input { padding: 5px 8px; }
 .base-chip { font-size: 12px; font-weight: 600; background: var(--surface-3); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
-.menu-btn { display: none; }
+.icon-btn.menu-btn { display: none; } /* .icon-btn below would otherwise show it on desktop */
 
 /* ---- controls ---------------------------------------------------------------------------------- */
 input, select, textarea { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 7px; padding: 7px 10px; min-width: 0; }
@@ -185,7 +191,7 @@ textarea { width: 100%; resize: vertical; line-height: 1.5; }
 .kpi-breach { border-color: color-mix(in srgb, var(--neg) 45%, var(--line)); box-shadow: inset 3px 0 0 var(--neg); }
 .kpi-warn { box-shadow: inset 3px 0 0 var(--warn); }
 .kpi-ok { box-shadow: inset 3px 0 0 var(--pos); }
-.help { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 10px; color: var(--muted); cursor: help; position: relative; }
+.help { display: inline-grid; place-items: center; width: 15px; height: 15px; padding: 0; border-radius: 50%; border: 1px solid var(--line-strong); background: none; font: inherit; font-size: 10px; line-height: 1; color: var(--muted); cursor: help; position: relative; vertical-align: middle; }
 .help:hover::after, .help:focus::after { content: attr(data-tip); position: absolute; left: 50%; top: 20px; transform: translateX(-50%); width: 280px; background: var(--ink); color: var(--page); padding: 8px 10px; border-radius: 7px; font-size: 12px; line-height: 1.45; z-index: 60; white-space: normal; font-weight: 400; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); }
 
 /* ---- alerts & chips ------------------------------------------------------------------------------ */
@@ -368,7 +374,7 @@ label.invalid input, label.invalid select { border-color: var(--neg); }
   #sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 264px; transform: translateX(-100%); transition: transform 0.2s ease; box-shadow: 0 0 40px rgba(0, 0, 0, 0.35); }
   body.nav-open #sidebar { transform: none; }
   body.nav-open::after { content: ''; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 35; }
-  .menu-btn { display: inline-grid; }
+  .icon-btn.menu-btn { display: inline-grid; }
   #topbar { padding: 8px 16px; }
   #main { padding: 16px; }
   .disclaimer-bar { padding: 8px 16px 16px; }

@@ -47,7 +47,7 @@ export const signCls = x => (!isNum(x) || Math.abs(x) < 1e-12 ? '' : x > 0 ? 'po
 // ---- building blocks -------------------------------------------------------------------------------
 export function kpi(label, value, { sub = '', tone = '', help = '', id = '' } = {}) {
   return `<div class="kpi ${tone ? 'kpi-' + tone : ''}" ${id ? `id="${id}"` : ''}>
-    <div class="kpi-label">${esc(label)}${help ? ` <span class="help" tabindex="0" data-tip="${esc(help)}">?</span>` : ''}</div>
+    <div class="kpi-label">${esc(label)}${help ? ` <button type="button" class="help" aria-label="${esc(t('common.help'))}: ${esc(help)}" data-tip="${esc(help)}">?</button>` : ''}</div>
     <div class="kpi-value">${value}</div>
     ${sub ? `<div class="kpi-sub">${sub}</div>` : ''}
   </div>`;

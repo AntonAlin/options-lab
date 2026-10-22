@@ -43,7 +43,7 @@ export default {
         <div class="kpi"><div class="kpi-label">${esc(t('hist.range'))}</div><div class="kpi-value sm">${fmtDate(h.dates[0])} – ${fmtDate(h.dates[h.dates.length - 1])}</div></div>
         <div class="kpi"><div class="kpi-label">${esc(t('hist.series'))}</div><div class="kpi-value">${keys.length}</div></div>
         <div class="kpi"><div class="kpi-label">${esc(t('hist.coverage'))}</div><div class="kpi-value">${hp ? fmtPct(hp.coverage, 0) : '—'}</div><div class="kpi-sub">${esc(t('hist.coverageSub'))}</div></div>
-        <div class="kpi"><div class="kpi-label">${esc(t('hist.benchmark'))}</div><div class="kpi-value sm">${selectHtml('id="benchSel"', [['', t('hist.noBench')], ...keys.map(k => [k, k])], p.benchmark)}</div></div>
+        <div class="kpi"><div class="kpi-label">${esc(t('hist.benchmark'))}</div><div class="kpi-value sm">${selectHtml(`id="benchSel" aria-label="${esc(t('hist.benchmark'))}"`, [['', t('hist.noBench')], ...keys.map(k => [k, k])], p.benchmark)}</div></div>
       </div>
       <div class="grid-2">
         ${card(t('hist.seriesTitle'), table([
@@ -56,7 +56,7 @@ export default {
         ], seriesRows, { dense: true }), { actions: `<button class="btn btn-sm btn-danger" data-act="clear">${esc(t('hist.clear'))}</button>` })}
         ${card(t('hist.matching'), `<p class="muted small">${esc(t('hist.matchingHelp'))}</p>` + table([
           { key: 'name', label: t('col.name'), fmt: x => `${esc(x.name)}<div class="cell-sub">${esc(typeLabel(x.pos.type))}</div>` },
-          { key: 'k', label: t('hist.key'), fmt: x => selectHtml(`data-match="${x.pos.id}"`, [['', '— ' + t('hist.none') + ' —'], ...keys.map(k => [k, k])], seriesKeyFor(x.pos, h) || '') }
+          { key: 'k', label: t('hist.key'), fmt: x => selectHtml(`data-match="${x.pos.id}" aria-label="${esc(t('hist.key') + ': ' + x.name)}"`, [['', '— ' + t('hist.none') + ' —'], ...keys.map(k => [k, k])], seriesKeyFor(x.pos, h) || '') }
         ], [...matchable].sort((x, y) => (seriesKeyFor(x.pos, h) ? 1 : 0) - (seriesKeyFor(y.pos, h) ? 1 : 0) || Math.abs(y.r.mv) - Math.abs(x.r.mv)), { dense: true }))}
       </div>` : empty(esc(t('hist.empty')))}
     `;

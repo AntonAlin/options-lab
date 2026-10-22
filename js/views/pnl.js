@@ -54,7 +54,7 @@ export default {
         { key: 'act', label: '', fmt: r => r.covered && r.source === 'costPrice' ? `<button class="icon-btn sm" data-editcost="${r.pos.id}" title="${esc(t('pnl.editCost'))}" aria-label="${esc(t('pnl.editCost'))}">✎</button>` : !r.covered ? `<button class="btn btn-sm" data-editcost="${r.pos.id}">${esc(t('pnl.setCost'))}</button>` : '' }
       ], pn.rows, { dense: true, rowAttr: r => (r.covered ? '' : 'class="row-info"') }), { sub: esc(t('pnl.positionsSub')) })}
       ${card(t('pnl.transactions'), `
-        <div class="toolbar">${selectHtml('id="txFilter"', [['', t('pnl.allPositions')], ...txPositions.map(x => [x.id, x.name])], ui.txFilter)}
+        <div class="toolbar">${selectHtml(`id="txFilter" aria-label="${esc(t('pnl.allPositions'))}"`, [['', t('pnl.allPositions')], ...txPositions.map(x => [x.id, x.name])], ui.txFilter)}
           <span class="muted small">${esc(t('hold.showing', { n: txs.length, total: p.transactions.length }))}</span></div>
         ${txs.length ? table([
           { key: 'd', label: t('cf.date'), fmt: tx => `<span class="nowrap">${fmtDate(tx.date)}</span>` },
