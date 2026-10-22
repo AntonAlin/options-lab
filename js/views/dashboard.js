@@ -2,7 +2,7 @@ import * as store from '../store.js';
 import { lastSignoff } from '../auditlog.js';
 import { t, L } from '../i18n.js';
 import { esc, kpi, card, pageHead, fmtMoney, fmtPct, fmtNum, table, statusChip, fmtDate } from '../ui.js';
-import { ruleName, ruleVal, ruleLimit } from '../labels.js';
+import { ruleName, ruleVal, ruleLimit, spanText } from '../labels.js';
 import { ASSET_CLASSES, typeLabel } from '../instruments.js';
 import * as charts from '../charts.js';
 import * as filelink from '../filelink.js';
@@ -91,7 +91,7 @@ export default {
           { key: 'pct', label: '% NAV', align: 'right', fmt: x => `<span class="${x.total < 0 ? 'neg' : 'pos'}">${fmtPct(x.pct, 1, { sign: true })}</span>` }
         ], [...stress].sort((x, y) => x.total - y.total).slice(0, 6), { dense: true }), { sub: worst ? esc(t('dash.stressSub', { s: L(worst.scenario), p: fmtPct(worst.pct, 1) })) : '', actions: `<a href="#/stress" class="link">${esc(t('common.details'))} →</a>` })}
       </div>
-      ${perf ? card(t('dash.perf'), '<div id="chPerf" class="chart"></div>', { sub: esc(t('dash.perfSub', { r: fmtPct(perf.cagr, 1), v: fmtPct(perf.vol, 1), s: fmtNum(perf.sharpe, 2) })), actions: `<a href="#/performance" class="link">${esc(t('common.details'))} →</a>` })
+      ${perf ? card(t('dash.perf'), '<div id="chPerf" class="chart"></div>', { sub: esc(perf.annualised ? t('dash.perfSub', { r: fmtPct(perf.cagr, 1), v: fmtPct(perf.vol, 1), s: fmtNum(perf.sharpe, 2) }) : t('dash.perfSubTotal', { r: fmtPct(perf.total, 2), span: spanText(perf) })), actions: `<a href="#/performance" class="link">${esc(t('common.details'))} →</a>` })
         : card(t('dash.perf'), `<div class="empty"><p>${esc(t('dash.noHistory'))}</p><a class="btn" href="#/history">${esc(t('nav.history'))}</a></div>`)}
       ${card(t('dash.compliance'), `<ul class="rule-list">${comp.rules.map(r => `<li>${statusChip(r.status)}<span>${esc(ruleName(r.id))}</span><span class="num">${ruleVal(r, 1)} / ${ruleLimit(r)}</span></li>`).join('')}</ul>`, { actions: `<a href="#/compliance" class="link">${esc(t('common.details'))} →</a>` })}
     `;
@@ -110,7 +110,7 @@ export default {
         let g = 1;
         series.push({ name: p.benchmark, y: [0, ...a.bench.slice(1).map(r => (g *= 1 + (Number.isFinite(r) ? r : 0)) - 1)] });
       }
-      charts.render('chPerf', charts.lineSpec(dates.slice(dates.length - series[0].y.length), series, { height: 280, zero: true, area: true, rangeButtons: true }));
+      charts.render('chPerf', charts.lineSpec(dates.slice(dates.length - series[0].y.length), series, { height: 280, zero: true, area: true, rangeButtons: perf.annualised }));
     }
   }
 };

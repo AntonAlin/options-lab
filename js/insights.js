@@ -2,7 +2,7 @@
 // between two dates, holdings-based (realised) performance, active vs passive limit breaches,
 // pre-trade what-if, Brinson attribution and the ESMA-style liquidity stress test.
 // Pure functions of plain data like analytics.js, so the tests can check every number.
-import { valuePortfolio, factorModel, fixedIncome, liquidity, compliance, concentration, seriesKeyFor, perfStats } from './analytics.js';
+import { valuePortfolio, factorModel, fixedIncome, liquidity, compliance, concentration, seriesKeyFor, perfStats, inferPeriodsPerYear } from './analytics.js';
 import { regionOf } from './instruments.js';
 import { isNum, num, sum, mean, uid, freqOf } from './util.js';
 import { couponSchedule } from './pricing.js';
@@ -122,15 +122,17 @@ export function realised(p, snaps, { rf = num(p.risk?.riskFree, 2) / 100 } = {})
   const ret = periods.map(q => q.ret);
   const idx = [1];
   ret.forEach(r => idx.push(idx[idx.length - 1] * (1 + (isNum(r) ? r : 0))));
-  const gap = mean(periods.map(q => days(q.from, q.to))) || 1;
-  const ppy = 365.25 / gap;
+  // Frequency and span from the snapshot dates themselves (analytics.perfStats).
+  const snapDates = snaps.map(s => s.date);
+  const ppy = inferPeriodsPerYear(snapDates);
   // Benchmark over the same dates, from its series in the price history.
   let bench = null;
   if (p.benchmark && p.history?.series?.[p.benchmark]) {
     const px = snaps.map(s => priceAt(p.history, p.benchmark, s.date));
     bench = px.slice(1).map((x, i) => (isNum(x) && isNum(px[i]) && px[i] > 0 ? x / px[i] - 1 : NaN));
   }
-  const stats = ret.filter(isNum).length >= 5 ? perfStats(ret, { rf, periodsPerYear: ppy, bench }) : null;
+  // A leading NaN lines the returns up with the snapshot dates: the first period starts on snaps[0].
+  const stats = ret.filter(isNum).length >= 5 ? perfStats([NaN, ...ret], { rf, periodsPerYear: ppy, bench: bench ? [NaN, ...bench] : null, dates: snapDates }) : null;
   // Contribution by holding: arithmetic sum of period contributions (a good approximation for
   // short periods; it does not compound).
   const byKey = new Map();

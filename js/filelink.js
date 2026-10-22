@@ -78,7 +78,7 @@ async function xlsxBlob({ rows, p }) {
   const h = p.history || { dates: [], series: {} };
   const keys = Object.keys(h.series || {});
   if (h.dates?.length && keys.length) {
-    X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['date', ...keys], ...h.dates.map((d, i) => [d, ...keys.map(k => h.series[k][i] ?? '')])]), 'History');
+    X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['date', ...keys], ...h.dates.map((d, i) => [d, ...keys.map(k => h.series[k][i] ?? '')])]), 'Prices'); // Excel reserves "History"
   }
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['portfolio', p.name], ['baseCcy', p.baseCcy], ['valuationDate', p.valDate || ''], ['manager', p.manager || ''], ['savedBy', 'Nexus Portfolio Lab']]), 'Info');
   return new Blob([X.write(wb, { type: 'array', bookType: 'xlsx' })], { type: Object.keys(TYPES.xlsx.accept)[0] });

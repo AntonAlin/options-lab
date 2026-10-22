@@ -10,7 +10,7 @@
 //                  jurisdictions, to tell the supervisor)
 // The P&L is the back-cast of today's holdings on the loaded price history (analytics.historicalPnl),
 // cut at the valuation date, so a past snapshot never sees later prices.
-import { historicalPnl, factorModel, returnsOf } from './analytics.js';
+import { historicalPnl, factorModel, returnsOf, inferPeriodsPerYear, periodDays } from './analytics.js';
 import { normInv, normCDF } from './pricing.js';
 import { isNum, num, quantile, mean } from './util.js';
 import { ewmaVariance, EWMA_LAMBDA } from './riskstats.js';
@@ -32,18 +32,21 @@ export function backcast(v) {
   return historicalPnl({ ...v, p: { ...v.p, history: h } });
 }
 
-// VaR of a daily series (P&L in money, or returns) at confidence c, scaled by √horizon.
-function seriesVar(x, { confidence, horizon, window, model }) {
+// VaR of a series (P&L in money, or returns) at confidence c. The series is daily unless ppy says
+// otherwise (weekly or month-end prices): one period's VaR is then brought to one day and to the
+// horizon by √time, the same square-root rule the daily figure already relies on.
+function seriesVar(x, { confidence, horizon, window, model }, ppy = 252) {
   const s = x.filter(isNum).slice(-window);
   if (s.length < 20) return null;
   const d = model === 'ewma' ? normInv(confidence) * Math.sqrt(ewmaVariance(s, EWMA_LAMBDA) ?? 0) : -quantile(s, 1 - confidence);
-  return { var1d: d, varH: d * Math.sqrt(horizon), obs: s.length };
+  const days = periodDays(ppy);
+  return { var1d: d / Math.sqrt(days), varH: d * Math.sqrt(horizon / days), obs: s.length };
 }
 
 // The fund's VaR as % of NAV. Falls back to the factor model (flagged) without enough history.
 export function fundVar(v, cfg = geSettings(v.p), hp = backcast(v)) {
   const nav = v.nav || 1;
-  const hv = hp && hp.obs >= 20 ? seriesVar(hp.portfolioPnl, cfg) : null;
+  const hv = hp && hp.obs >= 20 ? seriesVar(hp.portfolioPnl, cfg, hp.periodsPerYear) : null;
   if (hv) return { pct: hv.varH / nav * 100, pct1d: hv.var1d / nav * 100, obs: hv.obs, model: cfg.model, coverage: hp.coverage, short: hv.obs < 250 };
   const f = factorModel({ ...v, p: { ...v.p, risk: { ...(v.p.risk || {}), confidence: cfg.confidence, horizonDays: cfg.horizon } } });
   return { pct: f.varPct * 100, pct1d: f.varPct * 100 / Math.sqrt(cfg.horizon), obs: 0, model: 'parametric', coverage: 0, short: true };
@@ -56,7 +59,7 @@ export function referenceVar(v, cfg = geSettings(v.p)) {
   const h = cutHistory(v.p, v.ctx.valDate);
   if (!key || !h?.series?.[key]) return null;
   const r = returnsOf(h.series[key]);
-  const rv = seriesVar(r, { ...cfg, model: cfg.model === 'ewma' ? 'ewma' : 'historical' });
+  const rv = seriesVar(r, { ...cfg, model: cfg.model === 'ewma' ? 'ewma' : 'historical' }, inferPeriodsPerYear(h.dates));
   return rv ? { pct: rv.varH * 100, obs: rv.obs, key } : null;
 }
 

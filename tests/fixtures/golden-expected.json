@@ -354,7 +354,7 @@
     },
     {
       "key": "performance.cagr",
-      "value": 0.11242290843863056,
+      "value": 0.1166131768234917,
       "what": "Back-cast cagr"
     },
     {
@@ -364,12 +364,12 @@
     },
     {
       "key": "performance.sharpe",
-      "value": 1.0347139323930692,
+      "value": 1.0816257765616715,
       "what": "Back-cast sharpe"
     },
     {
       "key": "performance.sortino",
-      "value": 1.546600753308948,
+      "value": 1.6167205142002223,
       "what": "Back-cast sortino"
     },
     {
@@ -389,7 +389,7 @@
     },
     {
       "key": "performance.infoRatio",
-      "value": 0.12682950450502556,
+      "value": 0.13179157586356782,
       "what": "Back-cast infoRatio"
     },
     {

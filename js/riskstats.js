@@ -34,10 +34,12 @@ export function ewmaRisk(v, hp, { lambda = EWMA_LAMBDA } = {}) {
   const varD = ewmaVariance(port, lambda);
   if (!varD) return null;
   const sd = Math.sqrt(varD), z = normInv(conf);
-  const sigA = sd * Math.sqrt(252);
+  // sd is one period's: a day, or a month on month-end prices (hp.periodsPerYear).
+  const ppy = hp.periodsPerYear || 252, perDay = 252 / ppy;
+  const sigA = sd * Math.sqrt(ppy);
   const byPosition = hp.covered.map(c => {
     const cv = ewmaCovariance(c.pnl.map(num), port.map(num), lambda) ?? 0;
-    return { row: c.row, contrib: sd ? cv / sd * Math.sqrt(252) : 0 };
+    return { row: c.row, contrib: sd ? cv / sd * Math.sqrt(ppy) : 0 };
   }).sort((x, y) => y.contrib - x.contrib);
   byPosition.forEach(b => { b.pct = sigA ? b.contrib / sigA : 0; });
   const cls = {};
@@ -47,7 +49,7 @@ export function ewmaRisk(v, hp, { lambda = EWMA_LAMBDA } = {}) {
     o.total += b.contrib; o[part] += b.contrib;
   }
   const plainSd = Math.sqrt(mean(port.filter(isNum).map(x => x * x)));
-  const varAbs = z * sd * Math.sqrt(h), esAbs = sd * Math.sqrt(h) * normPDF(z) / (1 - conf);
+  const varAbs = z * sd * Math.sqrt(h / perDay), esAbs = sd * Math.sqrt(h / perDay) * normPDF(z) / (1 - conf);
   return {
     method: 'ewma', lambda, halfLife: Math.log(0.5) / Math.log(lambda),
     var: varAbs, es: esAbs, varPct: v.nav ? varAbs / v.nav : 0, esPct: v.nav ? esAbs / v.nav : 0,

@@ -19,7 +19,11 @@ export async function downloadDemo(kind) {
     const X = window.XLSX;
     const wb = demoWorkbook(X, date, { empty: kind === 'template' });
     downloadBlob(new Blob([X.write(wb, { type: 'array', bookType: 'xlsx', cellDates: true })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), kind === 'template' ? 'nexus-holdings-template.xlsx' : 'nexus-holdings-demo.xlsx');
-  } catch (err) { console.error(err); toast(t('err.lib'), { tone: 'warn' }); }
+  } catch (err) {
+    // Loud on purpose: a download button that does nothing is the worst kind of broken.
+    console.error(err);
+    toast(t('setup.dlFailed', { err: err?.message || String(err) }), { tone: 'warn', ms: 8000 });
+  }
 }
 export const demoButtons = (primary = false) => `<div class="btn-row">
     <button class="btn ${primary ? 'btn-primary' : ''}" data-demo="xlsx">${esc(t('setup.dlXlsx'))}</button>

@@ -203,8 +203,9 @@ export function analyseSheets(sheetsIn, opts = {}) {
   return usable.length ? analyseRows(usable[0].rows, opts) : { error: 'no_rows' };
 }
 
-// Other sheets of a workbook: a price history (sheet named History / Prices / Historik / Kurser,
-// wide or long, the layout the bulk upload's history import reads). Read, never written.
+// Other sheets of a workbook: a price history (sheet named Prices / Price history / Historik / Kurser,
+// wide or long, the layout the bulk upload's history import reads). Read, never written. "History"
+// is still accepted, in any case, for files written before the sheet was renamed (Excel reserves it).
 const HISTORY_SHEET = /^(price\s*)?histor(y|ik)$|^prices?$|^priser$|^kurser$|^prishistorik$|^kurshistorik$/i;
 export function parseExtras(sheets, { skip = '', decimal = '.' } = {}) {
   let history = null;

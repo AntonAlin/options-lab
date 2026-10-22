@@ -46,3 +46,36 @@ const withUnit = (x, u, d) => (isNum(x) ? fmtNum(x, u === '' ? 0 : d) + (u === '
 export const ruleVal = (r, d = 2) => (r ? withUnit(r.value, r.unit ?? ruleUnit(r.id), d) : '');
 export const ruleLimit = (r, { ascii = false } = {}) => (r ? (r.dir === 'min' ? (ascii ? '>= ' : '≥ ') : (ascii ? '<= ' : '≤ ')) + withUnit(r.limit, r.unit ?? ruleUnit(r.id), 1) : '');
 export const unitVal = (x, id, d = 2) => withUnit(x, ruleUnit(id), d);
+
+// ---- performance statistics -----------------------------------------------------------------------------
+// The words for one observation period of a return series ('daily' → Daily / day / days), so a
+// month-end history says "Monthly VaR" and "Best month" instead of pretending to be daily.
+export const freqWords = freq => ({ f: t('freq.' + freq), p: t('freq.p.' + freq), ps: t('freq.ps.' + freq) });
+// Below this many returns a quantile, the best and worst period, the hit rate and the higher
+// moments are anecdotes, not statistics: they are left out rather than shown with false precision.
+export const MIN_TAIL_OBS = 20;
+// The rows of the statistics table (page and PDF): [{ k, label, x, b, f }] with f 'pct' | 'pct0' | 'num'.
+// Annualised ratios only with a year of history (perfStats.annualised); per-period tail figures
+// only with MIN_TAIL_OBS returns.
+export function perfStatRows(perf, { bench = true } = {}) {
+  const B = bench ? perf.bench : null, w = freqWords(perf.freq);
+  const ann = perf.annualised, tail = perf.n >= MIN_TAIL_OBS;
+  const row = (label, k, f = 'pct', show = true) => (show ? [{ k, label, x: perf[k], b: B ? B[k] : null, f }] : []);
+  const rel = (label, k, f = 'num', show = true) => (show && B ? [{ k, label, x: perf[k], b: null, f }] : []);
+  return [
+    ...row(t('perf.total'), 'total'), ...row(t('perf.cagr'), 'cagr', 'pct', ann), ...row(t('perf.vol'), 'vol'),
+    ...row(t('perf.sharpe'), 'sharpe', 'num', ann), ...row(t('perf.sortino'), 'sortino', 'num', ann),
+    ...row(t('perf.maxDD'), 'maxDD'), ...row(t('perf.calmar'), 'calmar', 'num', ann),
+    ...row(t('perf.var95', w), 'var95', 'pct', tail), ...row(t('perf.es95', w), 'es95', 'pct', tail), ...row(t('perf.var99', w), 'var99', 'pct', tail),
+    ...row(t('perf.best', w), 'best', 'pct', tail), ...row(t('perf.worst', w), 'worst', 'pct', tail), ...row(t('perf.hit', w), 'hitRate', 'pct0', tail),
+    ...row(t('perf.skew'), 'skew', 'num', tail), ...row(t('perf.kurt'), 'kurt', 'num', tail),
+    ...rel(t('perf.beta'), 'beta'), ...rel(t('perf.corr'), 'correlation'), ...rel(t('perf.alpha'), 'alpha', 'pct', ann),
+    ...rel(t('perf.te'), 'trackingError', 'pct'), ...rel(t('perf.ir'), 'infoRatio', 'num', ann),
+    ...rel(t('perf.upCap'), 'upCapture', 'pct0'), ...rel(t('perf.downCap'), 'downCapture', 'pct0')
+  ];
+}
+// "4 months" / "2.9 years": how much history the figures rest on.
+export function spanText(perf) {
+  const d = perf.spanDays || 0;
+  return d < 365 ? t('perf.spanMonths', { n: Math.max(1, Math.round(d / 30.44)) }) : t('perf.spanYears', { n: fmtNum(d / 365.25, 1) });
+}

@@ -84,7 +84,7 @@ const ABOUT = {
       'Settings: check base currency, fund type, valuation date and that FX rates are the ECB rates, not the fallback.',
       'Compliance and Fund rules: set the limits to the prospectus; add the fund\'s own restrictions as rules.',
       'Global exposure: choose commitment or VaR approach; Liquidity tools: record the selected tools and swing pricing settings.',
-      'Load price history (Price history, or a History sheet in the workbook) for performance, historical VaR and backtests.',
+      'Load price history (Price history, or a Prices sheet in the workbook) for performance, historical VaR and backtests.',
       'Link a file or set automatic backups (Settings) so the browser is not the only copy of limits, rules and logs.'
     ]],
     ['Every business day', [

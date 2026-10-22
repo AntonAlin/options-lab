@@ -5,7 +5,7 @@ import { fmtMoney, fmtPct, fmtNum, fmtDate } from './ui.js';
 import { ASSET_CLASSES, REGIONS, typeLabel } from './instruments.js';
 import { monthlyReturns, RATING_BUCKETS } from './analytics.js';
 import * as charts from './charts.js';
-import { treeNodes, overlayRows, classLabel, ruleName, ruleVal, ruleLimit } from './labels.js';
+import { treeNodes, overlayRows, classLabel, ruleName, ruleVal, ruleLimit, perfStatRows, spanText } from './labels.js';
 import { REG_AS_OF } from './views/regnote.js';
 import { loadScript, isNum, slug } from './util.js';
 import { verify, caseList } from './auditlog.js';
@@ -288,13 +288,13 @@ export async function generateReport(p, a, opts) {
     if (bench && perf.bench) { let g = 1; cum.push({ name: p.benchmark, y: [0, ...bench.slice(1).map(r => (g *= 1 + (isNum(r) ? r : 0)) - 1)] }); }
     await chart(charts.lineSpec(dates.slice(dates.length - cum[0].y.length), cum, { th, height: 300, zero: true }), 70);
     const B = perf.bench;
-    const r2 = (l, x, b, f = q => fmtPct(q, 2)) => [l, f(x), B ? (b == null ? '' : f(b)) : ''];
-    tableAt([t('rep.measure'), t('perf.portfolio'), B ? p.benchmark : ''], [
-      r2(t('perf.total'), perf.total, B?.total), r2(t('perf.cagr'), perf.cagr, B?.cagr), r2(t('perf.vol'), perf.vol, B?.vol),
-      r2(t('perf.sharpe'), perf.sharpe, B?.sharpe, q => fmtNum(q, 2)), r2(t('perf.sortino'), perf.sortino, B?.sortino, q => fmtNum(q, 2)),
-      r2(t('perf.maxDD'), perf.maxDD, B?.maxDD), r2(t('perf.var95'), perf.var95, B?.var95), r2(t('perf.es95'), perf.es95, B?.es95),
-      ...(B ? [[t('perf.beta'), fmtNum(perf.beta, 2), ''], [t('perf.te'), fmtPct(perf.trackingError, 2), ''], [t('perf.ir'), fmtNum(perf.infoRatio, 2), '']] : [])
-    ], { width: CW * 0.7 });
+    if (!perf.annualised) para(t('perf.notAnnualised', { span: spanText(perf) }), 7.5, MUTED);
+    // Same rows as the page: annualised ratios only with a year of history, tail figures only with enough returns.
+    const FMT = { pct: q => fmtPct(q, 2), pct0: q => fmtPct(q, 0), num: q => fmtNum(q, 2) };
+    const PDF_ROWS = new Set(['total', 'cagr', 'vol', 'sharpe', 'sortino', 'maxDD', 'var95', 'es95', 'beta', 'trackingError', 'infoRatio']);
+    tableAt([t('rep.measure'), t('perf.portfolio'), B ? p.benchmark : ''],
+      perfStatRows(perf).filter(r => PDF_ROWS.has(r.k)).map(r => [r.label, FMT[r.f](r.x), B ? (r.b == null ? '' : FMT[r.f](r.b)) : '']),
+      { width: CW * 0.7 });
     const monthly = monthlyReturns(dates, risk.hp.portfolioRet);
     const mNames = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(2020, i, 1)).toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' }));
     heading(t('perf.monthly'));

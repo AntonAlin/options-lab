@@ -105,8 +105,8 @@ export default {
 function trackRecord(p, rec, base) {
   const s = rec.stats;
   const top = rec.byHolding.filter(x => zp(x.contrib) > 0).slice(0, 8), bottom = rec.byHolding.filter(x => zp(x.contrib) < 0).slice(-8).reverse();
-  // GIPS: returns for periods under a year are not annualised.
-  const fullYear = (Date.parse(rec.dates[rec.dates.length - 1]) - Date.parse(rec.dates[0])) / 86400000 >= 365;
+  // GIPS: returns for periods under a year are not annualised (perfStats decides).
+  const fullYear = !!s?.annualised;
   const contribTable = list => table([
     { key: 'n', label: t('col.name'), fmt: r => esc(r.name) },
     { key: 'c', label: t('chg.contrib'), align: 'right', fmt: r => `<span class="${signCls(zp(r.contrib))}">${fmtPct(zp(r.contrib), 2)}</span>` },

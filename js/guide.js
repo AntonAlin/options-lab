@@ -85,7 +85,7 @@ export const GUIDE = [
         { en: 'First column: the date the row applies to — 2026-09-29, 29.09.2026, 20260929 or an Excel date. Rows without a date (totals, notes) are skipped and counted.' },
         { en: 'Optional portfolio column: Portfolio, Fund, Account, Mandate, Client (or Portfölj, Fond, Konto, Depå, Mandat, Kund). Each value becomes its own portfolio. Without it, the whole source is one portfolio named after it.' },
         { en: 'The other columns as in Bulk upload: name, ISIN, ticker, type, quantity, price, currency, maturity, coupon and so on, with English or Swedish headers.' },
-        { en: 'An Excel or ODS workbook may add a sheet named History (Date | one column per price series) for VaR and performance. It is read, never written.' }
+        { en: 'An Excel or ODS workbook may add a sheet named Prices (Date | one column per price series) for VaR and performance. It is read, never written. A sheet named History, from files made before, is read the same way.' }
       ] },
       { p: { en: 'Example:' } },
       { code: 'Date;Portfolio;Name;ISIN;Type;Quantity;Price;Currency\n2026-09-28;Fund A;Volvo B;SE0000115446;Equity;1000;250,5;SEK\n2026-09-28;Fund B;Apple;US0378331005;Equity;10;230;USD\n2026-09-29;Fund A;Volvo B;SE0000115446;Equity;1200;255;SEK\n2026-09-29;Fund B;Apple;US0378331005;Equity;12;232;USD' },
@@ -291,7 +291,7 @@ export const GUIDE = [
         { en: 'The source is not updating — a file must be saved (not only edited) and the tab visible. Click “Read now” on the card to force it.' },
         { en: 'My edits on Holdings disappeared — the source is read only (the card says so), so a change there replaces them. Connect it with write access, or edit the source.' },
         { en: 'A position is valued at zero — its currency has no FX rate, or a required field is missing (see the error on the row).' },
-        { en: 'Performance and historical VaR are empty — load price history, add a History sheet, or use a source with at least two dates.' },
+        { en: 'Performance and historical VaR are empty — load price history, add a Prices sheet, or use a source with at least two dates.' },
         { en: 'Changes & track record says it needs two dates — use a source with several dates (or the “As a new dated snapshot” write mode), or save a snapshot today and another later.' },
         { en: 'Attribution shows a segment as “not in benchmark” — the names differ. Use the names shown in the table, or download the template.' },
         { en: 'The same file cannot be both a data source and the linked workspace file — the platform would overwrite the one with the other. Use different files.' }

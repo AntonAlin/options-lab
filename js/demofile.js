@@ -4,7 +4,8 @@
 //
 // Workbook layout (every sheet is optional except Holdings):
 //   Holdings      Date | Portfolio | Instrument type | <one column per field> — one row per holding per date
-//   History       Date | <one column per price series> — the price history behind VaR and performance
+//   Prices        Date | <one column per price series> — the price history behind VaR and performance.
+//                 Not "History": Excel reserves that sheet name and SheetJS refuses to write it.
 //   Instructions  read by people, ignored by the app
 //
 // The CSV holds the Holdings sheet only. Pure module: the caller passes SheetJS in.
@@ -14,6 +15,8 @@ import { toCSV } from './importer.js';
 import { headerOf, DATE_HEADER, PORTFOLIO_HEADER } from './sourcefile.js';
 import { parseISODate, toISODate, DAY_MS } from './util.js';
 
+// The price sheet's name. Readers still take an old "History" sheet (js/sourcefile.js).
+export const PRICE_SHEET = 'Prices';
 export const DEMO_FUNDS = ['Demo: Nordic Balanced Fund', 'Demo: Nordic Equity Fund'];
 
 // The latest month-end on or before `today`, moved back to a weekday.
@@ -85,7 +88,7 @@ const INSTRUCTIONS = [
   ['Holdings', 'One row per holding per date. The first column is the date the holding applies to; the Portfolio column says which fund or mandate it belongs to.'],
   ['', 'Add a new date by copying the rows of the last date and changing what changed. The app shows the latest date and keeps every earlier one for history and changes.'],
   ['', 'Changes made in the app (a new holding, an edit, a deletion) are written back into this file. Close the file in Excel while the app writes, or the write waits until you do.'],
-  ['History', 'Optional. Date in the first column, one column per price series (ticker or ISIN). Feeds VaR, volatility and performance.'],
+  ['Prices', 'Optional. Date in the first column, one column per price series (ticker or ISIN). Feeds VaR, volatility and performance.'],
   ['Instrument type', 'Equity, ETF, Fund, Government bond, Corporate bond, FRN, Money market, Cash, Future, Option, FX forward, Interest rate swap, CDS and the other types listed in the app.'],
   [''],
   ['The demo funds and every figure in them are made up. Prices are synthetic, not market data.']
@@ -97,7 +100,7 @@ export function demoWorkbook(X, valDate, { empty = false } = {}) {
   const ws = X.utils.aoa_to_sheet(hold, { cellDates: true, dateNF: 'yyyy-mm-dd' });
   ws['!cols'] = hold[0].map(h => ({ wch: Math.max(10, String(h).length + 2) }));
   X.utils.book_append_sheet(wb, ws, 'Holdings');
-  if (!empty) X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(historyRows(valDate).map((r, i) => (i ? [toDate(r[0]), ...r.slice(1)] : r)), { cellDates: true, dateNF: 'yyyy-mm-dd' }), 'History');
+  if (!empty) X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(historyRows(valDate).map((r, i) => (i ? [toDate(r[0]), ...r.slice(1)] : r)), { cellDates: true, dateNF: 'yyyy-mm-dd' }), PRICE_SHEET);
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(INSTRUCTIONS), 'Instructions');
   return wb;
 }

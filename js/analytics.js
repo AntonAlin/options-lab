@@ -2,7 +2,7 @@
 // data, so the same numbers drive the screen, the PDF and the tests.
 import { INSTRUMENTS, validatePosition, regionOf, ratingScore, ratingFromScore, isInvestmentGrade, displayName, SUBUNITS, majorCcy } from './instruments.js';
 import { normInv, normPDF } from './pricing.js';
-import { isNum, num, sum, mean, stdev, quantile, covariance, todayISO } from './util.js';
+import { isNum, num, sum, mean, stdev, quantile, covariance, todayISO, DAY_MS } from './util.js';
 import { FALLBACK_EUR_RATES, DEFAULT_CMA, DEFAULT_RISK } from './store.js';
 import { zeroAt } from './marketdata.js';
 import { ewmaRisk, riskDrivers } from './riskstats.js';
@@ -304,15 +304,46 @@ export function factorModel(v) {
 }
 
 // ---- price history & historical analytics -----------------------------------------------------
+// The series for a position: its matched series key, else ISIN, ticker or name. A source with a
+// Prices sheet and several dated snapshots holds two series for one holding: the daily prices
+// (usually under the ticker) and the month-end prices read off the snapshots (under the ISIN). The
+// one with the most observations wins, or the six month-ends would hide three years of closes; a
+// tie keeps the order above.
+const obsCount = new WeakMap();
+const observations = s => { if (!Array.isArray(s)) return 0; if (!obsCount.has(s)) obsCount.set(s, s.filter(isNum).length); return obsCount.get(s); };
 export function seriesKeyFor(pos, history) {
   const keys = Object.keys(history?.series || {});
   if (!keys.length) return null;
   const lower = new Map(keys.map(k => [k.toLowerCase().trim(), k]));
-  for (const cand of [pos.seriesKey, pos.isin, pos.ticker, pos.name]) {
-    if (cand && lower.has(String(cand).toLowerCase().trim())) return lower.get(String(cand).toLowerCase().trim());
+  if (pos.seriesKey && lower.has(String(pos.seriesKey).toLowerCase().trim())) return lower.get(String(pos.seriesKey).toLowerCase().trim());
+  let best = null;
+  for (const cand of [pos.isin, pos.ticker, pos.name]) {
+    const k = cand ? lower.get(String(cand).toLowerCase().trim()) : null;
+    if (k && (!best || observations(history.series[k]) > observations(history.series[best]))) best = k;
   }
-  return null;
+  return best;
 }
+
+// ---- observation frequency ----------------------------------------------------------------------
+// A price history can be daily closes or a handful of month-end snapshots, and √252 on monthly
+// returns turns a quiet half year into a crash. The frequency is read off the dates themselves:
+// the median gap in calendar days between consecutive observations (the median, so one missing
+// week or a holiday does not change the answer).
+export function inferPeriodsPerYear(dates) {
+  const t = (dates || []).map(d => Date.parse(d)).filter(Number.isFinite);
+  if (t.length < 2) return 252;
+  const gaps = t.slice(1).map((x, i) => (x - t[i]) / DAY_MS).filter(g => g > 0).sort((a, b) => a - b);
+  if (!gaps.length) return 252;
+  const m = gaps.length % 2 ? gaps[(gaps.length - 1) / 2] : (gaps[gaps.length / 2 - 1] + gaps[gaps.length / 2]) / 2;
+  return m <= 4 ? 252 : m <= 10 ? 52 : m <= 40 ? 12 : m <= 100 ? 4 : 1;
+}
+export const FREQ_NAME = { 252: 'daily', 52: 'weekly', 12: 'monthly', 4: 'quarterly', 1: 'annual' };
+// Trading days in one observation period: 1 for daily data, 21 for month-ends. Scales a VaR from
+// the data's own period to the horizon, which is always counted in days.
+export const periodDays = ppy => 252 / (ppy || 252);
+// Annualised figures need a year of history (GIPS: no annualising a shorter record). A little
+// slack, because twelve month-ends moved off a weekend span 362–365 days, not 365.25.
+export const MIN_ANNUALISE_DAYS = 360;
 
 function returnsOf(prices) {
   const out = new Array(prices.length).fill(NaN);
@@ -364,33 +395,56 @@ export function historicalPnl(v) {
   return {
     dates: h.dates, covered, uncovered, portfolioPnl: pnl,
     portfolioRet: pnl.map(x => v.nav ? x / v.nav : NaN),
-    coverage: riskyNav ? Math.min(1, coveredExp / riskyNav) : (covered.length ? 1 : 0), obs: n - 1
+    coverage: riskyNav ? Math.min(1, coveredExp / riskyNav) : (covered.length ? 1 : 0), obs: n - 1,
+    periodsPerYear: inferPeriodsPerYear(h.dates)
   };
 }
 
-export function perfStats(ret, { rf = 0, periodsPerYear = 252, bench = null } = {}) {
-  const r = ret.filter(isNum);
+// ret: one return per period. dates (optional, same length as ret, the date each return ends on)
+// give the frequency and the real calendar span; without them periodsPerYear (default daily) is
+// taken at face value. ret[0] is usually NaN (no return on the first date), so the span runs from
+// the date before the first return to the date of the last one.
+//   years       calendar span / 365.25 — never r.length / periodsPerYear, which only holds for
+//               complete daily data
+//   annualised  false under a year of history: CAGR, Sharpe, Sortino, Calmar, alpha and the
+//               information ratio are then null, and only the total return stands
+// Volatility, downside deviation and rf per period use the frequency; VaR, ES, best/worst and the
+// hit rate are per period (per day, per month…), freq says which.
+export function perfStats(ret, { rf = 0, periodsPerYear = null, bench = null, dates = null } = {}) {
+  const idx = ret.map((x, i) => (isNum(x) ? i : -1)).filter(i => i >= 0);
+  const r = idx.map(i => ret[i]);
   if (r.length < 5) return null;
+  const ppy = periodsPerYear || (dates ? inferPeriodsPerYear(dates) : 252);
   const nav = [1];
   r.forEach(x => nav.push(nav[nav.length - 1] * (1 + x)));
   const total = nav[nav.length - 1] - 1;
-  const years = r.length / periodsPerYear;
-  const cagr = Math.pow(1 + total, 1 / years) - 1;
-  const vol = stdev(r) * Math.sqrt(periodsPerYear);
-  const rfP = rf / periodsPerYear;
-  const downside = Math.sqrt(sum(r.map(x => Math.min(0, x - rfP) ** 2)) / r.length) * Math.sqrt(periodsPerYear);
-  let peak = 1, mdd = 0, ddSeries = [];
+  let spanDays = null;
+  if (dates && dates.length === ret.length) {
+    const from = Date.parse(dates[Math.max(0, idx[0] - 1)]), to = Date.parse(dates[idx[idx.length - 1]]);
+    if (Number.isFinite(from) && Number.isFinite(to) && to > from) spanDays = (to - from) / DAY_MS;
+  }
+  if (spanDays == null) spanDays = r.length / ppy * 365.25;
+  const years = spanDays / 365.25;
+  const annualised = spanDays >= MIN_ANNUALISE_DAYS;
+  const cagr = annualised ? Math.pow(1 + total, 1 / years) - 1 : null;
+  const vol = stdev(r) * Math.sqrt(ppy);
+  const rfP = rf / ppy;
+  const downside = Math.sqrt(sum(r.map(x => Math.min(0, x - rfP) ** 2)) / r.length) * Math.sqrt(ppy);
+  let peak = 1, mdd = 0;
+  const ddSeries = [];
   for (const x of nav) { peak = Math.max(peak, x); const dd = x / peak - 1; ddSeries.push(dd); mdd = Math.min(mdd, dd); }
   const m = mean(r), sd = stdev(r);
   const skew = sum(r.map(x => ((x - m) / sd) ** 3)) / r.length;
   const kurt = sum(r.map(x => ((x - m) / sd) ** 4)) / r.length - 3;
+  const ann = x => (annualised ? x : null);
   const out = {
-    total, cagr, vol, sharpe: vol ? (cagr - rf) / vol : NaN, sortino: downside ? (cagr - rf) / downside : NaN,
-    maxDD: mdd, calmar: mdd ? cagr / -mdd : NaN, skew, kurt,
+    total, cagr, vol, sharpe: ann(vol ? (cagr - rf) / vol : NaN), sortino: ann(downside ? (cagr - rf) / downside : NaN),
+    maxDD: mdd, calmar: ann(mdd ? cagr / -mdd : NaN), skew, kurt,
     best: Math.max(...r), worst: Math.min(...r), hitRate: r.filter(x => x > 0).length / r.length,
     var95: -quantile(r, 0.05), var99: -quantile(r, 0.01),
     es95: -mean(r.filter(x => x <= quantile(r, 0.05))), es99: -mean(r.filter(x => x <= quantile(r, 0.01))),
-    nav, drawdown: ddSeries, n: r.length
+    nav, drawdown: ddSeries, n: r.length,
+    periodsPerYear: ppy, freq: FREQ_NAME[ppy] || 'daily', years, spanDays, annualised
   };
   if (bench) {
     const pairs = ret.map((x, i) => [x, bench[i]]).filter(([a, b]) => isNum(a) && isNum(b));
@@ -398,13 +452,14 @@ export function perfStats(ret, { rf = 0, periodsPerYear = 252, bench = null } = 
       const a = pairs.map(q => q[0]), b = pairs.map(q => q[1]);
       const beta = covariance(a, b) / (stdev(b) ** 2);
       const active = a.map((x, i) => x - b[i]);
-      const te = stdev(active) * Math.sqrt(periodsPerYear);
-      const bStats = perfStats(b, { rf, periodsPerYear });
+      const te = stdev(active) * Math.sqrt(ppy);
+      // Same dates and frequency as the portfolio, so the two sides annualise (or not) alike.
+      const bStats = perfStats(bench.map((x, i) => (isNum(ret[i]) ? x : NaN)), { rf, periodsPerYear: ppy, dates });
       const up = pairs.filter(q => q[1] > 0), dn = pairs.filter(q => q[1] < 0);
       Object.assign(out, {
         beta, correlation: covariance(a, b) / (stdev(a) * stdev(b)),
-        alpha: (cagr - rf) - beta * ((bStats?.cagr ?? 0) - rf),
-        trackingError: te, infoRatio: te ? (cagr - (bStats?.cagr ?? 0)) / te : NaN,
+        alpha: ann((cagr - rf) - beta * ((bStats?.cagr ?? 0) - rf)),
+        trackingError: te, infoRatio: ann(te ? (cagr - (bStats?.cagr ?? 0)) / te : NaN),
         upCapture: up.length ? mean(up.map(q => q[0])) / mean(up.map(q => q[1])) : NaN,
         downCapture: dn.length ? mean(dn.map(q => q[0])) / mean(dn.map(q => q[1])) : NaN,
         bench: bStats
@@ -420,14 +475,16 @@ export function historicalRisk(v, hp = historicalPnl(v)) {
   const pnl = hp.portfolioPnl.filter(isNum);
   const a = 1 - risk.confidence;
   const q = quantile(pnl, a);
-  const scale = Math.sqrt(risk.horizonDays);
+  // The quantile is of one period's P&L (a day, or a month for month-end data); the horizon is in days.
+  const ppy = hp.periodsPerYear || 252;
+  const scale = Math.sqrt(risk.horizonDays / periodDays(ppy));
   const tail = pnl.filter(x => x <= q);
   const sd = stdev(pnl);
   const byPosition = hp.covered.map(c => {
     const cv = covariance(c.pnl.slice(1).map(x => num(x)), hp.portfolioPnl.slice(1).map(x => num(x)));
-    return { row: c.row, contrib: sd ? cv / sd * Math.sqrt(252) : 0 };
+    return { row: c.row, contrib: sd ? cv / sd * Math.sqrt(ppy) : 0 };
   }).sort((x, y) => y.contrib - x.contrib);
-  const sigA = sd * Math.sqrt(252);
+  const sigA = sd * Math.sqrt(ppy);
   byPosition.forEach(b => { b.pct = sigA ? b.contrib / sigA : 0; });
   const cls = {};
   for (const b of byPosition) { const k = b.row.r.assetClass, part = b.row.def.group === 'derivatives' ? 'derivatives' : 'securities'; const o = cls[k] || (cls[k] = { key: k, total: 0, securities: 0, derivatives: 0 }); o.total += b.contrib; o[part] += b.contrib; }
@@ -436,7 +493,7 @@ export function historicalRisk(v, hp = historicalPnl(v)) {
     method: 'historical', var: -q * scale, es: -mean(tail) * scale,
     varPct: v.nav ? -q * scale / v.nav : 0, esPct: v.nav ? -mean(tail) * scale / v.nav : 0,
     sigmaAnnual: sigA, volPct: v.nav ? sigA / v.nav : 0,
-    confidence: risk.confidence, horizonDays: risk.horizonDays, obs: pnl.length, coverage: hp.coverage, byPosition, byAssetClass
+    confidence: risk.confidence, horizonDays: risk.horizonDays, obs: pnl.length, coverage: hp.coverage, byPosition, byAssetClass, periodsPerYear: ppy
   };
 }
 
@@ -465,11 +522,18 @@ export function correlationMatrix(hp, maxN = 12) {
   return { labels: top.map(c => c.row.name), matrix: M };
 }
 
-export function rollingVol(ret, window = 63) {
+// Rolling volatility over a window of `months` calendar months: 63 observations of daily data,
+// 13 of weekly, 3 of month-ends. null when there are fewer than two windows of returns, which
+// would draw one or two points and call it a chart.
+export function rollingWindow(ppy = 252, months = 3) { return Math.max(3, Math.round(ppy * months / 12)); }
+export function rollingVol(ret, { periodsPerYear = 252, months = 3 } = {}) {
+  const ppy = periodsPerYear || 252;
+  const window = rollingWindow(ppy, months);
+  if (ret.filter(isNum).length < 2 * window) return null;
   const out = ret.map(() => NaN);
   for (let i = window; i < ret.length; i++) {
     const w = ret.slice(i - window + 1, i + 1).filter(isNum);
-    if (w.length > window * 0.8) out[i] = stdev(w) * Math.sqrt(252);
+    if (w.length > window * 0.8) out[i] = stdev(w) * Math.sqrt(ppy);
   }
   return out;
 }
@@ -668,7 +732,7 @@ export function fullAnalysis(p) {
   const stress = runStress(v);
   const conc = concentration(v);
   const bench = p.benchmark && p.history?.series?.[p.benchmark] ? returnsOf(p.history.series[p.benchmark]) : null;
-  const perf = risk.hp ? perfStats(risk.hp.portfolioRet, { rf: num(p.risk?.riskFree, 2) / 100, bench }) : null;
+  const perf = risk.hp ? perfStats(risk.hp.portfolioRet, { rf: num(p.risk?.riskFree, 2) / 100, bench, dates: risk.hp.dates, periodsPerYear: risk.hp.periodsPerYear }) : null;
   return { v, alloc, fi, fx, risk, liq, liqStressed, comp, stress, conc, perf, bench };
 }
 
