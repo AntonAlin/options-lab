@@ -106,7 +106,7 @@ A scheduled GitHub Action (`pages.yml`, every business day at 15:35 UTC, after t
 Sources: European Central Bank; Sveriges Riksbank.
 
 - **Archive.** Every successful download is also committed to the [`market-data` branch](https://github.com/AntonAlin/options-lab/tree/market-data) as `YYYY/YYYY-MM-DD.json`, named by the newest ECB date in the file. So the rates and curves the site served on any past day can be looked up and reproduced.
-- **Alerting.** A failed or invalid download opens an issue labelled `market-data` (or comments on the open one) and closes it again after the next good download.
+- **Alerting.** A failed or invalid download opens an issue labelled `market-data` (or comments on the open one) and closes it again after the next good download. Meanwhile the site keeps the newest file from the archive.
 - **Keep-alive.** GitHub disables scheduled workflows after 60 days without repository activity. Each scheduled run re-enables the scheduled workflows through the API to reset that clock. If the schedule has stopped anyway, re-enable it under Actions.
 
 ## Quality, releases and security
@@ -134,7 +134,7 @@ node scripts/market-data.mjs --check      # download and validate the ECB data
 bash scripts/build-release.sh v0 --no-download   # packaging dry run into dist/ (zips, SBOM, VALIDATION.md)
 ```
 
-The Pages workflow runs the tests, fetches the ECB data and deploys on push to `main` and every business day.
+The deploy workflow (`pages.yml`) runs the tests, fetches the ECB data and deploys to Cloudflare Pages on push to `main` and every business day. The hosted site is behind a Cloudflare Access login, and the workflow refuses to deploy if it is not; setup in [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md).
 
 > **Disclaimer:** Model estimates for information only, not investment advice. No liability is accepted for errors or for decisions based on this tool.
 
