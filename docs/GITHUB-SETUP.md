@@ -34,10 +34,9 @@ The status check names in `main.json` must match the job names in `ci.yml` and `
 - **Allow GitHub Actions to create and approve pull requests**: off.
 - **Require actions to be pinned to a full-length commit SHA**: on, if offered. Every workflow already complies, so this keeps it that way.
 
-## 5. Settings → Environments → cloudflare-pages
+## 5. Settings → Environments → github-pages
 
 - **Deployment branches and tags**: *Selected branches*, `main` only.
-- The Cloudflare secrets and variables the deploy needs, and the Cloudflare Access login, are described in [CLOUDFLARE.md](CLOUDFLARE.md).
 
 ## 6. Labels
 
@@ -45,7 +44,7 @@ Run the **Labels** workflow once (Actions → Labels → Run workflow). It also 
 
 ## 7. Check it worked
 
-- Actions: CI, CodeQL, Scorecard and Deploy to Cloudflare Pages are green on `main`.
+- Actions: CI, CodeQL, Scorecard and Deploy GitHub Pages are green on `main`.
 - After the first scheduled deploy, the `market-data` branch has a file for the newest ECB date.
 - The Scorecard badge in the README shows a score (the first run can take a day to appear).
 - Open a test pull request that changes `js/pricing.js`: it gets the `methodology-change` label, and CI fails if a golden figure moved.

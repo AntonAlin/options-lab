@@ -1,10 +1,4 @@
-name: Deploy to Cloudflare Pages
-
-# The site is served by Cloudflare Pages behind a Cloudflare Access login (docs/CLOUDFLARE.md).
-# Needs the repository secrets CLOUDFLARE_API_TOKEN (Account > Cloudflare Pages > Edit) and
-# CLOUDFLARE_ACCOUNT_ID, and optionally the variables CLOUDFLARE_PAGES_PROJECT (default options-lab)
-# and SITE_URL (a custom domain, e.g. https://nexus.example.com).
-# It never deploys a site that answers without a login: Access is checked before and after the deploy.
+name: Deploy GitHub Pages
 
 on:
   push:
@@ -22,19 +16,15 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
-env:
-  PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'options-lab' }}
-  SITE_URL: ${{ vars.SITE_URL }}
-  # Run through npx at a fixed version; there is no package.json dependency to pin it in.
-  WRANGLER: wrangler@4.151.3
-
 jobs:
   deploy:
     permissions:
       contents: read
+      pages: write
+      id-token: write
     environment:
-      name: cloudflare-pages
-      url: ${{ vars.SITE_URL || format('https://{0}.pages.dev', vars.CLOUDFLARE_PAGES_PROJECT || 'options-lab') }}
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     outputs:
       fresh: ${{ steps.market.outputs.fresh }}
@@ -49,37 +39,23 @@ jobs:
           node-version: 24
       - name: Run tests
         run: npm test
-      - name: Check the Cloudflare settings
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::Repository secret CLOUDFLARE_API_TOKEN is missing; see docs/CLOUDFLARE.md"; exit 1; }
-          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::Repository secret CLOUDFLARE_ACCOUNT_ID is missing; see docs/CLOUDFLARE.md"; exit 1; }
-          [[ "$PROJECT" =~ ^[a-z0-9][a-z0-9-]{0,57}$ ]] || { echo "::error::CLOUDFLARE_PAGES_PROJECT must be lower-case letters, digits and dashes: $PROJECT"; exit 1; }
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        with:
+          enablement: true
       - name: Fetch ECB and Riksbank market data
         id: market
-        # A failed or implausible download never replaces good data: keep the last good file, taken from
-        # the market-data archive branch (the published site is behind a login, so it cannot be read here).
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+        # A failed or implausible download never replaces good data: keep the file already published.
         run: |
           # The default shell runs with pipefail, so the pipe fails when the script does.
           if node scripts/market-data.mjs data/market.json 2>&1 | tee market.log; then
             echo "fresh=true" >> "$GITHUB_OUTPUT"
           else
             echo "fresh=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::ECB download failed or did not validate; keeping the last archived file"
+            echo "::warning::ECB download failed or did not validate; keeping the published file"
             mkdir -p data
-            LATEST=$(gh api "repos/$GH_REPO/git/trees/market-data?recursive=1" \
-              --jq '[.tree[].path | select(test("^[0-9]{4}/[0-9]{4}-[0-9]{2}-[0-9]{2}\\.json$"))] | sort | last // empty' || true)
-            if [ -n "$LATEST" ] && gh api -H "Accept: application/vnd.github.raw" "repos/$GH_REPO/contents/$LATEST?ref=market-data" > data/market.json; then
-              echo "Using archived market data $LATEST"
-            else
-              rm -f data/market.json
-              echo "::warning::No archived market data either"
-            fi
+            curl -fsSL "${{ steps.pages.outputs.base_url }}/data/market.json" -o data/market.json || echo "::warning::No previously published market data either"
           fi
       - name: Keep the market data for the archive and the alert
         if: always()
@@ -94,20 +70,13 @@ jobs:
       - name: Assemble the site
         # Only what the site serves: no node_modules, tests, build tooling or workflows.
         run: bash scripts/assemble-site.sh _site
-      - name: Require the Cloudflare Access login before deploying
-        # pages.dev is always checked: with a custom domain it would otherwise be a way around the login.
-        run: bash scripts/check-access.sh "https://$PROJECT.pages.dev" ${SITE_URL:+"$SITE_URL"}
-      - name: Deploy to Cloudflare Pages
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          # Create the project on the first run; an existing project makes this fail harmlessly.
-          npx --yes "$WRANGLER" pages project create "$PROJECT" --production-branch main >/dev/null 2>&1 || true
-          npx --yes "$WRANGLER" pages deploy _site --project-name "$PROJECT" --branch main \
-            --commit-hash "$GITHUB_SHA" --commit-dirty=true
-      - name: Check the login again after the deploy
-        run: bash scripts/check-access.sh "https://$PROJECT.pages.dev" ${SITE_URL:+"$SITE_URL"}
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: '_site'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
   # A failed download used to be a warning nobody read. Open an issue (or comment on the open one) when
   # it fails, close it when the data is fresh again.
